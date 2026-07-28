@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Instituto de Salud - Alcaldía de Barcelona</title>
+  <meta name="description" content="Red de salud del Municipio Simón Bolívar - Barcelona. Centros de salud públicos y aliados, citas digitales, emergencias 24/7 y triaje con IA. Salud gratuita para toda la comunidad." />
+  <meta name="keywords" content="salud Barcelona, centros de salud, citas médicas, municipio Simón Bolívar, red de salud, atención primaria, emergencias, Instituto de Salud Municipal" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://salud.barcelona.gob.ve" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Red de Salud Municipal - Alcaldía de Barcelona" />
+  <meta property="og:description" content="Red de salud del Municipio Simón Bolívar. Centros públicos y aliados, citas digitales y emergencias 24/7." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80" />
+  <meta property="og:locale" content="es_VE" />
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "MedicalBusiness",
+    "name": "Instituto de Salud del Municipio Simón Bolívar",
+    "description": "Red de centros de salud públicos y aliados en Barcelona, Venezuela. Atención médica gratuita y digna.",
+    "url": "https://salud.barcelona.gob.ve",
+    "image": "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Barcelona",
+      "addressRegion": "Anzoátegui",
+      "addressCountry": "VE"
+    },
+    "contactPoint": [
+      {
+        "@type": "ContactPoint",
+        "telephone": "+58-281-000-0000",
+        "contactType": "emergency",
+        "hoursAvailable": "24/7"
+      },
+      {
+        "@type": "ContactPoint",
+        "telephone": "+58-281-000-0001",
+        "contactType": "appointment"
+      }
+    ]
+  }
+  </script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <!-- Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,0&display=swap" rel="stylesheet" />
+  <!-- AOS - Animate On Scroll -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { DEFAULT: '#0f2537', light: '#1a3a52', dark: '#061525' },
+            secondary: { DEFAULT: '#00677d', light: '#008ba3', dark: '#004e5f' },
+            'secondary-container': '#50d9fe',
+            'on-secondary': '#ffffff',
+            'on-secondary-container': '#005c70',
+            tertiary: '#001209',
+            'tertiary-fixed': '#43ffbb',
+            'tertiary-fixed-dim': '#00e2a0',
+            surface: '#f8f9ff',
+            'surface-dim': '#cbdbf5',
+            'surface-container': '#e5eeff',
+            'surface-container-low': '#eff4ff',
+            'surface-container-high': '#dce9ff',
+            'surface-container-highest': '#d3e4fe',
+            'on-surface': '#0b1c30',
+            'on-surface-variant': '#43474c',
+            outline: '#74777d',
+            'outline-variant': '#c3c7cd',
+            error: '#ba1a1a',
+            'error-container': '#ffdad6',
+            success: '#059669',
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          borderRadius: {
+            '4xl': '2rem',
+            '5xl': '2.5rem',
+          },
+          animation: {
+            'float': 'float 6s ease-in-out infinite',
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'shimmer': 'shimmer 2s linear infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-20px)' },
+            },
+            shimmer: {
+              '0%': { backgroundPosition: '-200% 0' },
+              '100%': { backgroundPosition: '200% 0' },
+            },
+          },
+        },
+      },
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .hero-gradient {
+      background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(80, 217, 254, 0.15), transparent),
+                  radial-gradient(ellipse 60% 50% at 80% 40%, rgba(0, 229, 163, 0.08), transparent);
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .shimmer-bg {
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+      background-size: 200% 100%;
+    }
+    .stat-bar { transition: height 1s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .card-hover {
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .card-hover:hover {
+      transform: translateY(-8px) scale(1.01);
+      box-shadow: 0 30px 60px -15px rgba(15, 37, 55, 0.2);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #00677d, #008ba3);
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px -8px rgba(0, 103, 125, 0.4);
+    }
+    .btn-outline {
+      border: 2px solid #00677d;
+      color: #00677d;
+      background: transparent;
+      transition: all 0.3s ease;
+    }
+    .btn-outline:hover {
+      background: rgba(0, 103, 125, 0.06);
+      transform: translateY(-2px);
+    }
+    .tab-active {
+      color: #00677d;
+      border-bottom: 2px solid #00677d;
+    }
+
+    /* === ACCESIBILIDAD === */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 1rem;
+      z-index: 9999;
+      background: #00677d;
+      color: #fff;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.875rem;
+      transition: top 0.2s;
+    }
+    .skip-link:focus {
+      top: 1rem;
+    }
+    :focus-visible {
+      outline: 2px solid #00677d;
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+    .visually-hidden {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+
+    /* === MODAL === */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.open {
+      opacity: 1; pointer-events: auto;
+    }
+    .modal-content {
+      background: #fff; border-radius: 2rem; padding: 2rem; width: 90%; max-width: 520px;
+      max-height: 90vh; overflow-y: auto; transform: translateY(20px) scale(0.95);
+      transition: transform 0.3s ease;
+    }
+    .modal-overlay.open .modal-content {
+      transform: translateY(0) scale(1);
+    }
+
+    .overflow-hidden { -webkit-mask-image: -webkit-radial-gradient(white, black); }
+  </style>
+</head>
+
+<body class="bg-surface text-on-surface antialiased">
+
+<a href="#main-content" class="skip-link">Ir al contenido principal</a>
+
+<!-- ==================== NAVBAR ==================== -->
+<nav class="fixed top-0 left-0 right-0 z-50 glass h-20" aria-label="Navegación principal" data-aos="fade-down" data-aos-duration="600">
+  <div class="max-w-7xl mx-auto px-6 h-full flex justify-between items-center">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 bg-primary text-white rounded-xl flex items-center justify-center shadow-lg">
+        <span class="material-symbols-outlined fill text-2xl">health_and_safety</span>
+      </div>
+      <div>
+        <span class="text-xl font-bold text-primary leading-none">Instituto de Salud</span>
+        <span class="text-xs font-semibold text-secondary uppercase tracking-[0.15em] block">Municipio Simón Bolívar - Barcelona</span>
+      </div>
+    </div>
+    <div class="hidden lg:flex items-center gap-8">
+      <a href="#" class="text-sm font-semibold text-secondary border-b-2 border-secondary pb-1">Servicios</a>
+      <a href="#sedes" class="text-sm font-medium text-on-surface-variant hover:text-secondary transition-colors">Red de Centros</a>
+      <a href="#" class="text-sm font-medium text-on-surface-variant hover:text-secondary transition-colors">Impacto Social</a>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="hidden sm:flex items-center bg-surface-container-low p-1 rounded-full border border-outline-variant/30">
+        <a href="paciente.html" class="px-4 py-1.5 rounded-full text-xs font-semibold bg-primary text-white shadow-sm">Pacientes</a>
+        <a href="admin.html" class="px-4 py-1.5 rounded-full text-xs font-semibold text-on-surface-variant hover:bg-surface-dim/50 transition-all">Admin</a>
+      </div>
+      <div class="bg-error/10 text-error px-4 py-2 rounded-lg flex items-center gap-2 animate-pulse-slow">
+        <span class="material-symbols-outlined fill text-lg">emergency</span>
+        <span class="text-xs font-bold whitespace-nowrap">24/7 Emergencias</span>
+      </div>
+      <button class="p-2 hover:bg-secondary/10 rounded-full transition-all text-on-surface">
+        <span class="material-symbols-outlined">account_circle</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ==================== HERO ==================== -->
+<section id="main-content" class="relative pt-28 pb-16 md:pt-36 md:pb-24 overflow-hidden" aria-label="Hero principal">
+  <div class="hero-gradient absolute inset-0 pointer-events-none"></div>
+  <div class="absolute top-40 right-20 w-72 h-72 bg-secondary/5 rounded-full blur-3xl animate-float"></div>
+  <div class="absolute bottom-20 left-10 w-96 h-96 bg-tertiary-fixed-dim/5 rounded-full blur-3xl" style="animation: float 8s ease-in-out infinite reverse;"></div>
+
+  <div class="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
+    <div data-aos="fade-right" data-aos-duration="800">
+      <div class="flex gap-3 mb-6">
+        <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold bg-secondary/10 text-on-secondary-container border border-secondary/20">
+          <span class="w-2 h-2 bg-secondary rounded-full mr-2 animate-pulse"></span>
+          Citas Digitales
+        </span>
+        <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold bg-tertiary-fixed/20 text-tertiary border border-tertiary-fixed/30">
+          <span class="material-symbols-outlined fill text-sm mr-1" style="font-size:14px">neurology</span>
+          Triaje IA
+        </span>
+      </div>
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-primary/5 text-primary border border-primary/10 mb-5">
+        <span class="material-symbols-outlined fill text-sm">flag</span>
+        Visión de Salud Municipal
+      </div>
+      <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary leading-[1.1] tracking-tight mb-6">
+        Un solo sistema de salud para todo el municipio: públicos, aliados y cerca de ti
+      </h1>
+      <p class="text-lg text-on-surface-variant leading-relaxed max-w-xl mb-8">
+        El <strong class="text-primary">Instituto de Salud del Municipio Simón Bolívar</strong> articula una red de centros de salud públicos y aliados para garantizar atención médica gratuita, digna y oportuna a cada familia barcelonesa. Nuestra visión: que ningún ciudadano quede sin acceso a la salud.
+      </p>
+      <div class="flex flex-wrap gap-4">
+        <button class="btn-primary text-white px-8 py-4 rounded-2xl font-semibold text-sm shadow-2xl active:scale-95">
+          <span class="flex items-center gap-2">
+            Solicitar Cita Ahora
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </span>
+        </button>
+        <button class="btn-outline px-8 py-4 rounded-2xl font-semibold text-sm active:scale-95">
+          Conoce Nuestra Red
+        </button>
+      </div>
+      <div class="flex items-center gap-4 mt-8 pt-8 border-t border-outline-variant/30">
+        <div class="flex -space-x-2">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-secondary to-secondary-container border-2 border-white"></div>
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary-container border-2 border-white"></div>
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-tertiary-fixed-dim to-tertiary-fixed border-2 border-white"></div>
+        </div>
+        <p class="text-sm text-on-surface-variant">+<span class="font-bold text-primary">12,000</span> ciudadanos atendidos este mes en toda la red</p>
+      </div>
+    </div>
+
+    <div data-aos="fade-left" data-aos-duration="800" data-aos-delay="200" class="relative">
+      <div class="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+        <img
+          src="https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&q=80"
+          alt="Fachada moderna de un centro de salud aliado a la red municipal con arquitectura contemporánea"
+          class="aspect-[16/9] w-full object-cover"
+          loading="lazy"
+        />
+        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-5">
+          <p class="text-white text-sm font-semibold flex items-center gap-2">
+            <span class="material-symbols-outlined text-lg">location_on</span>
+            Red de Centros de Salud Aliados - Barcelona
+          </p>
+        </div>
+      </div>
+      <div class="absolute -bottom-6 -left-6 bg-white p-5 rounded-2xl shadow-xl border border-outline-variant/10 hidden md:block" data-aos="fade-up" data-aos-delay="500">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center text-secondary">
+            <span class="material-symbols-outlined fill">verified</span>
+          </div>
+          <div>
+            <p class="text-xs text-on-surface-variant">Red de Salud Municipal</p>
+            <p class="text-xl font-bold text-primary">12 Centros</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== METRICS ==================== -->
+<section class="py-16 md:py-24 bg-surface-container-lowest">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="mb-10" data-aos="fade-up">
+      <h2 class="text-3xl md:text-4xl font-bold text-primary">Impacto en Tiempo Real</h2>
+      <p class="text-base text-on-surface-variant mt-2">Transparencia y eficiencia en nuestra gestión diaria.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <!-- Stat 1 -->
+      <div class="md:col-span-2 bg-primary text-white p-8 rounded-3xl flex flex-col justify-between shadow-2xl h-[260px]" data-aos="fade-up" data-aos-delay="100">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-sm font-medium opacity-70">Emergencias Atendidas (Hoy)</p>
+            <p class="text-5xl font-extrabold mt-2 tabular-nums counter-value" data-target="142">0</p>
+          </div>
+          <span class="material-symbols-outlined fill text-3xl text-secondary-container">medical_information</span>
+        </div>
+        <div class="flex items-end gap-1.5 h-16">
+          <div class="w-full bg-secondary-container/20 h-4 rounded-t-sm stat-bar" style="height: 0;"></div>
+          <div class="w-full bg-secondary-container/30 h-8 rounded-t-sm stat-bar" style="height: 0;"></div>
+          <div class="w-full bg-secondary-container/40 h-12 rounded-t-sm stat-bar" style="height: 0;"></div>
+          <div class="w-full bg-secondary-container/60 h-6 rounded-t-sm stat-bar" style="height: 0;"></div>
+          <div class="w-full bg-secondary-container/80 h-14 rounded-t-sm stat-bar" style="height: 0;"></div>
+          <div class="w-full bg-secondary-container h-16 rounded-t-sm stat-bar" style="height: 0;"></div>
+        </div>
+      </div>
+      <!-- Stat 2 -->
+      <div class="bg-white border border-outline-variant/20 p-8 rounded-3xl shadow-xl flex flex-col justify-between" data-aos="fade-up" data-aos-delay="200">
+        <p class="text-sm font-medium text-on-surface-variant">Satisfacción</p>
+        <div class="flex items-baseline gap-2">
+          <span class="text-4xl font-bold text-primary counter-value" data-target="98">0</span>
+          <span class="text-lg font-medium text-on-surface-variant">%</span>
+          <span class="material-symbols-outlined text-tertiary-fixed-dim">trending_up</span>
+        </div>
+        <div class="flex gap-1">
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+        </div>
+      </div>
+      <!-- Stat 3 -->
+      <div class="bg-secondary/5 p-8 rounded-3xl shadow-lg border border-secondary/20 flex flex-col justify-between" data-aos="fade-up" data-aos-delay="300">
+        <p class="text-sm font-semibold text-secondary">Tiempo de Espera</p>
+        <p class="text-4xl font-bold text-primary">12 <span class="text-2xl font-medium">min</span></p>
+        <div class="bg-white/60 px-4 py-1.5 rounded-full text-xs font-semibold w-fit text-secondary">Promedio Triaje</div>
+      </div>
+      <!-- Stat 4 -->
+      <div class="md:col-span-2 bg-white border border-outline-variant/20 p-8 rounded-3xl shadow-xl flex items-center gap-8" data-aos="fade-up" data-aos-delay="400">
+        <div class="flex-1">
+          <p class="text-sm font-medium text-on-surface-variant mb-2">Consultas Realizadas</p>
+          <p class="text-4xl font-bold text-primary counter-value" data-target="2450">0+</p>
+          <p class="text-xs font-semibold text-tertiary mt-2 bg-tertiary-fixed/20 px-4 py-1.5 rounded-full w-fit flex items-center gap-1">
+            <span class="material-symbols-outlined fill text-sm">trending_up</span> +12% este mes
+          </p>
+        </div>
+        <div class="w-32 h-32 rounded-full border-[6px] border-secondary/20 border-t-secondary flex items-center justify-center shrink-0">
+          <span class="text-sm font-bold text-primary">Capacity</span>
+        </div>
+      </div>
+      <!-- Stat 5 -->
+      <div class="md:col-span-2 bg-surface-container-high border border-outline-variant/20 p-8 rounded-3xl shadow-xl flex justify-between items-center group cursor-pointer hover:bg-secondary/5 transition-all duration-300" data-aos="fade-up" data-aos-delay="500">
+        <div>
+          <h3 class="text-2xl font-bold text-primary mb-1">Únete a la Red Médica</h3>
+          <p class="text-base text-on-surface-variant">Portal exclusivo para especialistas.</p>
+        </div>
+        <div class="bg-primary text-white p-4 rounded-full group-hover:translate-x-2 transition-transform duration-300">
+          <span class="material-symbols-outlined">arrow_forward</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SPECIALTIES ==================== -->
+<section class="py-16 md:py-24">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-14" data-aos="fade-up">
+      <span class="inline-block px-4 py-1.5 rounded-full text-xs font-semibold bg-secondary/10 text-secondary mb-4 border border-secondary/20">Especialidades</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-primary">Especialidades Médicas</h2>
+      <p class="text-lg text-on-surface-variant mt-3 max-w-2xl mx-auto">Contamos con equipos especializados y tecnología de última generación.</p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+      <!-- Specialty cards -->
+      <div class="group bg-white p-8 rounded-3xl border border-outline-variant/20 shadow-lg card-hover cursor-pointer" data-aos="fade-up" data-aos-delay="100">
+        <div class="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-secondary group-hover:text-white transition-all duration-300 text-secondary">
+          <span class="material-symbols-outlined text-3xl">child_care</span>
+        </div>
+        <h4 class="text-xl font-bold text-primary mb-2">Pediatría</h4>
+        <p class="text-sm text-on-surface-variant leading-relaxed">Cuidado integral para los más pequeños.</p>
+      </div>
+      <div class="group bg-white p-8 rounded-3xl border border-outline-variant/20 shadow-lg card-hover cursor-pointer" data-aos="fade-up" data-aos-delay="180">
+        <div class="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-secondary group-hover:text-white transition-all duration-300 text-secondary">
+          <span class="material-symbols-outlined text-3xl">dentistry</span>
+        </div>
+        <h4 class="text-xl font-bold text-primary mb-2">Odontología</h4>
+        <p class="text-sm text-on-surface-variant leading-relaxed">Salud bucodental avanzada y estética.</p>
+      </div>
+      <div class="group bg-white p-8 rounded-3xl border border-outline-variant/20 shadow-lg card-hover cursor-pointer" data-aos="fade-up" data-aos-delay="260">
+        <div class="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-secondary group-hover:text-white transition-all duration-300 text-secondary">
+          <span class="material-symbols-outlined text-3xl">female</span>
+        </div>
+        <h4 class="text-xl font-bold text-primary mb-2">Ginecología</h4>
+        <p class="text-sm text-on-surface-variant leading-relaxed">Atención ginecológica y obstetricia.</p>
+      </div>
+      <div class="group bg-white p-8 rounded-3xl border border-outline-variant/20 shadow-lg card-hover cursor-pointer" data-aos="fade-up" data-aos-delay="340">
+        <div class="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-secondary group-hover:text-white transition-all duration-300 text-secondary">
+          <span class="material-symbols-outlined text-3xl">stethoscope</span>
+        </div>
+        <h4 class="text-xl font-bold text-primary mb-2">General</h4>
+        <p class="text-sm text-on-surface-variant leading-relaxed">Medicina de familia y prevención.</p>
+      </div>
+      <div class="group bg-white p-8 rounded-3xl border border-outline-variant/20 shadow-lg card-hover cursor-pointer" data-aos="fade-up" data-aos-delay="420">
+        <div class="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-secondary group-hover:text-white transition-all duration-300 text-secondary">
+          <span class="material-symbols-outlined text-3xl">cardiology</span>
+        </div>
+        <h4 class="text-xl font-bold text-primary mb-2">Cardiología</h4>
+        <p class="text-sm text-on-surface-variant leading-relaxed">Diagnóstico y tratamiento cardiovascular.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SEDES / RED DE CENTROS ==================== -->
+<section id="sedes" class="py-16 md:py-24 bg-surface-container-lowest">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-14" data-aos="fade-up">
+      <span class="inline-block px-4 py-1.5 rounded-full text-xs font-semibold bg-secondary/10 text-secondary mb-4 border border-secondary/20">Red Asistencial</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-primary">Centros de Salud Aliados</h2>
+      <p class="text-lg text-on-surface-variant mt-3 max-w-3xl mx-auto">
+        El Instituto articula una red de centros públicos y conveniados en las parroquias del municipio Simón Bolívar. Todos operan bajo un mismo sistema de historial clínico, referencia de especialistas y farmacia municipal.
+      </p>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-14" data-aos="fade-up">
+      <div class="bg-white rounded-2xl p-5 text-center shadow-lg border border-outline-variant/10">
+        <p class="text-3xl font-extrabold text-primary counter-value" data-target="12">0</p>
+        <p class="text-xs text-on-surface-variant font-medium mt-1">Centros Activos</p>
+      </div>
+      <div class="bg-white rounded-2xl p-5 text-center shadow-lg border border-outline-variant/10">
+        <p class="text-3xl font-extrabold text-primary counter-value" data-target="7">0</p>
+        <p class="text-xs text-on-surface-variant font-medium mt-1">Parroquias Cubiertas</p>
+      </div>
+      <div class="bg-white rounded-2xl p-5 text-center shadow-lg border border-outline-variant/10">
+        <p class="text-3xl font-extrabold text-primary counter-value" data-target="48">0</p>
+        <p class="text-xs text-on-surface-variant font-medium mt-1">Especialistas</p>
+      </div>
+      <div class="bg-white rounded-2xl p-5 text-center shadow-lg border border-outline-variant/10">
+        <p class="text-3xl font-extrabold text-primary counter-value" data-target="98">0</p>
+        <p class="text-xs text-on-surface-variant font-medium mt-1">Cobertura (%)</p>
+      </div>
+    </div>
+
+    <!-- Health centers grid (cargado asíncronamente) -->
+    <div id="centros-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6" data-aos="fade-up">
+      <div class="col-span-full flex justify-center py-12">
+        <div class="flex items-center gap-3 text-on-surface-variant">
+          <span class="material-symbols-outlined animate-spin text-secondary">sync</span>
+          <span class="text-sm font-medium">Cargando centros de salud aliados...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== APPOINTMENT ==================== -->
+<section class="py-16 md:py-24 bg-primary relative overflow-hidden">
+  <div class="absolute inset-0 opacity-5">
+    <div class="absolute top-10 left-10 w-64 h-64 bg-secondary rounded-full blur-3xl"></div>
+    <div class="absolute bottom-10 right-10 w-96 h-96 bg-tertiary-fixed-dim rounded-full blur-3xl"></div>
+  </div>
+  <div class="max-w-4xl mx-auto px-6 relative z-10">
+    <div class="bg-white rounded-3xl md:rounded-4xl p-6 md:p-12 shadow-2xl" data-aos="zoom-in" data-aos-duration="600">
+      <div class="text-center mb-10">
+        <span class="inline-block px-4 py-1.5 rounded-full text-xs font-semibold bg-secondary/10 text-secondary mb-4 border border-secondary/20">Formulario Rápido</span>
+        <h2 class="text-3xl md:text-4xl font-bold text-primary">Agende su Cita Digital</h2>
+        <p class="text-base text-on-surface-variant mt-2">Complete el formulario en menos de 2 minutos.</p>
+      </div>
+
+      <!-- Stepper -->
+      <div class="flex items-center justify-center mb-10 gap-4">
+        <div class="flex flex-col items-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-secondary text-white flex items-center justify-center font-bold text-sm transition-all duration-500" id="step-1">1</div>
+          <span class="text-xs font-semibold text-secondary">Identificación</span>
+        </div>
+        <div class="h-0.5 w-16 bg-outline-variant/50"></div>
+        <div class="flex flex-col items-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center font-bold text-sm transition-all duration-500" id="step-2">2</div>
+          <span class="text-xs font-medium text-on-surface-variant/60">Selección</span>
+        </div>
+        <div class="h-0.5 w-16 bg-outline-variant/50"></div>
+        <div class="flex flex-col items-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center font-bold text-sm transition-all duration-500" id="step-3">3</div>
+          <span class="text-xs font-medium text-on-surface-variant/60">Confirmación</span>
+        </div>
+      </div>
+
+      <!-- Form -->
+      <form class="max-w-xl mx-auto" id="appointmentForm">
+        <div id="stepContent" class="space-y-5 transition-all duration-500">
+          <div class="grid md:grid-cols-2 gap-5">
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-on-surface-variant">Cédula de Identidad</label>
+              <input type="text" placeholder="V-00.000.000"
+                class="bg-surface-container-low border-0 border-b-2 border-outline focus:border-secondary transition-all px-4 py-3 rounded-t-lg text-sm focus:ring-0 focus:outline-none" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-on-surface-variant">Nombre Completo</label>
+              <input type="text" placeholder="Ej: Juan Pérez"
+                class="bg-surface-container-low border-0 border-b-2 border-outline focus:border-secondary transition-all px-4 py-3 rounded-t-lg text-sm focus:ring-0 focus:outline-none" />
+            </div>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium text-on-surface-variant">Correo Electrónico</label>
+            <input type="email" placeholder="ejemplo@correo.com"
+              class="bg-surface-container-low border-0 border-b-2 border-outline focus:border-secondary transition-all px-4 py-3 rounded-t-lg text-sm focus:ring-0 focus:outline-none" />
+          </div>
+        </div>
+        <div class="flex justify-between items-center mt-8 pt-6 border-t border-outline-variant/20">
+          <button type="button" class="text-secondary font-semibold text-sm px-6 py-3 rounded-xl hover:bg-secondary/5 transition-all">Cancelar</button>
+          <button type="button" onclick="nextStep()" class="btn-primary text-white px-8 py-3 rounded-xl font-semibold text-sm shadow-lg active:scale-95 flex items-center gap-2">
+            Siguiente Paso
+            <span class="material-symbols-outlined">arrow_forward</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== TESTIMONIALS ==================== -->
+<section class="py-16 md:py-24 bg-surface-container-lowest">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-14" data-aos="fade-up">
+      <span class="inline-block px-4 py-1.5 rounded-full text-xs font-semibold bg-secondary/10 text-secondary mb-4 border border-secondary/20">Testimonios</span>
+      <h2 class="text-3xl md:text-4xl font-bold text-primary">Lo que dicen nuestros pacientes</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="bg-white p-8 rounded-3xl shadow-xl border border-outline-variant/20" data-aos="fade-up" data-aos-delay="100">
+        <div class="flex gap-1 mb-4">
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+        </div>
+        <p class="text-sm text-on-surface-variant leading-relaxed mb-6">"Excelente atención en el Hospital Municipal. El proceso de cita digital es muy rápido y el personal es increíblemente profesional. La red de salud del municipio es un acierto."</p>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-secondary to-secondary-container"></div>
+          <div>
+            <p class="text-sm font-bold text-primary">María García</p>
+            <p class="text-xs text-on-surface-variant">Paciente • Hospital Municipal</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white p-8 rounded-3xl shadow-xl border border-outline-variant/20" data-aos="fade-up" data-aos-delay="200">
+        <div class="flex gap-1 mb-4">
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+        </div>
+        <p class="text-sm text-on-surface-variant leading-relaxed mb-6">"Gracias a la red municipal pude atenderme en el CDI de mi parroquia sin tener que viajar al centro. La salud pública funciona cuando está organizada."</p>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary-container"></div>
+          <div>
+            <p class="text-sm font-bold text-primary">Carlos Mendoza</p>
+            <p class="text-xs text-on-surface-variant">Paciente • CDI El Carmen</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white p-8 rounded-3xl shadow-xl border border-outline-variant/20" data-aos="fade-up" data-aos-delay="300">
+        <div class="flex gap-1 mb-4">
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star</span>
+          <span class="material-symbols-outlined fill text-secondary">star_half</span>
+        </div>
+        <p class="text-sm text-on-surface-variant leading-relaxed mb-6">"Pude agendar mi cita por internet y me atendieron en el ambulatorio de mi comunidad. El sistema de referencia a especialistas funciona muy bien."</p>
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-tertiary-fixed-dim to-tertiary-fixed"></div>
+          <div>
+            <p class="text-sm font-bold text-primary">Ana Rodríguez</p>
+            <p class="text-xs text-on-surface-variant">Paciente • Ambulatorio Bergantín</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== MODAL DE CITAS ==================== -->
+<div class="modal-overlay" id="citaModal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+  <div class="modal-content">
+    <div class="flex items-center justify-between mb-6">
+      <h3 id="modal-titulo" class="text-2xl font-bold text-primary">Agendar Cita</h3>
+      <button onclick="cerrarModal()" class="p-2 hover:bg-surface-container-low rounded-full transition-colors" aria-label="Cerrar modal">
+        <span class="material-symbols-outlined text-on-surface-variant">close</span>
+      </button>
+    </div>
+    <p class="text-sm text-on-surface-variant mb-6" id="modal-sede-info"></p>
+    <form id="modalForm" novalidate>
+      <div class="space-y-4">
+        <div>
+          <label for="modal-nombre" class="text-sm font-medium text-on-surface-variant">Nombre Completo</label>
+          <input type="text" id="modal-nombre" required
+            class="w-full bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all"
+            placeholder="Ej: Juan Pérez" />
+          <span class="text-xs text-error hidden mt-1" id="error-nombre">Este campo es obligatorio</span>
+        </div>
+        <div>
+          <label for="modal-cedula" class="text-sm font-medium text-on-surface-variant">Cédula de Identidad</label>
+          <input type="text" id="modal-cedula" required
+            class="w-full bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all"
+            placeholder="V-00.000.000" />
+          <span class="text-xs text-error hidden mt-1" id="error-cedula">Este campo es obligatorio</span>
+        </div>
+        <div>
+          <label for="modal-email" class="text-sm font-medium text-on-surface-variant">Correo Electrónico</label>
+          <input type="email" id="modal-email" required
+            class="w-full bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all"
+            placeholder="ejemplo@correo.com" />
+          <span class="text-xs text-error hidden mt-1" id="error-email">Ingrese un correo válido</span>
+        </div>
+        <div>
+          <label for="modal-fecha" class="text-sm font-medium text-on-surface-variant">Fecha Preferida</label>
+          <input type="date" id="modal-fecha" required
+            class="w-full bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all" />
+          <span class="text-xs text-error hidden mt-1" id="error-fecha">Seleccione una fecha</span>
+        </div>
+        <div>
+          <label for="modal-especialidad" class="text-sm font-medium text-on-surface-variant">Especialidad</label>
+          <select id="modal-especialidad" required
+            class="w-full bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all">
+            <option value="">Seleccione una especialidad</option>
+            <option value="medicina-general">Medicina General</option>
+            <option value="pediatria">Pediatría</option>
+            <option value="ginecologia">Ginecología</option>
+            <option value="cardiologia">Cardiología</option>
+            <option value="odontologia">Odontología</option>
+            <option value="psicologia">Psicología</option>
+          </select>
+          <span class="text-xs text-error hidden mt-1" id="error-especialidad">Seleccione una especialidad</span>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-8 pt-6 border-t border-outline-variant/20">
+        <button type="button" onclick="cerrarModal()" class="flex-1 border-2 border-outline-variant text-on-surface-variant font-semibold text-sm rounded-xl py-3 hover:bg-surface-container-low transition-all">Cancelar</button>
+        <button type="submit" class="flex-1 btn-primary text-white font-semibold text-sm rounded-xl py-3 shadow-lg active:scale-95 transition-all">Confirmar Cita</button>
+      </div>
+    </form>
+    <div id="modal-exito" class="hidden text-center py-8">
+      <div class="w-20 h-20 bg-secondary/10 text-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+        <span class="material-symbols-outlined fill text-5xl">check_circle</span>
+      </div>
+      <h4 class="text-xl font-bold text-primary mb-2">¡Cita Agendada!</h4>
+      <p class="text-sm text-on-surface-variant">Recibirás un correo de confirmación con los detalles de tu cita.</p>
+      <button onclick="cerrarModal()" class="mt-6 btn-primary text-white px-8 py-3 rounded-xl font-semibold text-sm shadow-lg">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== FOOTER ==================== -->
+<footer class="bg-[#0a1e2e] border-t border-secondary/30" role="contentinfo">
+  <div class="max-w-7xl mx-auto px-6 py-12">
+    <div class="grid md:grid-cols-3 gap-8 mb-8">
+      <div>
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 bg-secondary text-white rounded-xl flex items-center justify-center shadow-lg">
+            <span class="material-symbols-outlined fill">health_and_safety</span>
+          </div>
+          <span class="text-lg font-bold text-white">Instituto de Salud Municipal</span>
+        </div>
+        <p class="text-sm text-secondary-container/80 leading-relaxed">Red de centros de salud públicos y aliados del Municipio Simón Bolívar. Salud gratuita, digna y oportuna para toda la comunidad barcelonesa.</p>
+      </div>
+      <div>
+        <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Enlaces</h4>
+        <ul class="space-y-3">
+          <li><a href="#" class="text-sm text-secondary-container/70 hover:text-white transition-colors">Portal de Transparencia</a></li>
+          <li><a href="#" class="text-sm text-secondary-container/70 hover:text-white transition-colors">Aviso de Privacidad</a></li>
+          <li><a href="#" class="text-sm text-secondary-container/70 hover:text-white transition-colors">Accesibilidad</a></li>
+          <li><a href="#" class="text-sm text-secondary-container/70 hover:text-white transition-colors">Contacto</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4">Contacto</h4>
+        <ul class="space-y-3">
+          <li class="flex items-center gap-2 text-sm text-secondary-container/80">
+            <span class="material-symbols-outlined text-sm text-secondary">call</span>
+            +58 281 000 0000
+          </li>
+          <li class="flex items-center gap-2 text-sm text-secondary-container/80">
+            <span class="material-symbols-outlined text-sm text-secondary">mail</span>
+            salud@barcelona.gob.ve
+          </li>
+          <li class="flex items-center gap-2 text-sm text-secondary-container/80">
+            <span class="material-symbols-outlined text-sm text-secondary">location_on</span>
+            Barcelona, Estado Anzoátegui
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="pt-6 border-t border-secondary/20 text-center">
+      <p class="text-xs text-secondary-container/60">&copy; 2024 Instituto de Salud del Municipio Simón Bolívar - Alcaldía de Barcelona. Todos los derechos reservados.</p>
+    </div>
+  </div>
+</footer>
+
+<!-- ==================== CHATBOT ==================== -->
+<div class="fixed bottom-6 right-6 z-50">
+  <button onclick="toggleChat()" class="w-16 h-16 btn-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group">
+    <span class="material-symbols-outlined text-3xl group-hover:rotate-12 transition-transform">smart_toy</span>
+  </button>
+  <div id="chatWindow" class="hidden absolute bottom-20 right-0 w-[360px] bg-white rounded-3xl shadow-3xl border border-outline-variant/20 overflow-hidden flex flex-col" style="box-shadow: 0 32px 64px -16px rgba(0,0,0,0.25);">
+    <div class="bg-primary px-6 py-5 flex items-center gap-4">
+      <div class="w-10 h-10 bg-secondary rounded-full flex items-center justify-center text-white">
+        <span class="material-symbols-outlined fill">support_agent</span>
+      </div>
+      <div>
+        <p class="text-sm font-bold text-white">Apolonio Asistente Virtual IA</p>
+        <p class="text-[10px] text-secondary-container flex items-center gap-1">
+          <span class="w-2 h-2 bg-tertiary-fixed rounded-full animate-pulse"></span> En línea · Respuestas al instante
+        </p>
+      </div>
+      <button onclick="toggleChat()" class="ml-auto text-white/50 hover:text-white transition-colors">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="h-80 p-4 overflow-y-auto scrollbar-hide bg-surface-container-low space-y-4" id="chatMessages">
+      <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm max-w-[85%] animate-fade-in">
+        <p class="text-sm text-primary">¡Hola! Soy Apolonio tu asistente del Instituto de Salud Municipal. ¿En qué puedo ayudarte hoy?</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button class="bg-secondary/10 text-secondary border border-secondary/20 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-secondary hover:text-white transition-all" onclick="addChatMessage('¿Cómo pido cita en la red municipal?')">¿Cómo pido cita?</button>
+        <button class="bg-secondary/10 text-secondary border border-secondary/20 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-secondary hover:text-white transition-all" onclick="addChatMessage('Centros de salud aliados y horarios')">Centros y Horarios</button>
+        <button class="bg-secondary/10 text-secondary border border-secondary/20 px-3 py-1.5 rounded-full text-xs font-semibold hover:bg-secondary hover:text-white transition-all" onclick="addChatMessage('Emergencias 24 horas')">Emergencias</button>
+      </div>
+    </div>
+    <div class="p-4 border-t border-outline-variant/20 flex gap-3">
+      <input type="text" id="chatInput" placeholder="Escribe tu consulta..." class="flex-1 bg-surface-container-low border-0 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-secondary/50 focus:outline-none" onkeypress="if(event.key==='Enter')sendChat()" />
+      <button onclick="sendChat()" class="bg-secondary text-white p-3 rounded-xl hover:bg-secondary/90 transition-all">
+        <span class="material-symbols-outlined">send</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+<script>
+  AOS.init({
+    once: true,
+    duration: 600,
+    easing: 'ease-out-cubic',
+  });
+
+  // Counter animation
+  function animateCounters() {
+    document.querySelectorAll('.counter-value').forEach(el => {
+      const target = parseInt(el.dataset.target);
+      if (!target) return;
+      const suffix = el.textContent.includes('+') ? '+' : '';
+      let current = 0;
+      const increment = Math.ceil(target / 60);
+      const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+          current = target;
+          clearInterval(timer);
+        }
+        el.textContent = current.toLocaleString() + suffix;
+      }, 25);
+    });
+  }
+
+  // Stat bars animation
+  function animateStatBars() {
+    document.querySelectorAll('.stat-bar').forEach(bar => {
+      const target = bar.dataset.target || bar.style.height;
+      const height = parseInt(target) || Math.floor(Math.random() * 80) + 10;
+      setTimeout(() => {
+        bar.style.height = height + '%';
+      }, 200);
+    });
+  }
+
+  // Chat
+  function toggleChat() {
+    document.getElementById('chatWindow').classList.toggle('hidden');
+  }
+
+  function addChatMessage(text) {
+    const msgs = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'bg-secondary text-white p-4 rounded-2xl rounded-tr-none shadow-sm max-w-[85%] self-end ml-auto animate-fade-in';
+    div.innerHTML = `<p class="text-sm">${text}</p>`;
+    msgs.appendChild(div);
+
+    const responses = {
+      '¿Cómo pido cita en la red municipal?': 'Para solicitar una cita en nuestra red municipal solo debes hacer clic en el botón <strong>"Pedir Cita"</strong> del centro de salud de tu preferencia. Se abrirá un formulario donde ingresas tus datos personales, seleccionas la especialidad y la fecha. Recibirás la confirmación en tu correo electrónico en menos de 24 horas. Si tienes alguna dificultad, también puedes llamarnos al +58 281 000 0001.',
+      'Centros de salud aliados y horarios': 'Actualmente contamos con <strong>6 centros de salud aliados</strong> distribuidos en las parroquias del municipio Simón Bolívar: CDI El Carmen (Lun-Sáb 7AM-8PM), Hospital Municipal Dr. José Rangel (24h), Ambulatorio Rural Bergantín (Lun-Vie 7AM-4PM), Centro de Salud Caigua (Lun-Dom 6AM-6PM), Ambulatorio El Pilar (Lun-Vie 8AM-5PM) y el próximo Centro Diagnóstico Naricual. Todos comparten el mismo historial clínico y sistema de referencia.',
+      'Emergencias 24 horas': 'Si estás enfrentando una emergencia médica, dirígete de inmediato al <strong>Hospital Municipal Dr. José Rangel</strong> (Calle Bolívar, San Cristóbal, Barcelona) — abierto 24 horas todos los días. Mientras recibes atención, mantén la calma, identifica síntomas como dolor en el pecho, dificultad para respirar, sangrado o pérdida de conciencia. Nuestro equipo de triaje evaluará tu caso al llegar. Para emergencias graves, llama al <strong>+58 281 000 0000</strong>. ¡No esperes, cada minuto cuenta!',
+    };
+
+    setTimeout(() => {
+      const reply = document.createElement('div');
+      reply.className = 'bg-white p-4 rounded-2xl rounded-tl-none shadow-sm max-w-[85%]';
+      const replyText = responses[text] || 'Gracias por tu consulta. Un agente del Instituto de Salud Municipal te contactará a la brevedad para brindarte la información que necesitas.';
+      reply.innerHTML = `<p class="text-sm text-primary leading-relaxed">${replyText}</p>`;
+      msgs.appendChild(reply);
+      msgs.scrollTop = msgs.scrollHeight;
+    }, 800);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function sendChat() {
+    const input = document.getElementById('chatInput');
+    if (!input.value.trim()) return;
+    addChatMessage(input.value.trim());
+    input.value = '';
+  }
+
+  // ==================== DATOS DE CENTROS DE SALUD ====================
+  const centrosSalud = [
+    {
+      id: 1, nombre: 'CDI El Carmen', tipo: 'Principal', parroquia: 'Parroquia El Carmen',
+      direccion: 'Av. Principal de El Carmen, Barcelona 6001',
+      horario: 'Lun - Sáb 7:00 AM - 8:00 PM',
+      color: 'from-secondary to-secondary-container', textColor: 'secondary',
+      servicios: ['Medicina General', 'Pediatría', 'Emergencia'],
+      bgTag: 'bg-secondary/10', tagText: 'text-secondary'
+    },
+    {
+      id: 2, nombre: 'Hospital Municipal Dr. José Rangel', tipo: 'Aliado', parroquia: 'Parroquia San Cristóbal',
+      direccion: 'Calle Bolívar, San Cristóbal, Barcelona',
+      horario: '24 horas · Todos los días',
+      color: 'from-primary to-primary-container', textColor: 'primary',
+      servicios: ['Emergencia 24h', 'Cirugía', 'Cardiología', 'Maternidad'],
+      bgTag: 'bg-primary/10', tagText: 'text-primary'
+    },
+    {
+      id: 3, nombre: 'Ambulatorio Rural Bergantín', tipo: 'Aliado', parroquia: 'Parroquia Bergantín',
+      direccion: 'Carretera Nacional vía Bergantín',
+      horario: 'Lun - Vie 7:00 AM - 4:00 PM',
+      color: 'from-tertiary-fixed-dim to-tertiary-fixed', textColor: 'primary',
+      servicios: ['Medicina General', 'Odontología', 'Vacunación'],
+      bgTag: 'bg-tertiary-fixed-dim/20', tagText: 'text-primary'
+    },
+    {
+      id: 4, nombre: 'Centro de Salud Caigua', tipo: 'Aliado', parroquia: 'Parroquia Caigua',
+      direccion: 'Calle Principal, Sector Caigua',
+      horario: 'Lun - Dom 6:00 AM - 6:00 PM',
+      color: 'from-[#059669] to-[#34d399]', textColor: 'emerald-700',
+      servicios: ['Medicina General', 'Ginecología', 'Farmacia'],
+      bgTag: 'bg-emerald-50', tagText: 'text-emerald-700'
+    },
+    {
+      id: 5, nombre: 'Ambulatorio El Pilar', tipo: 'Aliado', parroquia: 'Parroquia El Pilar',
+      direccion: 'Vía El Pilar, Barcelona',
+      horario: 'Lun - Vie 8:00 AM - 5:00 PM',
+      color: 'from-[#7c3aed] to-[#a78bfa]', textColor: 'purple-700',
+      servicios: ['Medicina General', 'Psicología', 'Nutrición'],
+      bgTag: 'bg-purple-50', tagText: 'text-purple-700'
+    },
+    {
+      id: 6, nombre: 'Centro Diagnóstico Naricual', tipo: 'Próximamente', parroquia: 'Parroquia Naricual',
+      direccion: 'Sector Naricual, Barcelona',
+      horario: 'Apertura: Diciembre 2024',
+      color: 'from-[#d97706] to-[#fbbf24]', textColor: 'amber-700',
+      servicios: ['Diagnóstico por Imágenes', 'Laboratorio', 'Especialistas'],
+      bgTag: 'bg-amber-50', tagText: 'text-amber-700',
+      disabled: true
+    }
+  ];
+
+  // ==================== CARGAR CENTROS ASÍNCRONAMENTE ====================
+  function cargarCentros() {
+    const grid = document.getElementById('centros-grid');
+    grid.innerHTML = '<div class="col-span-full flex justify-center py-12"><div class="flex items-center gap-3 text-on-surface-variant"><span class="material-symbols-outlined animate-spin text-secondary">sync</span><span class="text-sm font-medium">Cargando centros de salud aliados...</span></div></div>';
+
+    setTimeout(() => {
+      grid.innerHTML = centrosSalud.map(c => {
+        const disabledAttr = c.disabled ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : '';
+        const btnText = c.disabled
+          ? '<span class="material-symbols-outlined text-sm">construction</span> Próximamente'
+          : '<span class="material-symbols-outlined text-sm">calendar_month</span> Pedir Cita';
+        const btnAction = c.disabled ? '' : `onclick="abrirModal('${c.nombre}', '${c.parroquia}')"`;
+        return `
+          <div class="group bg-white rounded-3xl overflow-hidden shadow-xl border border-outline-variant/20 card-hover">
+            <div class="h-40 bg-gradient-to-br ${c.color} relative flex items-end p-6">
+              <div class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 text-[10px] font-bold ${c.tagText} shadow-sm">${c.tipo}</div>
+              <div>
+                <span class="text-white/80 text-[10px] font-semibold uppercase tracking-wider">${c.parroquia}</span>
+                <h3 class="text-xl font-extrabold text-white">${c.nombre}</h3>
+              </div>
+            </div>
+            <div class="p-6 space-y-3">
+              <div class="flex items-center gap-2 text-xs text-on-surface-variant">
+                <span class="material-symbols-outlined fill text-sm text-${c.textColor}">location_on</span>
+                ${c.direccion}
+              </div>
+              <div class="flex items-center gap-2 text-xs text-on-surface-variant">
+                <span class="material-symbols-outlined fill text-sm text-${c.textColor}">schedule</span>
+                ${c.horario}
+              </div>
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                ${c.servicios.map(s => `<span class="px-2.5 py-1 ${c.bgTag} ${c.tagText} rounded-full text-[10px] font-semibold">${s}</span>`).join('')}
+              </div>
+              <button ${btnAction} ${disabledAttr} class="w-full mt-3 text-sm font-semibold text-${c.textColor} border-2 border-${c.textColor.replace('text-', '')}/30 rounded-xl py-2.5 hover:bg-${c.textColor.replace('text-', '')} hover:text-white transition-all flex items-center justify-center gap-1.5">
+                ${btnText}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }, 600);
+  }
+
+  // ==================== MODAL ====================
+  let sedeSeleccionada = '';
+
+  function abrirModal(nombre, parroquia) {
+    sedeSeleccionada = nombre;
+    document.getElementById('modal-sede-info').textContent = `Agendando cita en: ${nombre} — ${parroquia}`;
+    document.getElementById('citaModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('modal-nombre').focus();
+  }
+
+  function cerrarModal() {
+    document.getElementById('citaModal').classList.remove('open');
+    document.body.style.overflow = '';
+    document.getElementById('modalForm').reset();
+    document.getElementById('modalForm').style.display = '';
+    document.getElementById('modal-exito').classList.add('hidden');
+    document.querySelectorAll('#modalForm .text-error').forEach(e => e.classList.add('hidden'));
+  }
+
+  document.getElementById('citaModal').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModal();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') cerrarModal();
+  });
+
+  // ==================== VALIDACIÓN DEL FORMULARIO MODAL ====================
+  document.getElementById('modalForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    let valid = true;
+
+    const fields = [
+      { id: 'modal-nombre', error: 'error-nombre', test: v => v.trim().length > 0 },
+      { id: 'modal-cedula', error: 'error-cedula', test: v => v.trim().length > 0 },
+      { id: 'modal-email', error: 'error-email', test: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) },
+      { id: 'modal-fecha', error: 'error-fecha', test: v => v.length > 0 },
+      { id: 'modal-especialidad', error: 'error-especialidad', test: v => v !== '' },
+    ];
+
+    fields.forEach(f => {
+      const input = document.getElementById(f.id);
+      const errorEl = document.getElementById(f.error);
+      if (!f.test(input.value)) {
+        input.classList.add('border-error');
+        errorEl.classList.remove('hidden');
+        valid = false;
+      } else {
+        input.classList.remove('border-error');
+        errorEl.classList.add('hidden');
+      }
+    });
+
+    if (valid) {
+      document.getElementById('modalForm').style.display = 'none';
+      document.getElementById('modal-exito').classList.remove('hidden');
+    }
+  });
+
+  // Limpiar errores al escribir
+  document.querySelectorAll('#modalForm input, #modalForm select').forEach(el => {
+    el.addEventListener('input', function() {
+      this.classList.remove('border-error');
+      const errorId = this.id.replace('modal-', 'error-');
+      const errorEl = document.getElementById(errorId);
+      if (errorEl) errorEl.classList.add('hidden');
+    });
+  });
+
+  // ==================== FORMULARIO PRINCIPAL (STEPPER) ====================
+  let currentStep = 1;
+  function nextStep() {
+    if (currentStep >= 3) return;
+    document.getElementById('step-' + currentStep).classList.remove('bg-secondary', 'text-white');
+    document.getElementById('step-' + currentStep).classList.add('bg-tertiary-fixed-dim', 'text-tertiary');
+    currentStep++;
+    document.getElementById('step-' + currentStep).classList.remove('bg-surface-container-high', 'text-on-surface-variant');
+    document.getElementById('step-' + currentStep).classList.add('bg-secondary', 'text-white');
+    const content = document.getElementById('stepContent');
+    content.innerHTML = `
+      <div class="flex flex-col items-center justify-center py-10 space-y-4 animate-fade-in">
+        <div class="w-20 h-20 bg-secondary/10 text-secondary rounded-full flex items-center justify-center">
+          <span class="material-symbols-outlined fill text-5xl">check_circle</span>
+        </div>
+        <h3 class="text-2xl font-bold text-primary">¡Paso ${currentStep} completado!</h3>
+        <p class="text-on-surface-variant text-center max-w-sm">Estamos procesando su solicitud en tiempo real para asignarle el mejor especialista disponible.</p>
+      </div>
+    `;
+    if (currentStep === 3) {
+      document.querySelector('#appointmentForm .flex.justify-between').innerHTML = `
+        <button type="button" class="text-secondary font-semibold text-sm px-6 py-3 rounded-xl hover:bg-secondary/5 transition-all" onclick="location.reload()">Volver a Empezar</button>
+        <button type="button" class="btn-primary text-white px-8 py-3 rounded-xl font-semibold text-sm shadow-lg active:scale-95 flex items-center gap-2" onclick="alert('Cita agendada exitosamente. Recibirás un correo de confirmación.')">
+          <span class="material-symbols-outlined">check</span> Confirmar Cita
+        </button>
+      `;
+    }
+  }
+
+  // ==================== INICIALIZACIÓN ====================
+  document.addEventListener('DOMContentLoaded', () => {
+    animateCounters();
+    animateStatBars();
+    cargarCentros();
+  });
+
+  // Intersection Observer for counters
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        animateCounters();
+        animateStatBars();
+      }
+    });
+  }, { threshold: 0.3 });
+  document.querySelectorAll('.counter-value, .stat-bar').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

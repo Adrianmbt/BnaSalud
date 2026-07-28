@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal del Paciente - Salud Barcelona</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <!-- Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,0&display=swap" rel="stylesheet" />
+  <!-- AOS -->
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet" />
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { DEFAULT: '#0f2537', light: '#1a3a52' },
+            secondary: { DEFAULT: '#00677d', light: '#008ba3' },
+            'secondary-container': '#50d9fe',
+            'on-secondary': '#ffffff',
+            'on-secondary-container': '#005c70',
+            tertiary: '#001209',
+            'tertiary-fixed': '#43ffbb',
+            'tertiary-fixed-dim': '#00e2a0',
+            surface: '#f8f9ff',
+            'surface-dim': '#cbdbf5',
+            'surface-container': '#e5eeff',
+            'surface-container-low': '#eff4ff',
+            'surface-container-high': '#dce9ff',
+            'surface-container-highest': '#d3e4fe',
+            'on-surface': '#0b1c30',
+            'on-surface-variant': '#43474c',
+            outline: '#74777d',
+            'outline-variant': '#c3c7cd',
+            error: '#ba1a1a',
+            success: '#059669',
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+        },
+      },
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .glass {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .sidebar-link {
+      transition: all 0.25s ease;
+      position: relative;
+    }
+    .sidebar-link::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 0;
+      background: var(--tw-bg, #00677d);
+      border-radius: 0 4px 4px 0;
+      transition: height 0.25s ease;
+    }
+    .sidebar-link.active::after {
+      height: 60%;
+    }
+    .card-hover {
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .card-hover:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 24px 48px -12px rgba(15, 37, 55, 0.15);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #00677d, #008ba3);
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px -8px rgba(0, 103, 125, 0.4);
+    }
+    .accordion-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease-out;
+    }
+    .accordion-open .accordion-content {
+      max-height: 500px;
+    }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in { animation: fadeInUp 0.5s ease forwards; }
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(30px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .slide-in-right { animation: slideInRight 0.4s ease forwards; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .pulse-dot { animation: pulse-dot 2s infinite; }
+
+    /* === MODAL === */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.open {
+      opacity: 1; pointer-events: auto;
+    }
+    .modal-content {
+      background: #fff; border-radius: 2rem; padding: 2rem; width: 90%; max-width: 560px;
+      max-height: 90vh; overflow-y: auto; transform: translateY(20px) scale(0.95);
+      transition: transform 0.3s ease;
+    }
+    .modal-overlay.open .modal-content {
+      transform: translateY(0) scale(1);
+    }
+
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 24px;
+    }
+  </style>
+</head>
+
+<body class="bg-surface text-on-surface antialiased min-h-screen flex" x-data="{ sidebarOpen: true, activeView: 'dashboard' }">
+
+<!-- ==================== SIDEBAR ==================== -->
+<aside class="hidden lg:flex flex-col h-screen w-64 fixed left-0 top-0 bg-white shadow-2xl z-40 border-r border-outline-variant/20" data-aos="fade-right" data-aos-duration="500">
+  <div class="px-6 py-8 border-b border-outline-variant/10">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center shadow-lg">
+        <span class="material-symbols-outlined fill text-xl">health_and_safety</span>
+      </div>
+      <div>
+        <h1 class="text-lg font-extrabold text-primary leading-tight">Centro de Salud</h1>
+        <p class="text-[10px] font-medium text-on-surface-variant/70 uppercase tracking-widest">Barcelona Ciudad</p>
+      </div>
+    </div>
+  </div>
+
+  <nav class="flex-1 py-4 space-y-1 px-3">
+    <a href="#" @click.prevent="activeView = 'dashboard'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all" :class="activeView === 'dashboard' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low/50'">
+      <span class="material-symbols-outlined" :class="activeView === 'dashboard' ? 'fill' : ''">dashboard</span>
+      Dashboard
+    </a>
+    <a href="#" @click.prevent="activeView = 'citas'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all" :class="activeView === 'citas' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low/50'">
+      <span class="material-symbols-outlined">calendar_month</span>
+      Citas
+    </a>
+    <a href="#" @click.prevent="activeView = 'historial'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all" :class="activeView === 'historial' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low/50'">
+      <span class="material-symbols-outlined">history</span>
+      Historial
+    </a>
+    <a href="#" @click.prevent="activeView = 'ajustes'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all" :class="activeView === 'ajustes' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low/50'">
+      <span class="material-symbols-outlined">settings</span>
+      Ajustes
+    </a>
+  </nav>
+
+  <div class="px-4 py-6 border-t border-outline-variant/10">
+    <button @click="activeView = 'nueva-consulta'" class="w-full btn-primary text-white py-3 rounded-xl text-sm font-semibold shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all mb-4">
+      <span class="material-symbols-outlined">add</span> Nueva Consulta
+    </button>
+    <div class="space-y-1 px-2">
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-on-surface-variant hover:bg-surface-container-low/50 transition-all">
+        <span class="material-symbols-outlined text-lg">help</span> Ayuda
+      </a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-error hover:bg-error/5 transition-all">
+        <span class="material-symbols-outlined text-lg">logout</span> Cerrar Sesión
+      </a>
+    </div>
+  </div>
+</aside>
+
+<!-- ==================== MAIN CONTENT ==================== -->
+<main class="flex-1 lg:ml-64 min-h-screen flex flex-col">
+  <!-- Top Navigation -->
+  <header class="sticky top-0 z-30 glass h-20 border-b border-outline-variant/10 flex justify-between items-center px-6 lg:px-10">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center justify-center w-10 h-10 bg-primary text-white rounded-lg shadow-md lg:hidden">
+        <span class="material-symbols-outlined fill">health_and_safety</span>
+      </div>
+      <div>
+        <h2 class="text-lg font-bold text-primary">Alcaldía de Barcelona Health</h2>
+        <p class="text-[10px] text-on-surface-variant/60 uppercase tracking-wider hidden sm:block">Portal del Paciente</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="alcaldia.html" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant hover:bg-surface-dim transition-all text-xs font-semibold text-on-surface-variant whitespace-nowrap">
+        <span class="material-symbols-outlined text-sm">arrow_back</span> Volver
+      </a>
+      <nav class="hidden lg:flex items-center gap-1 mr-6">
+        <span class="text-[10px] font-medium text-on-surface-variant/50 uppercase tracking-wider">Portal del Paciente</span>
+      </nav>
+      <div class="flex items-center gap-3">
+        <button class="relative p-2.5 text-on-surface-variant hover:bg-secondary/10 rounded-full transition-all">
+          <span class="material-symbols-outlined">notifications</span>
+          <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full pulse-dot"></span>
+        </button>
+        <div class="flex items-center gap-3 pl-3 border-l border-outline-variant/20">
+          <div class="text-right hidden sm:block">
+            <p class="text-sm font-bold text-primary">Juan Pérez</p>
+            <p class="text-[10px] text-on-surface-variant/60">V-12.345.678</p>
+          </div>
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-secondary to-secondary-container border-2 border-secondary flex items-center justify-center text-white font-bold text-sm shadow-md">
+            JP
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== DASHBOARD VIEW ==================== -->
+  <div class="flex-1 p-6 lg:p-10 max-w-7xl mx-auto w-full" x-show="activeView === 'dashboard'" x-transition:enter.duration.400ms>
+    <!-- Welcome -->
+    <section class="mb-8" data-aos="fade-up">
+      <div class="flex flex-col md:flex-row justify-between gap-4">
+        <div>
+          <h1 class="text-3xl md:text-4xl font-extrabold text-primary">¡Hola, Juan Pérez!</h1>
+          <div class="flex flex-wrap gap-4 mt-3 text-sm text-on-surface-variant">
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined fill text-lg text-secondary">location_on</span>
+              Parroquia: Barcelona Centro
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined fill text-lg text-secondary">id_card</span>
+              Cédula: V-12.345.678
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="material-symbols-outlined fill text-lg text-secondary">bloodtype</span>
+              Tipo: O+
+            </span>
+          </div>
+        </div>
+        <button class="flex items-center gap-2 px-5 py-2.5 bg-surface-container-high hover:bg-surface-container-highest rounded-2xl transition-all text-sm font-medium">
+          <span class="material-symbols-outlined text-lg text-secondary">edit</span> Editar Perfil
+        </button>
+      </div>
+    </section>
+
+    <!-- Bento Grid - Dashboard Cards -->
+    <div class="bento-grid">
+      <!-- Hero: Next Appointment -->
+      <div class="col-span-12 lg:col-span-8 bg-gradient-to-br from-primary to-primary/90 rounded-3xl p-8 text-white relative overflow-hidden shadow-2xl flex flex-col justify-between min-h-[300px]" data-aos="fade-up" data-aos-delay="100">
+        <div class="absolute -top-20 -right-20 w-80 h-80 bg-secondary/20 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-20 -left-20 w-64 h-64 bg-tertiary-fixed-dim/10 rounded-full blur-3xl"></div>
+        <div class="relative z-10">
+          <div class="flex items-center gap-3 mb-5">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary text-white rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">
+              <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span> Próxima Cita
+            </span>
+            <span class="px-3 py-1.5 bg-tertiary-fixed-dim text-primary rounded-full text-xs font-bold">Confirmada</span>
+          </div>
+          <h2 class="text-3xl md:text-4xl font-extrabold mb-1">Cardiología</h2>
+          <p class="text-lg text-surface-container/90 flex items-center gap-2">
+            <span class="material-symbols-outlined fill">person</span> Dr. Antonio Valera
+          </p>
+        </div>
+        <div class="relative z-10 flex flex-wrap gap-6 md:gap-10 pt-6 mt-4 border-t border-white/10">
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined fill text-secondary-container">calendar_today</span>
+            <div>
+              <p class="text-[10px] font-medium uppercase tracking-wider opacity-60">Fecha</p>
+              <p class="text-sm font-bold">15 Noviembre, 2024</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined fill text-secondary-container">schedule</span>
+            <div>
+              <p class="text-[10px] font-medium uppercase tracking-wider opacity-60">Hora</p>
+              <p class="text-sm font-bold">08:30 AM</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined fill text-secondary-container">apartment</span>
+            <div>
+              <p class="text-[10px] font-medium uppercase tracking-wider opacity-60">Consultorio</p>
+              <p class="text-sm font-bold">Piso 2, Módulo 4</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="col-span-12 lg:col-span-4 flex flex-col gap-4" data-aos="fade-up" data-aos-delay="150">
+        <button class="flex-1 bg-white p-6 rounded-3xl border border-outline-variant/20 shadow-xl card-hover flex flex-col justify-between text-left group">
+          <div class="w-14 h-14 rounded-2xl bg-secondary/10 flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-all duration-300 text-secondary mb-4">
+            <span class="material-symbols-outlined text-2xl">event_repeat</span>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-primary">Reagendar Cita</h3>
+            <p class="text-sm text-on-surface-variant mt-1.5 leading-relaxed">Cambia la fecha de tu próxima consulta de forma rápida.</p>
+          </div>
+        </button>
+        <button class="flex-1 bg-gradient-to-br from-primary to-primary/90 p-6 rounded-3xl shadow-xl card-hover flex flex-col justify-between text-left text-white group">
+          <div class="w-14 h-14 rounded-2xl bg-tertiary-fixed-dim/20 flex items-center justify-center group-hover:bg-tertiary-fixed-dim group-hover:text-primary transition-all duration-300 mb-4">
+            <span class="material-symbols-outlined text-2xl">smart_toy</span>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold">Chat con Asistente IA</h3>
+            <p class="text-sm text-surface-container/80 mt-1.5 leading-relaxed">Consulta dudas sobre síntomas o preparación para exámenes.</p>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CITAS VIEW ==================== -->
+  <div class="flex-1 p-6 lg:p-10 max-w-7xl mx-auto w-full" x-show="activeView === 'citas'" x-transition:enter.duration.300ms>
+    <div class="flex flex-col items-center justify-center py-20 text-center">
+      <div class="w-24 h-24 bg-surface-container-high rounded-full flex items-center justify-center mb-6">
+        <span class="material-symbols-outlined text-5xl text-on-surface-variant/40">calendar_month</span>
+      </div>
+      <h2 class="text-2xl font-bold text-primary mb-2">Citas</h2>
+      <p class="text-sm text-on-surface-variant max-w-md">Sección en desarrollo. Pronto podrás gestionar tus citas desde aquí.</p>
+      <button @click="activeView = 'dashboard'" class="mt-6 btn-primary text-white px-6 py-3 rounded-xl text-sm font-semibold shadow-lg flex items-center gap-2">
+        <span class="material-symbols-outlined">arrow_back</span> Volver al Dashboard
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== HISTORIAL VIEW ==================== -->
+  <div class="flex-1 p-6 lg:p-10 max-w-7xl mx-auto w-full" x-show="activeView === 'historial'" x-transition:enter.duration.300ms>
+    <div class="mb-8" data-aos="fade-up">
+      <h1 class="text-2xl md:text-3xl font-extrabold text-primary">Historial de Consultas</h1>
+      <p class="text-sm text-on-surface-variant mt-1">Revisa tus atenciones anteriores, diagnósticos y documentos.</p>
+    </div>
+
+    <!-- Historial table -->
+    <div class="bg-white rounded-3xl shadow-xl border border-outline-variant/20 overflow-hidden" data-aos="fade-up" data-aos-delay="100">
+      <div class="px-8 py-5 border-b border-outline-variant/10 flex flex-wrap justify-between items-center gap-4">
+        <h3 class="text-lg font-bold text-primary flex items-center gap-2">
+          <span class="material-symbols-outlined fill text-secondary">history</span>
+          Historial de Consultas
+        </h3>
+        <div class="relative">
+          <span class="material-symbols-outlined absolute left-3 top-2.5 text-sm text-on-surface-variant/40">search</span>
+          <input type="text" placeholder="Buscar especialidad..." class="pl-10 pr-4 py-2 bg-surface-container-low border-0 rounded-xl text-sm focus:ring-2 focus:ring-secondary/30 focus:outline-none w-56" />
+        </div>
+      </div>
+      <div class="overflow-x-auto scrollbar-hide">
+        <table class="w-full text-left">
+          <thead>
+            <tr class="bg-surface-container-low/50">
+              <th class="px-8 py-4 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Fecha</th>
+              <th class="px-8 py-4 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Especialidad</th>
+              <th class="px-8 py-4 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Diagnóstico (CIE-10)</th>
+              <th class="px-8 py-4 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Médico</th>
+              <th class="px-8 py-4 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-outline-variant/10">
+            <tr class="hover:bg-surface-container-low/30 transition-colors">
+              <td class="px-8 py-4 text-sm font-medium">22 Oct 2024</td>
+              <td class="px-8 py-4"><span class="inline-block px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-semibold">Pediatría</span></td>
+              <td class="px-8 py-4 text-sm text-on-surface-variant">J00 - Rinofaringitis aguda</td>
+              <td class="px-8 py-4 text-sm font-semibold">Dra. Martínez</td>
+              <td class="px-8 py-4 text-right">
+                <button onclick="abrirDetalle('Pediatría', '22 Oct 2024')" class="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all"><span class="material-symbols-outlined">visibility</span></button>
+                <button class="p-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-all"><span class="material-symbols-outlined">download</span></button>
+              </td>
+            </tr>
+            <tr class="hover:bg-surface-container-low/30 transition-colors">
+              <td class="px-8 py-4 text-sm font-medium">10 Sep 2024</td>
+              <td class="px-8 py-4"><span class="inline-block px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-semibold">Odontología</span></td>
+              <td class="px-8 py-4 text-sm text-on-surface-variant">K02.1 - Caries dentinaria</td>
+              <td class="px-8 py-4 text-sm font-semibold">Dr. Blanco</td>
+              <td class="px-8 py-4 text-right">
+                <button onclick="abrirDetalle('Odontología', '10 Sep 2024')" class="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all"><span class="material-symbols-outlined">visibility</span></button>
+                <button class="p-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-all"><span class="material-symbols-outlined">download</span></button>
+              </td>
+            </tr>
+            <tr class="hover:bg-surface-container-low/30 transition-colors">
+              <td class="px-8 py-4 text-sm font-medium">05 Ago 2024</td>
+              <td class="px-8 py-4"><span class="inline-block px-3 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-semibold">Medicina General</span></td>
+              <td class="px-8 py-4 text-sm text-on-surface-variant">Z00.0 - Examen médico general</td>
+              <td class="px-8 py-4 text-sm font-semibold">Dr. Rodríguez</td>
+              <td class="px-8 py-4 text-right">
+                <button onclick="abrirDetalle('Medicina General', '05 Ago 2024')" class="p-2 text-secondary hover:bg-secondary/10 rounded-lg transition-all"><span class="material-symbols-outlined">visibility</span></button>
+                <button class="p-2 text-on-surface-variant hover:bg-surface-variant/50 rounded-lg transition-all"><span class="material-symbols-outlined">download</span></button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="px-8 py-4 border-t border-outline-variant/10 flex justify-between items-center">
+        <p class="text-xs text-on-surface-variant">Mostrando 3 de 12 registros</p>
+        <span class="text-xs text-on-surface-variant/60">Página 1 de 4</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== NUEVA CONSULTA VIEW ==================== -->
+  <div class="flex-1 p-6 lg:p-10 max-w-7xl mx-auto w-full" x-show="activeView === 'nueva-consulta'" x-transition:enter.duration.300ms>
+    <div class="max-w-3xl mx-auto">
+      <div class="mb-8" data-aos="fade-up">
+        <button @click="activeView = 'dashboard'" class="flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-secondary transition-colors mb-4">
+          <span class="material-symbols-outlined text-sm">arrow_back</span> Volver al Dashboard
+        </button>
+        <h1 class="text-2xl md:text-3xl font-extrabold text-primary">Nueva Consulta</h1>
+        <p class="text-sm text-on-surface-variant mt-1">Solicita una cita en la especialidad y centro de tu preferencia.</p>
+      </div>
+
+      <div class="bg-white rounded-3xl shadow-xl border border-outline-variant/20 p-8" data-aos="fade-up" data-aos-delay="100">
+        <!-- Paciente info (read-only) -->
+        <div class="flex flex-wrap gap-4 p-4 bg-surface-container-low rounded-2xl mb-8">
+          <div class="flex items-center gap-2 text-sm"><span class="material-symbols-outlined fill text-sm text-secondary">person</span><span class="font-semibold text-primary">Juan Pérez</span></div>
+          <div class="flex items-center gap-2 text-sm"><span class="material-symbols-outlined fill text-sm text-secondary">id_card</span><span class="text-on-surface-variant">V-12.345.678</span></div>
+          <div class="flex items-center gap-2 text-sm"><span class="material-symbols-outlined fill text-sm text-secondary">bloodtype</span><span class="text-on-surface-variant">O+</span></div>
+        </div>
+
+        <form id="nuevaConsultaForm" onsubmit="return false;">
+          <div class="grid md:grid-cols-2 gap-5">
+            <div class="md:col-span-2">
+              <label for="consulta-centro" class="text-sm font-medium text-on-surface-variant">Centro de Salud</label>
+              <select id="consulta-centro" required
+                class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all">
+                <option value="">Seleccione un centro</option>
+                <option value="CDI El Carmen">CDI El Carmen — Parroquia El Carmen</option>
+                <option value="Hospital Municipal Dr. José Rangel">Hospital Municipal Dr. José Rangel — San Cristóbal</option>
+                <option value="Ambulatorio Rural Bergantín">Ambulatorio Rural Bergantín — Bergantín</option>
+                <option value="Centro de Salud Caigua">Centro de Salud Caigua — Caigua</option>
+                <option value="Ambulatorio El Pilar">Ambulatorio El Pilar — El Pilar</option>
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label for="consulta-especialidad" class="text-sm font-medium text-on-surface-variant">Especialidad</label>
+              <select id="consulta-especialidad" required
+                class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all">
+                <option value="">Seleccione una especialidad</option>
+                <option value="Medicina General">Medicina General</option>
+                <option value="Pediatría">Pediatría</option>
+                <option value="Odontología">Odontología</option>
+                <option value="Ginecología">Ginecología</option>
+                <option value="Cardiología">Cardiología</option>
+                <option value="Psicología">Psicología</option>
+                <option value="Nutrición">Nutrición</option>
+                <option value="Vacunación">Vacunación</option>
+              </select>
+            </div>
+            <div>
+              <label for="consulta-fecha" class="text-sm font-medium text-on-surface-variant">Fecha Preferida</label>
+              <input type="date" id="consulta-fecha" required
+                class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all" />
+            </div>
+            <div>
+              <label for="consulta-hora" class="text-sm font-medium text-on-surface-variant">Horario Preferido</label>
+              <select id="consulta-hora" required
+                class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all">
+                <option value="">Seleccione horario</option>
+                <option value="matutino">Mañana (7:00 AM - 12:00 PM)</option>
+                <option value="vespertino">Tarde (1:00 PM - 5:00 PM)</option>
+                <option value="completo">Indistinto</option>
+              </select>
+            </div>
+            <div class="md:col-span-2">
+              <label for="consulta-motivo" class="text-sm font-medium text-on-surface-variant">Motivo de la Consulta</label>
+              <textarea id="consulta-motivo" rows="3" required
+                class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all resize-none"
+                placeholder="Describa brevemente sus síntomas o el motivo de la consulta..."></textarea>
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-on-surface-variant">¿Es la primera vez que consulta esta especialidad?</label>
+              <div class="flex gap-4 mt-2">
+                <label class="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+                  <input type="radio" name="primera-vez" value="si" class="accent-secondary" /> Sí, es mi primera vez
+                </label>
+                <label class="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+                  <input type="radio" name="primera-vez" value="no" checked class="accent-secondary" /> No, ya he asistido antes
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-3 mt-8 pt-6 border-t border-outline-variant/20">
+            <button type="button" @click="activeView = 'dashboard'" class="flex-1 border-2 border-outline-variant text-on-surface-variant font-semibold text-sm rounded-xl py-3 hover:bg-surface-container-low transition-all">Cancelar</button>
+            <button type="submit" onclick="enviarConsulta()" class="flex-1 btn-primary text-white font-semibold text-sm rounded-xl py-3 shadow-lg active:scale-95 transition-all">Solicitar Consulta</button>
+          </div>
+        </form>
+        <div id="consulta-exito" class="hidden text-center py-8">
+          <div class="w-20 h-20 bg-secondary/10 text-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+            <span class="material-symbols-outlined fill text-5xl">check_circle</span>
+          </div>
+          <h4 class="text-xl font-bold text-primary mb-2">¡Solicitud Enviada!</h4>
+          <p class="text-sm text-on-surface-variant mb-1">Tu solicitud de consulta ha sido registrada exitosamente.</p>
+          <p class="text-xs text-on-surface-variant/60">Recibirás un correo de confirmación con los detalles de tu cita en las próximas 24 horas.</p>
+          <button @click="activeView = 'dashboard'" class="mt-6 btn-primary text-white px-8 py-3 rounded-xl font-semibold text-sm shadow-lg">Volver al Dashboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== AJUSTES VIEW ==================== -->
+  <div class="flex-1 p-6 lg:p-10 max-w-7xl mx-auto w-full" x-show="activeView === 'ajustes'" x-transition:enter.duration.300ms>
+    <div class="flex flex-col items-center justify-center py-20 text-center">
+      <div class="w-24 h-24 bg-surface-container-high rounded-full flex items-center justify-center mb-6">
+        <span class="material-symbols-outlined text-5xl text-on-surface-variant/40">settings</span>
+      </div>
+      <h2 class="text-2xl font-bold text-primary mb-2">Ajustes</h2>
+      <p class="text-sm text-on-surface-variant max-w-md">Sección en desarrollo. Pronto podrás configurar tus preferencias desde aquí.</p>
+      <button @click="activeView = 'dashboard'" class="mt-6 btn-primary text-white px-6 py-3 rounded-xl text-sm font-semibold shadow-lg flex items-center gap-2">
+        <span class="material-symbols-outlined">arrow_back</span> Volver al Dashboard
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL DETALLE CONSULTA ==================== -->
+  <div class="modal-overlay" id="detalleModal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+    <div class="modal-content">
+      <div class="flex items-center justify-between mb-6">
+        <h3 id="modal-titulo" class="text-xl font-bold text-primary">Detalle de Consulta</h3>
+        <button onclick="cerrarDetalle()" class="p-2 hover:bg-surface-container-low rounded-full transition-colors" aria-label="Cerrar">
+          <span class="material-symbols-outlined text-on-surface-variant">close</span>
+        </button>
+      </div>
+      <p class="text-sm text-on-surface-variant mb-6" id="modal-subinfo"></p>
+
+      <div class="space-y-4">
+        <!-- Recetas -->
+        <div class="border border-outline-variant/20 rounded-2xl overflow-hidden">
+          <button onclick="toggleAccordion(this)" class="w-full px-6 py-4 flex justify-between items-center bg-surface-container-low/30 hover:bg-surface-container-low/50 transition-all text-left">
+            <span class="text-sm font-semibold text-primary flex items-center gap-2">
+              <span class="material-symbols-outlined text-secondary text-lg">prescriptions</span>
+              Recetas Emitidas
+            </span>
+            <span class="material-symbols-outlined text-on-surface-variant transition-transform">expand_more</span>
+          </button>
+          <div class="accordion-content">
+            <div class="px-6 pb-6 space-y-3">
+              <div class="flex justify-between items-center p-4 bg-white rounded-xl border border-outline-variant/10 shadow-sm">
+                <div>
+                  <p class="font-bold text-primary text-sm">Amoxicilina 500mg</p>
+                  <p class="text-xs text-on-surface-variant">1 cápsula cada 8 horas / 7 días</p>
+                </div>
+                <span class="material-symbols-outlined text-secondary">medication</span>
+              </div>
+              <div class="flex justify-between items-center p-4 bg-white rounded-xl border border-outline-variant/10 shadow-sm">
+                <div>
+                  <p class="font-bold text-primary text-sm">Loratadina 10mg</p>
+                  <p class="text-xs text-on-surface-variant">1 tableta diaria / 10 días</p>
+                </div>
+                <span class="material-symbols-outlined text-secondary">pill</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Indicaciones -->
+        <div class="border border-outline-variant/20 rounded-2xl overflow-hidden">
+          <button onclick="toggleAccordion(this)" class="w-full px-6 py-4 flex justify-between items-center bg-surface-container-low/30 hover:bg-surface-container-low/50 transition-all text-left">
+            <span class="text-sm font-semibold text-primary flex items-center gap-2">
+              <span class="material-symbols-outlined text-secondary text-lg">assignment</span>
+              Indicaciones Médicas
+            </span>
+            <span class="material-symbols-outlined text-on-surface-variant">expand_more</span>
+          </button>
+          <div class="accordion-content">
+            <div class="px-6 pb-6 text-sm text-on-surface-variant space-y-2">
+              <ul class="list-disc pl-5 space-y-1.5">
+                <li>Mantener reposo absoluto por 48 horas.</li>
+                <li>Incrementar la ingesta de líquidos (2-3 litros diarios).</li>
+                <li>Evitar exposición a cambios bruscos de temperatura.</li>
+                <li>Control de temperatura cada 6 horas.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <!-- Laboratorio -->
+        <div class="border border-outline-variant/20 rounded-2xl overflow-hidden">
+          <button onclick="toggleAccordion(this)" class="w-full px-6 py-4 flex justify-between items-center bg-surface-container-low/30 hover:bg-surface-container-low/50 transition-all text-left">
+            <span class="text-sm font-semibold text-primary flex items-center gap-2">
+              <span class="material-symbols-outlined text-secondary text-lg">lab_research</span>
+              Resultados de Laboratorio
+            </span>
+            <span class="material-symbols-outlined text-on-surface-variant">expand_more</span>
+          </button>
+          <div class="accordion-content">
+            <div class="px-6 pb-6">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="p-3 bg-surface-container-low rounded-xl"><p class="text-xs text-on-surface-variant">Hemoglobina</p><p class="text-sm font-bold text-primary">14.2 g/dL</p></div>
+                <div class="p-3 bg-surface-container-low rounded-xl"><p class="text-xs text-on-surface-variant">Glucosa</p><p class="text-sm font-bold text-primary">92 mg/dL</p></div>
+                <div class="p-3 bg-surface-container-low rounded-xl"><p class="text-xs text-on-surface-variant">Colesterol</p><p class="text-sm font-bold text-primary">185 mg/dL</p></div>
+                <div class="p-3 bg-surface-container-low rounded-xl"><p class="text-xs text-on-surface-variant">Triglicéridos</p><p class="text-sm font-bold text-primary">130 mg/dL</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF Ticket -->
+      <div class="mt-6 border-2 border-dashed border-outline-variant/30 rounded-3xl p-6 bg-surface/40 relative overflow-hidden">
+        <div class="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
+          <span class="material-symbols-outlined text-[120px]">account_balance</span>
+        </div>
+        <div class="relative z-10">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h4 class="text-lg font-extrabold text-primary uppercase tracking-tighter">Comprobante</h4>
+              <p class="text-[9px] font-bold text-secondary uppercase tracking-wider">ALCALDÍA DE BARCELONA</p>
+            </div>
+            <div class="bg-white p-2 rounded-xl shadow-sm border border-outline-variant/10">
+              <div class="w-10 h-10 bg-gradient-to-br from-primary to-primary-container rounded-lg flex items-center justify-center">
+                <span class="material-symbols-outlined fill text-white text-lg">qr_code_scanner</span>
+              </div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div><p class="text-[9px] font-semibold text-on-surface-variant uppercase">Paciente</p><p class="font-extrabold text-primary">JUAN PÉREZ</p></div>
+            <div><p class="text-[9px] font-semibold text-on-surface-variant uppercase">Ref.</p><p class="font-extrabold text-primary">#ABH-99281</p></div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-dashed border-outline-variant/20 flex justify-between text-[9px] text-on-surface-variant">
+            <span>Emitido: 22 Oct 2024</span>
+            <span>Válido: 90 días</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-4">
+        <button class="flex-1 btn-primary text-white py-3 rounded-xl text-sm font-semibold shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+          <span class="material-symbols-outlined">download</span> Descargar PDF
+        </button>
+        <button onclick="cerrarDetalle()" class="px-5 py-3 border-2 border-outline-variant text-on-surface-variant rounded-xl text-sm font-semibold hover:bg-surface-container-low transition-all">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-[#0a1e2e] border-t border-secondary/30 mt-auto">
+    <div class="max-w-7xl mx-auto px-6 lg:px-10 py-10">
+      <div class="grid md:grid-cols-3 gap-6 mb-6">
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-secondary text-white rounded-lg flex items-center justify-center shadow-lg">
+              <span class="material-symbols-outlined fill text-sm">health_and_safety</span>
+            </div>
+            <span class="text-sm font-bold text-white">Barcelona Salud</span>
+          </div>
+          <p class="text-xs text-secondary-container/70 leading-relaxed">Portal del Paciente — Red de salud del Municipio Simón Bolívar. Atención médica gratuita, digna y oportuna.</p>
+        </div>
+        <div>
+          <h5 class="text-xs font-bold text-white uppercase tracking-wider mb-3">Enlaces</h5>
+          <ul class="space-y-2">
+            <li><a href="#" class="text-xs text-secondary-container/70 hover:text-white transition-colors">Privacidad</a></li>
+            <li><a href="#" class="text-xs text-secondary-container/70 hover:text-white transition-colors">Accesibilidad</a></li>
+            <li><a href="#" class="text-xs text-secondary-container/70 hover:text-white transition-colors">Contacto</a></li>
+            <li><a href="#" class="text-xs text-secondary-container/70 hover:text-white transition-colors">Portal de Transparencia</a></li>
+          </ul>
+        </div>
+        <div>
+          <h5 class="text-xs font-bold text-white uppercase tracking-wider mb-3">Contacto</h5>
+          <ul class="space-y-2">
+            <li class="flex items-center gap-2 text-xs text-secondary-container/70">
+              <span class="material-symbols-outlined text-sm text-secondary">call</span> +58 281 000 0000
+            </li>
+            <li class="flex items-center gap-2 text-xs text-secondary-container/70">
+              <span class="material-symbols-outlined text-sm text-secondary">mail</span> paciente@barcelona.gob.ve
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="pt-4 border-t border-secondary/20 text-center">
+        <p class="text-[10px] text-secondary-container/50">&copy; 2024 Instituto de Salud del Municipio Simón Bolívar - Alcaldía de Barcelona</p>
+      </div>
+    </div>
+  </footer>
+</main>
+
+<!-- Mobile FAB -->
+<button class="fixed bottom-6 right-6 lg:hidden w-14 h-14 bg-secondary text-white rounded-full shadow-2xl flex items-center justify-center z-50 hover:scale-110 active:scale-95 transition-all">
+  <span class="material-symbols-outlined text-2xl">add</span>
+</button>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+<script>
+  AOS.init({ once: true, duration: 600, easing: 'ease-out-cubic' });
+
+  function toggleAccordion(btn) {
+    const parent = btn.parentElement;
+    const wasOpen = parent.classList.contains('accordion-open');
+    document.querySelectorAll('.accordion-open').forEach(el => el.classList.remove('accordion-open'));
+    if (!wasOpen) parent.classList.add('accordion-open');
+  }
+
+  // Modal detalle consulta
+  function abrirDetalle(especialidad, fecha) {
+    document.getElementById('modal-subinfo').textContent = `${especialidad} — ${fecha}`;
+    document.getElementById('detalleModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function cerrarDetalle() {
+    document.getElementById('detalleModal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('detalleModal').addEventListener('click', function(e) {
+    if (e.target === this) cerrarDetalle();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') cerrarDetalle();
+  });
+
+  // Nueva Consulta
+  function enviarConsulta() {
+    const centro = document.getElementById('consulta-centro').value;
+    const especialidad = document.getElementById('consulta-especialidad').value;
+    const fecha = document.getElementById('consulta-fecha').value;
+    if (!centro || !especialidad || !fecha) {
+      alert('Por favor complete los campos obligatorios: centro, especialidad y fecha.');
+      return;
+    }
+    document.getElementById('nuevaConsultaForm').style.display = 'none';
+    document.getElementById('consulta-exito').classList.remove('hidden');
+  }
+
+  // Card hover effects for bento grid
+  document.querySelectorAll('.bento-grid > div, .bento-grid > button').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      el.style.transform = 'translateY(-4px)';
+      el.style.transition = 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)';
+    });
+    el.addEventListener('mouseleave', () => {
+      el.style.transform = 'translateY(0)';
+    });
+  });
+</script>
+</body>
+</html>

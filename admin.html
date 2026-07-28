@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel Ejecutivo - Salud Barcelona</title>
+  <meta name="description" content="Panel administrativo del Instituto de Salud del Municipio Simón Bolívar" />
+  <meta name="robots" content="noindex, nofollow" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,0&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { DEFAULT: '#0f2537', light: '#1a3a52' },
+            secondary: { DEFAULT: '#00677d', light: '#008ba3' },
+            'secondary-container': '#50d9fe',
+            tertiary: '#001209',
+            'tertiary-fixed': '#43ffbb',
+            'tertiary-fixed-dim': '#00e2a0',
+            surface: '#f8f9ff',
+            'surface-dim': '#cbdbf5',
+            'surface-container': '#e5eeff',
+            'surface-container-low': '#eff4ff',
+            'surface-container-high': '#dce9ff',
+            'on-surface': '#0b1c30',
+            'on-surface-variant': '#43474c',
+            outline: '#74777d',
+            'outline-variant': '#c3c7cd',
+            error: '#ba1a1a',
+            'error-container': '#ffdad6',
+            'on-error-container': '#93000a',
+            success: '#059669',
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          },
+        },
+      },
+    }
+  </script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8f9ff; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400; }
+    .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px); }
+    .sidebar-link { transition: all 0.2s ease; }
+    .kpi-card { transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .kpi-card:hover { transform: translateY(-6px); box-shadow: 0 24px 48px -12px rgba(15, 37, 55, 0.2); }
+    .btn-primary { background: linear-gradient(135deg, #00677d, #008ba3); transition: all 0.3s ease; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 28px -8px rgba(0, 103, 125, 0.4); }
+    .progress-bar { transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 2px solid #00677d; outline-offset: 2px; }
+
+    /* Notifications dropdown */
+    .notif-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 0; width: 360px;
+      background: #fff; border-radius: 1.25rem; box-shadow: 0 24px 48px -12px rgba(0,0,0,0.3);
+      border: 1px solid rgba(195,199,205,0.3); opacity: 0; pointer-events: none;
+      transform: translateY(-8px); transition: all 0.25s ease; z-index: 100;
+    }
+    .notif-dropdown.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-content {
+      background: #fff; border-radius: 2rem; padding: 2rem; width: 90%; max-width: 640px;
+      max-height: 90vh; overflow-y: auto; transform: translateY(20px) scale(0.95);
+      transition: transform 0.3s ease;
+    }
+    .modal-overlay.open .modal-content { transform: translateY(0) scale(1); }
+  </style>
+</head>
+<body class="text-on-surface min-h-screen overflow-x-hidden" x-data="{ activeView: 'dashboard', notifOpen: false, modalOpen: false }">
+
+<!-- ==================== SIDEBAR ==================== -->
+<aside class="hidden lg:flex flex-col h-screen fixed left-0 top-0 p-6 border-r border-outline-variant bg-white w-64 z-40 shadow-xl">
+  <div class="flex items-center gap-3 mb-10">
+    <div class="w-11 h-11 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg">
+      <span class="material-symbols-outlined fill text-2xl">health_and_safety</span>
+    </div>
+    <div>
+      <h2 class="text-sm font-extrabold text-primary leading-tight">Gestión Salud BNA</h2>
+      <p class="text-[9px] font-semibold text-on-surface-variant uppercase tracking-[0.15em]">Portal Administrativo</p>
+    </div>
+  </div>
+
+  <nav class="flex-1 space-y-1.5">
+    <a href="#" @click.prevent="activeView = 'dashboard'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all" :class="activeView === 'dashboard' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low hover:translate-x-0.5'">
+      <span class="material-symbols-outlined" :class="activeView === 'dashboard' ? 'fill' : ''">dashboard</span> Dashboard
+    </a>
+    <a href="#" @click.prevent="activeView = 'rrhh'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all" :class="activeView === 'rrhh' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low hover:translate-x-0.5'">
+      <span class="material-symbols-outlined" :class="activeView === 'rrhh' ? 'fill' : ''">groups</span> Recursos Humanos
+    </a>
+    <a href="#" @click.prevent="activeView = 'inventario'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all" :class="activeView === 'inventario' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low hover:translate-x-0.5'">
+      <span class="material-symbols-outlined" :class="activeView === 'inventario' ? 'fill' : ''">inventory_2</span> Inventario
+    </a>
+    <a href="#" @click.prevent="activeView = 'reportes'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all" :class="activeView === 'reportes' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low hover:translate-x-0.5'">
+      <span class="material-symbols-outlined" :class="activeView === 'reportes' ? 'fill' : ''">assessment</span> Reportes
+    </a>
+    <a href="#" @click.prevent="activeView = 'config'" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all" :class="activeView === 'config' ? 'bg-secondary/10 text-secondary' : 'text-on-surface-variant hover:bg-surface-container-low hover:translate-x-0.5'">
+      <span class="material-symbols-outlined" :class="activeView === 'config' ? 'fill' : ''">settings</span> Configuración
+    </a>
+  </nav>
+
+  <div class="pt-6 mt-6 border-t border-outline-variant space-y-1.5">
+    <a href="#" class="flex items-center gap-3 px-4 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container-low rounded-xl transition-all">
+      <span class="material-symbols-outlined text-lg">help</span> Centro de Ayuda
+    </a>
+    <a href="alcaldia.html" class="flex items-center gap-3 px-4 py-2 text-xs font-medium text-on-surface-variant hover:bg-surface-container-low rounded-xl transition-all">
+      <span class="material-symbols-outlined text-lg">logout</span> Cerrar Sesión
+    </a>
+  </div>
+</aside>
+
+<!-- ==================== MAIN ==================== -->
+<main class="lg:ml-64 min-h-screen pb-8">
+
+  <!-- Top Bar -->
+  <header class="sticky top-0 z-50 glass border-b border-outline-variant flex justify-between items-center w-full px-6 lg:px-10 py-4">
+    <a href="alcaldia.html" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant hover:bg-surface-dim transition-all text-xs font-semibold text-on-surface-variant">
+      <span class="material-symbols-outlined text-sm">arrow_back</span> Volver
+    </a>
+    <div class="flex items-center gap-3">
+      <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant">
+        <span class="material-symbols-outlined text-sm text-outline">calendar_today</span>
+        <input type="text" value="01 Oct, 2024 - 31 Oct, 2024" readonly class="bg-transparent border-0 text-xs text-on-surface-variant w-44 focus:ring-0 cursor-pointer" />
+      </div>
+      <button class="btn-primary text-white px-4 py-2 rounded-lg text-xs font-semibold shadow-lg flex items-center gap-1.5 active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-sm">download</span>
+        <span class="hidden sm:inline">Exportar Datos</span>
+      </button>
+      <!-- Notifications -->
+      <div class="relative">
+        <button @click="notifOpen = !notifOpen" class="relative p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all">
+          <span class="material-symbols-outlined">notifications</span>
+          <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full animate-pulse-slow"></span>
+        </button>
+        <div class="notif-dropdown" :class="notifOpen ? 'open' : ''" @click.away="notifOpen = false">
+          <div class="px-5 py-4 border-b border-outline-variant/10">
+            <p class="text-sm font-bold text-primary">Notificaciones</p>
+          </div>
+          <div class="max-h-72 overflow-y-auto">
+            <div class="px-5 py-4 border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors">
+              <div class="flex items-start gap-3">
+                <span class="material-symbols-outlined fill text-sm text-error mt-0.5">emergency</span>
+                <div>
+                  <p class="text-xs font-semibold text-primary">Emergencia atendida</p>
+                  <p class="text-[10px] text-on-surface-variant mt-0.5">Hospital Municipal Dr. José Rangel — Paro cardiorrespiratorio. Paciente estable.</p>
+                  <p class="text-[9px] text-on-surface-variant/50 mt-1">Hace 12 min</p>
+                </div>
+              </div>
+            </div>
+            <div class="px-5 py-4 border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors">
+              <div class="flex items-start gap-3">
+                <span class="material-symbols-outlined fill text-sm text-error mt-0.5">medication</span>
+                <div>
+                  <p class="text-xs font-semibold text-primary">Stock crítico detectado</p>
+                  <p class="text-[10px] text-on-surface-variant mt-0.5">Amoxicilina 500mg por debajo del 10% en CDI El Carmen y Centro Caigua.</p>
+                  <p class="text-[9px] text-on-surface-variant/50 mt-1">Hace 1 h</p>
+                </div>
+              </div>
+            </div>
+            <div class="px-5 py-4 hover:bg-surface-container-low/50 transition-colors">
+              <div class="flex items-start gap-3">
+                <span class="material-symbols-outlined fill text-sm text-secondary mt-0.5">local_hospital</span>
+                <div>
+                  <p class="text-xs font-semibold text-primary">Nuevo centro aliado</p>
+                  <p class="text-[10px] text-on-surface-variant mt-0.5">Centro Diagnóstico Naricual ha completado su fase de equipamiento. Próxima apertura.</p>
+                  <p class="text-[9px] text-on-surface-variant/50 mt-1">Hace 3 h</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-all">
+        <span class="material-symbols-outlined">settings</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== CONTENT ==================== -->
+  <div class="px-6 lg:px-10 pt-6 space-y-6 max-w-7xl mx-auto">
+
+    <!-- ========== DASHBOARD ========== -->
+    <template x-if="activeView === 'dashboard'">
+      <div>
+        <!-- KPIs -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-6">
+          <div class="bg-white p-6 rounded-3xl shadow-xl border border-outline-variant/20 kpi-card relative overflow-hidden">
+            <div class="relative z-10">
+              <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Pacientes Atendidos</p>
+              <div class="flex items-baseline gap-2">
+                <h2 class="text-3xl font-extrabold text-primary tabular-nums counter-value" data-target="12482">0</h2>
+                <span class="text-xs font-bold text-success flex items-center gap-0.5">+8% <span class="material-symbols-outlined fill text-sm">trending_up</span></span>
+              </div>
+            </div>
+            <div class="absolute right-2 bottom-2 opacity-[0.06] pointer-events-none"><span class="material-symbols-outlined fill" style="font-size:100px">person_filled</span></div>
+          </div>
+          <div class="bg-white p-6 rounded-3xl shadow-xl border border-outline-variant/20 kpi-card relative overflow-hidden">
+            <div class="relative z-10">
+              <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Emergencias Atendidas</p>
+              <div class="flex items-baseline gap-2">
+                <h2 class="text-3xl font-extrabold text-primary tabular-nums counter-value" data-target="847">0</h2>
+                <span class="text-xs font-bold text-error flex items-center gap-0.5">+3% <span class="material-symbols-outlined fill text-sm">trending_up</span></span>
+              </div>
+            </div>
+            <div class="absolute right-2 bottom-2 opacity-[0.06] pointer-events-none"><span class="material-symbols-outlined fill" style="font-size:100px">emergency</span></div>
+          </div>
+          <div class="bg-white p-6 rounded-3xl shadow-xl border border-outline-variant/20 kpi-card relative overflow-hidden">
+            <div class="relative z-10">
+              <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Stock Farmacia General</p>
+              <div class="flex items-baseline gap-2">
+                <h2 class="text-3xl font-extrabold text-primary tabular-nums counter-value" data-target="72">0</h2>
+                <span class="text-xs font-semibold">%</span>
+                <span class="text-xs font-bold text-success flex items-center gap-0.5">-5% <span class="material-symbols-outlined fill text-sm">trending_down</span></span>
+              </div>
+            </div>
+            <div class="mt-3 w-full h-2 bg-surface-container-high rounded-full overflow-hidden">
+              <div class="h-full bg-secondary rounded-full progress-bar" style="width:0%"></div>
+            </div>
+            <div class="absolute right-2 bottom-2 opacity-[0.06] pointer-events-none"><span class="material-symbols-outlined fill" style="font-size:100px">medication</span></div>
+          </div>
+          <div class="bg-white p-6 rounded-3xl shadow-xl border border-outline-variant/20 kpi-card relative overflow-hidden">
+            <div class="relative z-10">
+              <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Tasa de Ocupación</p>
+              <div class="flex items-baseline gap-2">
+                <h2 class="text-3xl font-extrabold text-primary tabular-nums counter-value" data-target="84">0</h2>
+                <span class="text-xs font-semibold">%</span>
+                <span class="text-xs font-bold text-error flex items-center gap-0.5">-2% <span class="material-symbols-outlined fill text-sm">trending_down</span></span>
+              </div>
+            </div>
+            <div class="absolute right-2 bottom-2 opacity-[0.06] pointer-events-none"><span class="material-symbols-outlined fill" style="font-size:100px">bed</span></div>
+          </div>
+          <div class="bg-white p-6 rounded-3xl shadow-xl border border-outline-variant/20 kpi-card relative overflow-hidden">
+            <div class="relative z-10">
+              <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Medicamentos Entregados</p>
+              <div class="flex items-baseline gap-2">
+                <h2 class="text-3xl font-extrabold text-primary tabular-nums counter-value" data-target="45200">0</h2>
+                <span class="text-xs font-bold text-success flex items-center gap-0.5">+12% <span class="material-symbols-outlined fill text-sm">trending_up</span></span>
+              </div>
+            </div>
+            <div class="absolute right-2 bottom-2 opacity-[0.06] pointer-events-none"><span class="material-symbols-outlined fill" style="font-size:100px">pill</span></div>
+          </div>
+          <div class="bg-white p-6 rounded-3xl shadow-xl border border-outline-variant/20 kpi-card relative overflow-hidden">
+            <div class="relative z-10">
+              <p class="text-[11px] font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Nivel de Satisfacción</p>
+              <div class="flex items-baseline gap-2">
+                <h2 class="text-3xl font-extrabold text-primary tabular-nums counter-value" data-target="48">0</h2>
+                <span class="text-xs font-semibold">/5</span>
+                <span class="text-xs font-bold text-success flex items-center gap-0.5">Estable <span class="material-symbols-outlined fill text-sm">check_circle</span></span>
+              </div>
+            </div>
+            <div class="absolute right-2 bottom-2 opacity-[0.06] pointer-events-none"><span class="material-symbols-outlined fill" style="font-size:100px">sentiment_very_satisfied</span></div>
+          </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="grid grid-cols-1 xl:grid-cols-12 gap-5">
+          <div class="xl:col-span-8 bg-white p-6 rounded-3xl shadow-xl border border-outline-variant/20">
+            <div class="flex justify-between items-center mb-5">
+              <div>
+                <h3 class="text-lg font-bold text-primary">Atenciones por Parroquia</h3>
+                <p class="text-xs text-on-surface-variant mt-0.5">Enero - Octubre 2024</p>
+              </div>
+            </div>
+            <div class="relative h-72"><canvas id="barChart"></canvas></div>
+          </div>
+          <div class="xl:col-span-4 bg-white p-6 rounded-3xl shadow-xl border border-outline-variant/20 flex flex-col">
+            <div class="mb-2">
+              <h3 class="text-lg font-bold text-primary">Distribución por Especialidad</h3>
+              <p class="text-xs text-on-surface-variant mt-0.5">Consultas totales por departamento</p>
+            </div>
+            <div class="flex-1 flex flex-col items-center justify-center">
+              <div class="relative w-52 h-52"><canvas id="donutChart"></canvas></div>
+              <div class="grid grid-cols-2 gap-x-6 gap-y-3 mt-6 w-full">
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full" style="background:#00677d"></div><span class="text-xs text-on-surface-variant font-medium">Pediatría</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full" style="background:#50d9fe"></div><span class="text-xs text-on-surface-variant font-medium">Odontología</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full" style="background:#002114"></div><span class="text-xs text-on-surface-variant font-medium">Ginecología</span></div>
+                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-full" style="background:#c3c7cd"></div><span class="text-xs text-on-surface-variant font-medium">Cardiología</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </template>
+
+    <!-- ========== RECURSOS HUMANOS ========== -->
+    <template x-if="activeView === 'rrhh'">
+      <div>
+        <div class="mb-6">
+          <h1 class="text-2xl font-extrabold text-primary">Recursos Humanos</h1>
+          <p class="text-sm text-on-surface-variant mt-1">Personal médico, administrativo y obrero de la red de salud municipal.</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap gap-3 mb-6">
+          <select class="bg-white border border-outline-variant rounded-xl px-4 py-2.5 text-xs font-semibold text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-secondary/30">
+            <option>Todos los centros</option>
+            <option>CDI El Carmen</option>
+            <option>Hospital Municipal Dr. José Rangel</option>
+            <option>Ambulatorio Bergantín</option>
+            <option>Centro Caigua</option>
+            <option>Ambulatorio El Pilar</option>
+          </select>
+          <select class="bg-white border border-outline-variant rounded-xl px-4 py-2.5 text-xs font-semibold text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-secondary/30">
+            <option>Todos los cargos</option>
+            <option>Médico</option>
+            <option>Enfermería</option>
+            <option>Administrativo</option>
+            <option>Instrumentista</option>
+            <option>Obrero</option>
+          </select>
+          <div class="flex gap-2 ml-auto">
+            <span class="inline-flex items-center gap-1.5 px-3 py-2 bg-success/10 text-success rounded-xl text-xs font-bold">
+              <span class="w-2 h-2 bg-success rounded-full"></span> 18 Activos
+            </span>
+            <span class="inline-flex items-center gap-1.5 px-3 py-2 bg-on-surface-variant/10 text-on-surface-variant rounded-xl text-xs font-bold">
+              <span class="w-2 h-2 bg-on-surface-variant rounded-full"></span> 5 Inactivos
+            </span>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-xl border border-outline-variant/20 overflow-hidden">
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low/50 text-on-surface-variant">
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Nombre</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Cargo</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Centro de Salud</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Especialidad</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Teléfono</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/10 text-sm">
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Dr. Antonio Valera</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Médico</td>
+                  <td class="px-6 py-4">Hospital Municipal Dr. José Rangel</td>
+                  <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-semibold">Cardiología</span></td>
+                  <td class="px-6 py-4 text-on-surface-variant">+58 414 123 4567</td>
+                  <td class="px-6 py-4 text-center"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-success"><span class="w-2 h-2 bg-success rounded-full"></span> Guardia</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Dra. María Mendoza</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Médico</td>
+                  <td class="px-6 py-4">CDI El Carmen</td>
+                  <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-semibold">Pediatría</span></td>
+                  <td class="px-6 py-4 text-on-surface-variant">+58 412 987 6543</td>
+                  <td class="px-6 py-4 text-center"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-success"><span class="w-2 h-2 bg-success rounded-full"></span> Guardia</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Dr. Carlos Ruíz</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Médico</td>
+                  <td class="px-6 py-4">Ambulatorio Bergantín</td>
+                  <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-semibold">Medicina General</span></td>
+                  <td class="px-6 py-4 text-on-surface-variant">+58 426 555 0199</td>
+                  <td class="px-6 py-4 text-center"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-on-surface-variant"><span class="w-2 h-2 bg-on-surface-variant rounded-full"></span> Reposo</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Dra. Elena Silva</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Médico</td>
+                  <td class="px-6 py-4">Centro Caigua</td>
+                  <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-semibold">Ginecología</span></td>
+                  <td class="px-6 py-4 text-on-surface-variant">+58 416 333 2211</td>
+                  <td class="px-6 py-4 text-center"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-success"><span class="w-2 h-2 bg-success rounded-full"></span> Guardia</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Lic. Sofía Rivas</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Enfermería</td>
+                  <td class="px-6 py-4">Hospital Municipal Dr. José Rangel</td>
+                  <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-semibold">Emergencia</span></td>
+                  <td class="px-6 py-4 text-on-surface-variant">+58 424 777 8844</td>
+                  <td class="px-6 py-4 text-center"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-success"><span class="w-2 h-2 bg-success rounded-full"></span> Guardia</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Téc. José Medina</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Instrumentista</td>
+                  <td class="px-6 py-4">Hospital Municipal Dr. José Rangel</td>
+                  <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-semibold">Quirófano</span></td>
+                  <td class="px-6 py-4 text-on-surface-variant">+58 412 555 6633</td>
+                  <td class="px-6 py-4 text-center"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-on-surface-variant"><span class="w-2 h-2 bg-on-surface-variant rounded-full"></span> Libre</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Sra. Carmen Rojas</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Administrativo</td>
+                  <td class="px-6 py-4">CDI El Carmen</td>
+                  <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-semibold">Recepción</span></td>
+                  <td class="px-6 py-4 text-on-surface-variant">+58 414 222 9988</td>
+                  <td class="px-6 py-4 text-center"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-success"><span class="w-2 h-2 bg-success rounded-full"></span> Activo</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Sr. Pedro Guzmán</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Obrero</td>
+                  <td class="px-6 py-4">Ambulatorio El Pilar</td>
+                  <td class="px-6 py-4"><span class="px-2.5 py-1 bg-secondary/10 text-secondary rounded-full text-[10px] font-semibold">Mantenimiento</span></td>
+                  <td class="px-6 py-4 text-on-surface-variant">+58 426 111 4455</td>
+                  <td class="px-6 py-4 text-center"><span class="inline-flex items-center gap-1 text-[10px] font-bold text-success"><span class="w-2 h-2 bg-success rounded-full"></span> Activo</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ========== INVENTARIO ========== -->
+    <template x-if="activeView === 'inventario'">
+      <div>
+        <div class="mb-6">
+          <h1 class="text-2xl font-extrabold text-primary">Inventario de Medicamentos e Insumos</h1>
+          <p class="text-sm text-on-surface-variant mt-1">Stock por centro de salud aliado. Los porcentajes se actualizan en tiempo real.</p>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-xl border border-outline-variant/20 overflow-hidden">
+          <div class="px-6 py-4 border-b border-outline-variant/10 flex flex-wrap gap-3">
+            <select class="bg-surface-container-low border border-outline-variant rounded-xl px-4 py-2 text-xs font-semibold text-on-surface-variant focus:outline-none focus:ring-2 focus:ring-secondary/30">
+              <option>Todos los centros</option>
+              <option>CDI El Carmen</option>
+              <option>Hospital Municipal Dr. José Rangel</option>
+              <option>Ambulatorio Bergantín</option>
+              <option>Centro Caigua</option>
+              <option>Ambulatorio El Pilar</option>
+            </select>
+            <div class="flex gap-2 ml-auto">
+              <span class="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 bg-success/10 text-success rounded-full"><span class="w-2 h-2 bg-success rounded-full"></span> Óptimo</span>
+              <span class="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 bg-secondary/10 text-secondary rounded-full"><span class="w-2 h-2 bg-secondary rounded-full"></span> Normal</span>
+              <span class="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 bg-error/10 text-error rounded-full"><span class="w-2 h-2 bg-error rounded-full"></span> Crítico</span>
+            </div>
+          </div>
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-surface-container-low/50 text-on-surface-variant">
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Artículo</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Categoría</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Centro de Salud</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider">Stock</th>
+                  <th class="px-6 py-4 text-[11px] font-semibold uppercase tracking-wider text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/10 text-sm">
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Amoxicilina 500mg</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Medicación</td>
+                  <td class="px-6 py-4">CDI El Carmen</td>
+                  <td class="px-6 py-4"><div class="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-error rounded-full progress-bar" style="width:0%"></div></div></td>
+                  <td class="px-6 py-4 text-center"><span class="text-[10px] font-bold px-2.5 py-1 bg-error/10 text-error rounded-full">Crítico</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Amoxicilina 500mg</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Medicación</td>
+                  <td class="px-6 py-4">Centro Caigua</td>
+                  <td class="px-6 py-4"><div class="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-error rounded-full progress-bar" style="width:0%"></div></div></td>
+                  <td class="px-6 py-4 text-center"><span class="text-[10px] font-bold px-2.5 py-1 bg-error/10 text-error rounded-full">Crítico</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Gasa Estéril 10x10</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Suministros</td>
+                  <td class="px-6 py-4">Hospital Municipal Dr. José Rangel</td>
+                  <td class="px-6 py-4"><div class="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-success rounded-full progress-bar" style="width:0%"></div></div></td>
+                  <td class="px-6 py-4 text-center"><span class="text-[10px] font-bold px-2.5 py-1 bg-success/10 text-success rounded-full">Óptimo</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Guantes Quirúrgicos L</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Suministros</td>
+                  <td class="px-6 py-4">Hospital Municipal Dr. José Rangel</td>
+                  <td class="px-6 py-4"><div class="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-secondary rounded-full progress-bar" style="width:0%"></div></div></td>
+                  <td class="px-6 py-4 text-center"><span class="text-[10px] font-bold px-2.5 py-1 bg-secondary/10 text-secondary rounded-full">Normal</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Insulina Humana</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Medicación</td>
+                  <td class="px-6 py-4">CDI El Carmen</td>
+                  <td class="px-6 py-4"><div class="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-error rounded-full progress-bar" style="width:0%"></div></div></td>
+                  <td class="px-6 py-4 text-center"><span class="text-[10px] font-bold px-2.5 py-1 bg-error/10 text-error rounded-full">Crítico</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Paracetamol 500mg</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Medicación</td>
+                  <td class="px-6 py-4">Ambulatorio Bergantín</td>
+                  <td class="px-6 py-4"><div class="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-success rounded-full progress-bar" style="width:0%"></div></div></td>
+                  <td class="px-6 py-4 text-center"><span class="text-[10px] font-bold px-2.5 py-1 bg-success/10 text-success rounded-full">Óptimo</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Loratadina 10mg</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Medicación</td>
+                  <td class="px-6 py-4">Ambulatorio El Pilar</td>
+                  <td class="px-6 py-4"><div class="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-secondary rounded-full progress-bar" style="width:0%"></div></div></td>
+                  <td class="px-6 py-4 text-center"><span class="text-[10px] font-bold px-2.5 py-1 bg-secondary/10 text-secondary rounded-full">Normal</span></td>
+                </tr>
+                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                  <td class="px-6 py-4 font-bold text-primary">Jeringas 5ml</td>
+                  <td class="px-6 py-4 text-on-surface-variant">Suministros</td>
+                  <td class="px-6 py-4">Centro Caigua</td>
+                  <td class="px-6 py-4"><div class="w-28 h-2 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-success rounded-full progress-bar" style="width:0%"></div></div></td>
+                  <td class="px-6 py-4 text-center"><span class="text-[10px] font-bold px-2.5 py-1 bg-success/10 text-success rounded-full">Óptimo</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ========== REPORTES ========== -->
+    <template x-if="activeView === 'reportes'">
+      <div>
+        <div class="mb-6">
+          <h1 class="text-2xl font-extrabold text-primary">Reportes por Centro de Salud</h1>
+          <p class="text-sm text-on-surface-variant mt-1">Métricas cuantificables de cada centro aliado de la red municipal.</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <!-- CDI El Carmen -->
+          <div class="bg-white rounded-3xl p-6 shadow-xl border border-outline-variant/20">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 bg-secondary/10 text-secondary rounded-xl flex items-center justify-center"><span class="material-symbols-outlined fill">local_hospital</span></div>
+              <div><h3 class="text-sm font-extrabold text-primary">CDI El Carmen</h3><p class="text-[10px] text-on-surface-variant">Parroquia El Carmen</p></div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Consultas</span><span class="font-bold text-primary">2,847</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Emergencias</span><span class="font-bold text-primary">412</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Stock Medic. (%)</span><span class="font-bold text-error">42%</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Personal Activo</span><span class="font-bold text-primary">8</span></div>
+            </div>
+          </div>
+          <!-- Hospital Municipal -->
+          <div class="bg-white rounded-3xl p-6 shadow-xl border border-outline-variant/20">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center"><span class="material-symbols-outlined fill">local_hospital</span></div>
+              <div><h3 class="text-sm font-extrabold text-primary">Hospital Municipal Dr. José Rangel</h3><p class="text-[10px] text-on-surface-variant">Parroquia San Cristóbal</p></div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Consultas</span><span class="font-bold text-primary">5,103</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Emergencias</span><span class="font-bold text-primary">1,284</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Stock Medic. (%)</span><span class="font-bold text-success">78%</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Personal Activo</span><span class="font-bold text-primary">22</span></div>
+            </div>
+          </div>
+          <!-- Ambulatorio Bergantín -->
+          <div class="bg-white rounded-3xl p-6 shadow-xl border border-outline-variant/20">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 bg-tertiary-fixed-dim/20 text-primary rounded-xl flex items-center justify-center"><span class="material-symbols-outlined fill">local_hospital</span></div>
+              <div><h3 class="text-sm font-extrabold text-primary">Ambulatorio Rural Bergantín</h3><p class="text-[10px] text-on-surface-variant">Parroquia Bergantín</p></div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Consultas</span><span class="font-bold text-primary">1,256</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Emergencias</span><span class="font-bold text-primary">89</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Stock Medic. (%)</span><span class="font-bold text-success">85%</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Personal Activo</span><span class="font-bold text-primary">5</span></div>
+            </div>
+          </div>
+          <!-- Centro Caigua -->
+          <div class="bg-white rounded-3xl p-6 shadow-xl border border-outline-variant/20">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 bg-emerald-50 text-emerald-700 rounded-xl flex items-center justify-center"><span class="material-symbols-outlined fill">local_hospital</span></div>
+              <div><h3 class="text-sm font-extrabold text-primary">Centro de Salud Caigua</h3><p class="text-[10px] text-on-surface-variant">Parroquia Caigua</p></div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Consultas</span><span class="font-bold text-primary">980</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Emergencias</span><span class="font-bold text-primary">67</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Stock Medic. (%)</span><span class="font-bold text-error">38%</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Personal Activo</span><span class="font-bold text-primary">4</span></div>
+            </div>
+          </div>
+          <!-- Ambulatorio El Pilar -->
+          <div class="bg-white rounded-3xl p-6 shadow-xl border border-outline-variant/20">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 bg-purple-50 text-purple-700 rounded-xl flex items-center justify-center"><span class="material-symbols-outlined fill">local_hospital</span></div>
+              <div><h3 class="text-sm font-extrabold text-primary">Ambulatorio El Pilar</h3><p class="text-[10px] text-on-surface-variant">Parroquia El Pilar</p></div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Consultas</span><span class="font-bold text-primary">742</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Emergencias</span><span class="font-bold text-primary">34</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Stock Medic. (%)</span><span class="font-bold text-secondary">55%</span></div>
+              <div class="flex justify-between text-xs"><span class="text-on-surface-variant">Personal Activo</span><span class="font-bold text-primary">3</span></div>
+            </div>
+          </div>
+          <!-- Totales -->
+          <div class="bg-gradient-to-br from-primary to-primary/90 rounded-3xl p-6 shadow-xl text-white">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-10 h-10 bg-white/20 text-white rounded-xl flex items-center justify-center"><span class="material-symbols-outlined fill">summarize</span></div>
+              <div><h3 class="text-sm font-extrabold">Totales Red</h3><p class="text-[10px] text-white/70">Municipio Simón Bolívar</p></div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex justify-between text-xs"><span class="text-white/70">Consultas</span><span class="font-bold">10,928</span></div>
+              <div class="flex justify-between text-xs"><span class="text-white/70">Emergencias</span><span class="font-bold">1,886</span></div>
+              <div class="flex justify-between text-xs"><span class="text-white/70">Stock Medic. Promedio</span><span class="font-bold">60%</span></div>
+              <div class="flex justify-between text-xs"><span class="text-white/70">Total Personal</span><span class="font-bold">42</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ========== CONFIGURACIÓN ========== -->
+    <template x-if="activeView === 'config'">
+      <div class="max-w-3xl">
+        <div class="mb-6">
+          <h1 class="text-2xl font-extrabold text-primary">Configuración del Perfil</h1>
+          <p class="text-sm text-on-surface-variant mt-1">Este perfil es interno y de uso restringido para el personal directivo del Instituto.</p>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-xl border border-outline-variant/20 p-8">
+          <form>
+            <div class="flex items-center gap-6 mb-8 pb-6 border-b border-outline-variant/10">
+              <div class="w-20 h-20 rounded-full bg-gradient-to-br from-secondary to-secondary-container flex items-center justify-center text-white text-2xl font-bold shadow-lg">AD</div>
+              <div>
+                <h3 class="text-lg font-bold text-primary">Administrador del Sistema</h3>
+                <p class="text-xs text-on-surface-variant">Directivo · Instituto de Salud Municipal</p>
+                <button class="mt-2 text-xs font-semibold text-secondary hover:text-secondary/80 transition-colors">Cambiar foto</button>
+              </div>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-5">
+              <div>
+                <label class="text-sm font-medium text-on-surface-variant">Nombre completo</label>
+                <input type="text" value="Dr. Admin" class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-on-surface-variant">Cargo</label>
+                <input type="text" value="Director General" class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-on-surface-variant">Correo electrónico</label>
+                <input type="email" value="director@barcelona.gob.ve" class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-on-surface-variant">Teléfono</label>
+                <input type="text" value="+58 281 000 0000" class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="text-sm font-medium text-on-surface-variant">Firma digital</label>
+                <textarea rows="2" class="w-full mt-1 bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 resize-none" placeholder="Escriba su firma digital o código de autenticación..."></textarea>
+              </div>
+              <div class="md:col-span-2">
+                <label class="text-sm font-medium text-on-surface-variant">Tema del panel</label>
+                <div class="flex gap-3 mt-2">
+                  <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="tema" checked class="accent-secondary" /><span class="text-sm text-on-surface-variant">Claro</span></label>
+                  <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="tema" class="accent-secondary" /><span class="text-sm text-on-surface-variant">Oscuro</span></label>
+                  <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="tema" class="accent-secondary" /><span class="text-sm text-on-surface-variant">Sistema</span></label>
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-3 mt-8 pt-6 border-t border-outline-variant/20">
+              <button type="button" class="flex-1 border-2 border-outline-variant text-on-surface-variant font-semibold text-sm rounded-xl py-3 hover:bg-surface-container-low transition-all">Restablecer</button>
+              <button type="button" class="flex-1 btn-primary text-white font-semibold text-sm rounded-xl py-3 shadow-lg active:scale-95 transition-all">Guardar Cambios</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </template>
+
+  </div>
+</main>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+<script>
+  AOS.init({ once: true, duration: 600, easing: 'ease-out-cubic' });
+
+  function animateCounters() {
+    document.querySelectorAll('.counter-value').forEach(el => {
+      const raw = el.dataset.target;
+      if (!raw) return;
+      const target = parseInt(raw);
+      const suffix = el.textContent.includes('/') ? '/5' : el.textContent.includes('%') ? '%' : '';
+      let current = 0;
+      const step = Math.ceil(target / 60);
+      const timer = setInterval(() => {
+        current += step;
+        if (current >= target) { current = target; clearInterval(timer); }
+        if (suffix === '/5') el.textContent = (current / 10).toFixed(1) + suffix;
+        else el.textContent = current.toLocaleString() + suffix;
+      }, 25);
+    });
+  }
+
+  function animateProgressBars() {
+    const targets = [12, 8, 72, 45, 60, 85, 38, 55, 42, 78];
+    document.querySelectorAll('.progress-bar').forEach((bar, i) => {
+      const t = targets[i] || 50;
+      setTimeout(() => { bar.style.width = t + '%'; }, 200);
+    });
+  }
+
+  function initCharts() {
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: ['San Cristóbal', 'El Carmen', 'Naricual', 'Bergantín', 'Caigua', 'El Pilar', 'Santa Rosa'],
+        datasets: [{
+          label: 'Atenciones',
+          data: [1240, 875, 656, 1050, 438, 802, 960],
+          backgroundColor: ['rgba(0,103,125,0.85)','rgba(0,103,125,0.7)','rgba(0,103,125,0.55)','rgba(0,103,125,0.85)','rgba(0,103,125,0.4)','rgba(0,103,125,0.65)','rgba(0,103,125,0.75)'],
+          borderRadius: 6, borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f2537', titleColor: '#fff', bodyColor: '#e5eeff', padding: 12, cornerRadius: 12, displayColors: false } },
+        scales: { y: { beginAtZero: true, grid: { color: 'rgba(195,199,205,0.25)' }, ticks: { color: '#43474c', font: { size: 11 } } }, x: { grid: { display: false }, ticks: { color: '#43474c', font: { size: 10, weight: '500' } } } },
+        animation: { duration: 1200, easing: 'easeOutQuart' },
+      }
+    });
+
+    const donutCtx = document.getElementById('donutChart').getContext('2d');
+    new Chart(donutCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Pediatría', 'Odontología', 'Ginecología', 'Cardiología'],
+        datasets: [{ data: [40, 24, 16, 20], backgroundColor: ['#00677d','#50d9fe','#002114','#c3c7cd'], borderWidth: 3, borderColor: '#ffffff' }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '70%',
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0f2537', titleColor: '#fff', bodyColor: '#e5eeff', padding: 12, cornerRadius: 12, callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + '%' } } },
+        animation: { animateRotate: true, duration: 1000, easing: 'easeOutQuart' },
+      },
+      plugins: [{
+        id: 'centerText',
+        beforeDraw: function(chart) {
+          const { width, height, ctx } = chart;
+          ctx.save();
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.font = '700 28px Inter, sans-serif'; ctx.fillStyle = '#0f2537';
+          ctx.fillText('5', width/2, height/2 - 8);
+          ctx.font = '500 10px Inter, sans-serif'; ctx.fillStyle = '#43474c';
+          ctx.fillText('Departamentos', width/2, height/2 + 18);
+          ctx.restore();
+        }
+      }]
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    animateCounters();
+    animateProgressBars();
+    initCharts();
+  });
+
+  // Re-trigger animations when Alpine changes views
+  document.addEventListener('alpine:init', () => {
+    document.querySelector('[x-data]')?.addEventListener('click', () => {
+      setTimeout(() => { animateCounters(); animateProgressBars(); }, 100);
+    });
+  });
+</script>
+</body>
+</html>
