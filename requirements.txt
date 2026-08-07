@@ -1,0 +1,21 @@
+# FastAPI & Servidor
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic[email]>=2.9.0
+email-validator>=2.2.0
+pydantic-settings>=2.5.0
+
+# Supabase y Base de Datos
+supabase>=2.9.0
+vecs>=0.4.0
+psycopg2-binary>=2.9.9
+
+# RAG & Agentes AI
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-community>=0.3.0
+tiktoken>=0.7.0
+
+# Utilidades
+python-dotenv>=1.0.1
+requests>=2.32.0
