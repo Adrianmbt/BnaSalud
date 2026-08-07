@@ -7,13 +7,14 @@ from app.schemas.schemas import CitaConPacienteCreate, CitaCreate, CitaResponse
 
 router = APIRouter()
 
-CITAB_CENTER_ID = 1  # ID del CITAB para la fase piloto
+CITAB_CENTER_ID = 2  # ID del CITAB en la BD (fase piloto)
 
 # Mock temporal de la sesión de Base de Datos hasta configurar SQLAlchemy en db/session.py
 def get_db():
     yield None
 
 
+@router.post("", response_model=CitaResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=CitaResponse, status_code=status.HTTP_201_CREATED)
 def crear_cita(
     payload: Union[CitaConPacienteCreate, CitaCreate], 

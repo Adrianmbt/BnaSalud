@@ -24,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
+@app.get("/api/v1/health")
 def read_root():
     return {
         "status": "online",
@@ -39,6 +39,8 @@ app.include_router(farmacia_router, prefix="/api/v1/farmacia", tags=["Farmacia"]
 app.include_router(centros_router, prefix="/api/v1/centros", tags=["Centros de Salud"])
 app.include_router(especialidades_router, prefix="/api/v1/especialidades", tags=["Especialidades"])
 
-# Servir el frontend (HTML + imágenes + assets) desde la carpeta frontend/
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+# Servir el frontend React (build de Vite en frontend/dist/)
+# En desarrollo el frontend corre en http://localhost:5173 con proxy hacia esta API.
+app.mount("/static", StaticFiles(directory="frontend/dist"), name="static")
+app.mount("/maquetas", StaticFiles(directory="frontend/maquetas", html=True), name="maquetas")
+app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")

@@ -190,6 +190,7 @@ class CentroSaludResponse(BaseModel):
     horario: str
     servicios: List[str] = Field(default_factory=list)
     logo: str = Field(description="URL de la imagen del centro")
+    fondoColor: str = Field(default="#00677d", description="Color dominante del fondo de la identidad visual (hex)")
     textColor: str = Field(default="secondary", description="Clase de color Tailwind")
     tagText: str = Field(default="text-secondary", description="Clase de color para etiquetas")
     bgTag: str = Field(default="bg-secondary/10", description="Clase de fondo para etiquetas")

@@ -17,6 +17,7 @@ ESPECIALIDADES: List[EspecialidadResponse] = [
 ]
 
 
+@router.get("", response_model=List[EspecialidadResponse])
 @router.get("/", response_model=List[EspecialidadResponse])
 def listar_especialidades(
     centro_id: Optional[int] = Query(default=None, description="Filtro opcional por centro de salud")
