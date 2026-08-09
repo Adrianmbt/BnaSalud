@@ -45,6 +45,39 @@ export const API = {
     return apiFetch(`/citas/disponibilidad?${qs}`);
   },
   crearCita: (payload) => apiFetch('/citas', { method: 'POST', body: payload }),
+
+  /* === Módulo Farmacia === */
+  buscarReceta: (codigoOcedula) =>
+    apiFetch(`/farmacia/recetas/${encodeURIComponent(codigoOcedula)}`),
+  despacharReceta: (payload) =>
+    apiFetch('/farmacia/despachar', { method: 'POST', body: payload }),
+  recetasPendientes: () =>
+    apiFetch('/farmacia/recetas/pendientes'),
+  getInventario: () =>
+    apiFetch('/farmacia/inventario'),
+
+  /* === Módulo Doctores === */
+  buscarPaciente: (cedula) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}`),
+  crearConsulta: (payload) =>
+    apiFetch('/consultas', { method: 'POST', body: payload }),
+  historialPaciente: (cedula) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}/historial`),
+
+  /* === Estudios médicos / OCR === */
+  procesarEstudio: (payload) =>
+    apiFetch('/estudios/procesar', { method: 'POST', body: payload }),
+
+  /* === Órdenes de estudios === */
+  crearOrdenEstudios: (payload) =>
+    apiFetch('/estudios/ordenes', { method: 'POST', body: payload }),
+  ordenesPaciente: (pacienteId) =>
+    apiFetch(`/estudios/ordenes/paciente/${encodeURIComponent(pacienteId)}`),
+  registrarResultadosOrden: (ordenId, payload) =>
+    apiFetch(`/estudios/ordenes/${encodeURIComponent(ordenId)}/resultados`, {
+      method: 'POST',
+      body: payload,
+    }),
 };
 
 export function parseCedula(valor) {

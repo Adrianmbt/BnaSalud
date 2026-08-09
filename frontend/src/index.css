@@ -38,17 +38,72 @@
   --radius-4xl: 2rem;
   --radius-5xl: 2.5rem;
 
+  /* === TIPOGRAFÍA CLÍNICA (Módulos internos) === */
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Outfit', 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* === PALETA "LIBRO DE GUARDIA" === */
+  --color-paper: #f2ecdf;
+  --color-paper-2: #e9e2d1;
+  --color-paper-deep: #ddd3bd;
+  --color-card: #fbf7ee;
+  --color-card-hover: #fffcf4;
+
+  --color-ink: #14232f;
+  --color-ink-soft: #3d4c57;
+  --color-ink-faint: #75818b;
+  --color-ink-line: #d6cdb8;
+  --color-ink-line-strong: #bfb49b;
+
+  --color-fx: #0d5c47;
+  --color-fx-deep: #083d30;
+  --color-fx-soft: #d9e9e0;
+  --color-fx-ink: #10342b;
+
+  --color-doc: #00677d;
+  --color-doc-deep: #004e5f;
+  --color-doc-soft: #d8ecf1;
+
+  --color-amber: #a8631b;
+  --color-amber-soft: #f4e3c3;
+  --color-blood: #a52b1f;
+  --color-blood-soft: #f6dcd5;
+  --color-mint: #0e7a5a;
+  --color-mint-soft: #d7eee1;
+
+  --radius-4xl: 2rem;
+  --radius-5xl: 2.5rem;
+
   --animate-float: float 6s ease-in-out infinite;
   --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-stamp: stamp 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  --animate-rule: rule-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @keyframes float {
     0%, 100% { transform: translateY(0px); }
     50% { transform: translateY(-20px); }
   }
+
+  @keyframes stamp {
+    0% { transform: scale(2.6) rotate(-14deg); opacity: 0; }
+    60% { transform: scale(0.92) rotate(-8deg); opacity: 1; }
+    80% { transform: scale(1.05) rotate(-7deg); }
+    100% { transform: scale(1) rotate(-8deg); opacity: 1; }
+  }
+
+  @keyframes rule-grow {
+    0% { transform: scaleX(0); }
+    100% { transform: scaleX(1); }
+  }
 }
 
 html {
   scroll-behavior: smooth;
+}
+
+[id] {
+  scroll-margin-top: 6rem;
 }
 
 body {
@@ -105,6 +160,142 @@ body {
   transform: translateY(-2px);
 }
 
+/* === UTILIDADES CLÍNICAS "LIBRO DE GUARDIA" === */
+
+.paper-noise {
+  position: relative;
+}
+.paper-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+}
+
+/* Esquinas de registro (clips) para tarjetas */
+.corner-tick { position: relative; }
+.corner-tick::before,
+.corner-tick::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+.corner-tick::before {
+  top: 8px; left: 8px;
+  border-top: 2px solid var(--color-ink-line-strong);
+  border-left: 2px solid var(--color-ink-line-strong);
+}
+.corner-tick::after {
+  bottom: 8px; right: 8px;
+  border-bottom: 2px solid var(--color-ink-line-strong);
+  border-right: 2px solid var(--color-ink-line-strong);
+}
+
+/* Sello de goma */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.55rem;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  transform: rotate(-2deg);
+  white-space: nowrap;
+}
+.stamp-soft {
+  border-style: dotted;
+  border-width: 1.5px;
+}
+.stamp-slam { animation: var(--animate-stamp); transform-origin: center; }
+
+/* Línea de libro mayor */
+.ledger-rule {
+  height: 1px;
+  background-image: repeating-linear-gradient(90deg, var(--color-ink-line) 0 6px, transparent 6px 12px);
+}
+
+/* Entrada tipo formulario de registro */
+.field-input {
+  width: 100%;
+  background: var(--color-card);
+  border: 1px solid var(--color-ink-line);
+  border-radius: 6px;
+  padding: 0.7rem 0.85rem;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  color: var(--color-ink);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.field-input::placeholder { color: var(--color-ink-faint); }
+.field-input:focus {
+  outline: none;
+  border-color: var(--color-doc);
+  box-shadow: 0 0 0 3px rgba(0, 103, 125, 0.12);
+}
+
+/* Checkbox de despacho estilo sello */
+.stamp-check {
+  appearance: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1.5px solid var(--color-ink-line-strong);
+  border-radius: 3px;
+  background: var(--color-card);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+.stamp-check:hover { border-color: var(--color-fx); }
+.stamp-check:checked {
+  background: var(--color-fx);
+  border-color: var(--color-fx);
+}
+.stamp-check:checked::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.stamp-check:focus-visible { outline: 2px solid var(--color-fx); outline-offset: 2px; }
+
+/* Scrollbar de los módulos internos */
+.ledger-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.ledger-scroll::-webkit-scrollbar-track { background: transparent; }
+.ledger-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-ink-line-strong);
+  border-radius: 20px;
+  border: 2px solid var(--color-paper);
+}
+
+/* Número de fila de libro mayor */
+.row-no {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-ink-faint);
+  letter-spacing: 0.05em;
+}
+
+.clinic-select { color-scheme: light; }
+
+::selection { background: rgba(0, 103, 125, 0.22); }
+
 /* === ACCESIBILIDAD === */
 .skip-link {
   position: absolute;
@@ -125,6 +316,28 @@ body {
 :focus-visible {
   outline: 2px solid #00677d;
   outline-offset: 2px;
+}
+
+/* === IMPRESIÓN === */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute !important;
+    inset: 0;
+    margin: 0;
+    padding: 1.5rem;
+    background: #fff;
+  }
+  .print-area * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

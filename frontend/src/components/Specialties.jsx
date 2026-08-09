@@ -21,14 +21,14 @@ export default function Specialties() {
           {ESPECIALIDADES.map((esp, i) => (
             <div
               key={esp.nombre}
-              className="group bg-white p-8 rounded-3xl border border-outline-variant/20 shadow-lg card-hover cursor-pointer"
+              className="group bg-white p-8 rounded-3xl border border-outline-variant/20 shadow-lg card-hover"
               data-aos="fade-up"
               data-aos-delay={100 + i * 80}
             >
               <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-secondary group-hover:text-white transition-all duration-300 text-secondary">
                 <Icon name={esp.icono} className="text-3xl" />
               </div>
-              <h4 className="text-xl font-bold text-primary mb-2">{esp.nombre}</h4>
+              <h3 className="text-xl font-bold text-primary mb-2">{esp.nombre}</h3>
               <p className="text-sm text-on-surface-variant leading-relaxed">{esp.descripcion}</p>
             </div>
           ))}

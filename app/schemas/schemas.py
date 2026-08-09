@@ -44,6 +44,81 @@ class LaboratorioResultado(BaseModel):
     valor: str = Field(..., json_schema_extra={"example": "14.2 g/dL"})
 
 
+class ParametroResultado(BaseModel):
+    parametro: str = Field(default="", json_schema_extra={"example": "Hemoglobina"})
+    valor: str = Field(default="", json_schema_extra={"example": "14.2"})
+    unidad: Optional[str] = Field(None, json_schema_extra={"example": "g/dL"})
+    rango: Optional[str] = Field(None, json_schema_extra={"example": "12.0 - 16.0"})
+
+
+class EstudioResultado(BaseModel):
+    """Estudio médico clasificado: laboratorio, imagen o funcional."""
+    tipo: str = Field(default="laboratorio", description="laboratorio | imagen | funcional")
+    nombre: str = Field(default="", json_schema_extra={"example": "Hemograma completo"})
+    parametros: List[ParametroResultado] = Field(default_factory=list)
+    descripcion: Optional[str] = Field(None, description="Hallazgos (imagen)")
+    conclusion: Optional[str] = Field(None, description="Impresión diagnóstica o interpretación")
+
+
+class ProcesarEstudioRequest(BaseModel):
+    """Imagen en base64 para extracción automática de resultados."""
+    imagen_base64: str = Field(..., json_schema_extra={"example": "/9j/4AAQSkZJRg..."})
+    tipo_estudio: str = Field(default="laboratorio", description="laboratorio | imagen | funcional")
+
+
+class EstudioProcesadoResponse(BaseModel):
+    tipo_estudio: str
+    nombre: str = Field(default="")
+    parametros: List[ParametroResultado] = Field(default_factory=list)
+    descripcion: Optional[str] = None
+    conclusion: Optional[str] = None
+
+
+class OrdenEstudiosCreate(BaseModel):
+    """Solicitud formal de estudios médicos para un paciente."""
+    paciente_id: str = Field(..., json_schema_extra={"example": "hc-maria-gonzalez"})
+    consulta_id: Optional[str] = None
+    cita_id: Optional[str] = None
+    origen: str = Field(default="consulta", description="consulta | emergencia | jornada")
+    prioridad: str = Field(default="normal", description="normal | urgente")
+    medico_id: Optional[int] = None
+    medico_nombre: Optional[str] = None
+    especialidad: Optional[str] = None
+    estudios: List[EstudioResultado] = Field(default_factory=list)
+
+
+class OrdenEstudiosItem(BaseModel):
+    tipo: str = Field(default="laboratorio")
+    nombre: str = Field(default="")
+    parametros: List[ParametroResultado] = Field(default_factory=list)
+    descripcion: Optional[str] = None
+    conclusion: Optional[str] = None
+    estado: str = Field(default="solicitado", description="solicitado | completado")
+
+
+class OrdenEstudiosResponse(BaseModel):
+    id: str
+    comprobante_orden: str = Field(..., json_schema_extra={"example": "ORD-2026-4821"})
+    paciente_id: str
+    consulta_id: Optional[str] = None
+    cita_id: Optional[str] = None
+    origen: str = "consulta"
+    estado: str = "solicitada"
+    prioridad: str = "normal"
+    medico_nombre: str = ""
+    especialidad: str = ""
+    estudios: List[Dict[str, Any]] = Field(default_factory=list)
+    created_at: Optional[datetime] = None
+    resultados_at: Optional[datetime] = None
+
+
+class OrdenResultadosUpdate(BaseModel):
+    """Registro de resultados de una orden emitida previamente."""
+    estudios: List[OrdenEstudiosItem] = Field(default_factory=list)
+    medico_nombre: Optional[str] = None
+    especialidad: Optional[str] = None
+
+
 # ==========================================
 # 1. HISTORIAS CLÍNICAS Y PACIENTES
 # ==========================================
@@ -99,6 +174,22 @@ class CitaResponse(CitaBase):
     class Config:
         from_attributes = True
 
+class CitaDetalleResponse(BaseModel):
+    id: str
+    codigo_confirmacion: str
+    centro_id: int
+    centro_salud: str
+    especialidad_id: int
+    especialidad: str
+    fecha_cita: date
+    hora_inicio: time
+    motivo: Optional[str] = None
+    estado: EstadoCita = Field(default=EstadoCita.PENDIENTE)
+    origen: OrigenAtencion = Field(default=OrigenAtencion.CITA_WEB)
+    paciente_id: str
+    paciente_nombre: str = Field(default="", description="Nombre del paciente (unido desde historias_clinicas)")
+    created_at: datetime
+
 class TurnoColaResponse(BaseModel):
     cita_id: str
     paciente_id: str
@@ -115,14 +206,20 @@ class TurnoColaResponse(BaseModel):
 class ConsultaCargarRequest(BaseModel):
     paciente_id: str
     cita_id: Optional[str] = None
+    medico_id: Optional[int] = Field(None, description="ID del personal médico que atiende")
+    medico_nombre: Optional[str] = Field(None, description="Nombre del médico (si no se envía medico_id)")
+    especialidad: Optional[str] = Field(None, description="Especialidad de la consulta")
     motivo_consulta: str = Field(..., json_schema_extra={"example": "Cefalea constante de 3 días"})
     examen_fisico: str = Field(..., json_schema_extra={"example": "Presión arterial 130/85. Paciente consciente."})
     cie10_codigo: str = Field(..., json_schema_extra={"example": "I10"})
     cie10_descripcion: str = Field(..., json_schema_extra={"example": "Hipertensión esencial (primaria)"})
     tratamiento: str = Field(..., json_schema_extra={"example": "Enalapril 10mg cada 12 hrs"})
     recomendaciones: Optional[str] = Field(None, json_schema_extra={"example": "Reposo por 48 hrs y baja ingesta de sal"})
+    comprobante_ref: Optional[str] = Field(None, description="Comprobante de referencia (ABH-XXXXX)")
     recetas: List[MedicamentoItem] = Field(default_factory=list)
     laboratorios: List[LaboratorioResultado] = Field(default_factory=list)
+    estudios: List[EstudioResultado] = Field(default_factory=list)
+    ordenes_ids: List[str] = Field(default_factory=list, description="IDs de órdenes de estudios emitidas en esta consulta")
 
 class ConsultaDetalleResponse(BaseModel):
     consulta_id: str
@@ -137,6 +234,8 @@ class ConsultaDetalleResponse(BaseModel):
     recomendaciones: Optional[str] = None
     recetas: List[MedicamentoItem] = Field(default_factory=list)
     laboratorios: List[LaboratorioResultado] = Field(default_factory=list)
+    estudios: List[EstudioResultado] = Field(default_factory=list)
+    ordenes_ids: List[str] = Field(default_factory=list)
     comprobante_ref: str = Field(..., json_schema_extra={"example": "ABH-99281"})
 
     class Config:
@@ -270,4 +369,16 @@ class RecetaResponseSchema(BaseModel):
     paciente_nombre: str
     medico: str
     estado: str
+    fecha_emision: Optional[str] = None
     detalles: List[RecetaDetalleItemSchema]
+
+class InventarioItemSchema(BaseModel):
+    id: int
+    nombre: str
+    presentacion: Optional[str] = None
+    concentracion: Optional[str] = None
+    stock_actual: int = 0
+    stock_minimo: Optional[int] = None
+    unidad: str = "unidad"
+    categoria: Optional[str] = None
+    vencimiento: Optional[str] = None

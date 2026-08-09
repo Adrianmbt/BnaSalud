@@ -2,25 +2,63 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Query
 
+from app.api.v1.errors import db_fail
+from app.core.database import supabase
 from app.schemas.schemas import EspecialidadResponse
 
 router = APIRouter(tags=["Especialidades"])
 
-ESPECIALIDADES: List[EspecialidadResponse] = [
-    {"id": 1, "nombre": "Medicina General", "descripcion": "Medicina de familia y prevención.", "icono": "stethoscope"},
-    {"id": 2, "nombre": "Pediatría", "descripcion": "Cuidado integral para los más pequeños.", "icono": "child_care"},
-    {"id": 3, "nombre": "Ginecología", "descripcion": "Atención ginecológica y obstetricia.", "icono": "female"},
-    {"id": 4, "nombre": "Cardiología", "descripcion": "Diagnóstico y tratamiento cardiovascular.", "icono": "cardiology"},
-    {"id": 5, "nombre": "Odontología", "descripcion": "Salud bucodental avanzada y estética.", "icono": "dentistry"},
-    {"id": 6, "nombre": "Psicología", "descripcion": "Atención en salud mental y bienestar.", "icono": "psychology"},
-    {"id": 7, "nombre": "Oncología", "descripcion": "Diagnóstico y tratamiento del cáncer.", "icono": "radiology"},
-]
+
+def _serializar(fila: dict) -> EspecialidadResponse:
+    return EspecialidadResponse(
+        id=fila.get("id"),
+        nombre=fila.get("nombre", ""),
+        descripcion=fila.get("descripcion", "") or "",
+        icono=fila.get("icono") or "stethoscope",
+    )
+
+
+def _especialidades_del_centro(centro_id: int) -> List[EspecialidadResponse]:
+    """Especialidades con personal médico asignado a una clínica."""
+    try:
+        personal = (
+            supabase.table("personal")
+            .select("especialidad")
+            .eq("clinica_id", centro_id)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("consultar las especialidades del centro")
+    nombres = {p.get("especialidad") for p in personal if p.get("especialidad")}
+    if not nombres:
+        return []
+    try:
+        filas = (
+            supabase.table("especialidades")
+            .select("*")
+            .in_("nombre", sorted(nombres))
+            .order("id")
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("cargar las especialidades")
+    return [_serializar(f) for f in filas]
 
 
 @router.get("", response_model=List[EspecialidadResponse])
 @router.get("/", response_model=List[EspecialidadResponse])
 def listar_especialidades(
-    centro_id: Optional[int] = Query(default=None, description="Filtro opcional por centro de salud")
+    centro_id: Optional[int] = Query(default=None, description="Filtro opcional por centro de salud"),
 ) -> List[EspecialidadResponse]:
-    """Lista las especialidades médicas de la red municipal."""
-    return ESPECIALIDADES
+    """Lista las especialidades de la red municipal (opcionalmente filtradas por centro)."""
+    if centro_id is not None:
+        return _especialidades_del_centro(centro_id)
+    try:
+        filas = supabase.table("especialidades").select("*").order("id").execute().data or []
+    except Exception:
+        db_fail("cargar las especialidades")
+    return [_serializar(f) for f in filas]

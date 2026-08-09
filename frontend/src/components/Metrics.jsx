@@ -1,11 +1,31 @@
 import { useEffect, useRef } from 'react';
 import Icon from './Icon';
 
+function animarContador(el) {
+  const target = parseInt(el.dataset.target, 10) || 0;
+  const sufijo = el.dataset.suffix || '';
+  const reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reducir) {
+    el.textContent = `${target.toLocaleString()}${sufijo}`;
+    return;
+  }
+  let current = 0;
+  const incremento = Math.max(1, Math.round(target / 40));
+  const timer = setInterval(() => {
+    current += incremento;
+    if (current >= target) {
+      current = target;
+      clearInterval(timer);
+    }
+    el.textContent = `${current.toLocaleString()}${sufijo}`;
+  }, 30);
+}
+
 export default function Metrics() {
-  const barsRef = useRef(null);
+  const sectionRef = useRef(null);
 
   useEffect(() => {
-    const el = barsRef.current;
+    const el = sectionRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -13,9 +33,10 @@ export default function Metrics() {
         el.querySelectorAll('.stat-bar').forEach((bar, i) => {
           const height = [15, 25, 40, 35, 55, 70][i % 6];
           setTimeout(() => {
-            bar.style.height = height + '%';
+            bar.style.height = `${height}%`;
           }, 200 + i * 80);
         });
+        el.querySelectorAll('.counter-value').forEach(animarContador);
         observer.disconnect();
       },
       { threshold: 0.3 }
@@ -25,7 +46,7 @@ export default function Metrics() {
   }, []);
 
   return (
-    <section id="impacto" className="py-16 md:py-24 bg-surface-container-lowest">
+    <section id="impacto" ref={sectionRef} className="py-16 md:py-24 bg-surface-container-lowest">
       <div className="max-w-7xl mx-auto px-6">
         <div className="mb-10" data-aos="fade-up">
           <h2 className="text-3xl md:text-4xl font-bold text-primary">Impacto en Tiempo Real</h2>
@@ -36,11 +57,14 @@ export default function Metrics() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium opacity-70">Emergencias Atendidas (Hoy)</p>
-                <p className="text-5xl font-extrabold mt-2 tabular-nums counter-value" data-target="142">0</p>
+                <p className="text-5xl font-extrabold mt-2 tabular-nums">
+                  <span className="counter-value" data-target="142" aria-hidden="true">0</span>
+                  <span className="sr-only">142</span>
+                </p>
               </div>
               <Icon name="medical_information" filled className="text-3xl text-secondary-container" />
             </div>
-            <div ref={barsRef} className="flex items-end gap-1.5 h-16">
+            <div className="flex items-end gap-1.5 h-16">
               <div className="w-full bg-secondary-container/20 h-4 rounded-t-sm stat-bar" style={{ height: 0 }}></div>
               <div className="w-full bg-secondary-container/30 h-8 rounded-t-sm stat-bar" style={{ height: 0 }}></div>
               <div className="w-full bg-secondary-container/40 h-12 rounded-t-sm stat-bar" style={{ height: 0 }}></div>
@@ -53,7 +77,10 @@ export default function Metrics() {
           <div className="bg-white border border-outline-variant/20 p-8 rounded-3xl shadow-xl flex flex-col justify-between" data-aos="fade-up" data-aos-delay="200">
             <p className="text-sm font-medium text-on-surface-variant">Satisfacción</p>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-primary counter-value" data-target="98">0</span>
+              <span className="text-4xl font-bold text-primary">
+                <span className="counter-value" data-target="98" aria-hidden="true">0</span>
+                <span className="sr-only">98</span>
+              </span>
               <span className="text-lg font-medium text-on-surface-variant">%</span>
               <Icon name="trending_up" className="text-tertiary-fixed-dim" />
             </div>
@@ -73,7 +100,10 @@ export default function Metrics() {
           <div className="md:col-span-2 bg-white border border-outline-variant/20 p-8 rounded-3xl shadow-xl flex items-center gap-8" data-aos="fade-up" data-aos-delay="400">
             <div className="flex-1">
               <p className="text-sm font-medium text-on-surface-variant mb-2">Consultas Realizadas</p>
-              <p className="text-4xl font-bold text-primary counter-value" data-target="2450">0+</p>
+              <p className="text-4xl font-bold text-primary">
+                <span className="counter-value" data-target="2450" data-suffix="+" aria-hidden="true">0+</span>
+                <span className="sr-only">2450+</span>
+              </p>
               <p className="text-xs font-semibold text-tertiary mt-2 bg-tertiary-fixed/20 px-4 py-1.5 rounded-full w-fit flex items-center gap-1">
                 <Icon name="trending_up" filled className="text-sm" /> +12% este mes
               </p>

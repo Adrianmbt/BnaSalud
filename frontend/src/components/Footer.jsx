@@ -1,5 +1,11 @@
 import Icon from './Icon';
 
+const ENLACES = [
+  { href: '#servicios', etiqueta: 'Servicios' },
+  { href: '#sedes', etiqueta: 'Red de Centros' },
+  { href: '#impacto', etiqueta: 'Impacto Social' },
+];
+
 export default function Footer() {
   return (
     <footer className="bg-[#0a1e2e] border-t border-secondary/30" role="contentinfo">
@@ -17,20 +23,27 @@ export default function Footer() {
           <div>
             <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Enlaces</h4>
             <ul className="space-y-3">
-              <li><a href="#" className="text-sm text-secondary-container/70 hover:text-white transition-colors">Portal de Transparencia</a></li>
-              <li><a href="#" className="text-sm text-secondary-container/70 hover:text-white transition-colors">Aviso de Privacidad</a></li>
-              <li><a href="#" className="text-sm text-secondary-container/70 hover:text-white transition-colors">Accesibilidad</a></li>
-              <li><a href="#" className="text-sm text-secondary-container/70 hover:text-white transition-colors">Contacto</a></li>
+              {ENLACES.map((l) => (
+                <li key={l.href}>
+                  <a href={l.href} className="text-sm text-secondary-container/70 hover:text-white transition-colors">
+                    {l.etiqueta}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
           <div>
             <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Contacto</h4>
             <ul className="space-y-3">
-              <li className="flex items-center gap-2 text-sm text-secondary-container/80">
-                <Icon name="call" className="text-sm text-secondary" /> +58 281 000 0000
+              <li>
+                <a href="tel:+582810000000" className="flex items-center gap-2 text-sm text-secondary-container/80 hover:text-white transition-colors">
+                  <Icon name="call" className="text-sm text-secondary" /> +58 281 000 0000
+                </a>
               </li>
-              <li className="flex items-center gap-2 text-sm text-secondary-container/80">
-                <Icon name="mail" className="text-sm text-secondary" /> salud@barcelona.gob.ve
+              <li>
+                <a href="mailto:salud@barcelona.gob.ve" className="flex items-center gap-2 text-sm text-secondary-container/80 hover:text-white transition-colors">
+                  <Icon name="mail" className="text-sm text-secondary" /> salud@barcelona.gob.ve
+                </a>
               </li>
               <li className="flex items-center gap-2 text-sm text-secondary-container/80">
                 <Icon name="location_on" className="text-sm text-secondary" /> Barcelona, Estado Anzoátegui

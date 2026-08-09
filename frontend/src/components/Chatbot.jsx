@@ -39,14 +39,21 @@ export default function Chatbot() {
       <button
         onClick={() => setAbierto(!abierto)}
         className="w-16 h-16 btn-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 group"
-        aria-label="Abrir asistente virtual"
+        aria-label={abierto ? 'Cerrar asistente virtual' : 'Abrir asistente virtual'}
+        aria-expanded={abierto}
+        aria-controls="panel-chat"
       >
         <Icon name="smart_toy" className="text-3xl group-hover:rotate-12 transition-transform" />
       </button>
 
       {abierto && (
-        <div className="absolute bottom-20 right-0 w-[360px] bg-white rounded-3xl border border-outline-variant/20 overflow-hidden flex flex-col" style={{ boxShadow: '0 32px 64px -16px rgba(0,0,0,0.25)' }}>
-          <div className="bg-primary px-6 py-5 flex items-center gap-4">
+        <div
+          id="panel-chat"
+          role="dialog"
+          aria-label="Apolonio, asistente virtual de salud"
+          className="absolute bottom-20 right-0 w-[360px] bg-white rounded-3xl border border-outline-variant/20 overflow-hidden flex flex-col"
+          style={{ boxShadow: '0 32px 64px -16px rgba(0,0,0,0.25)' }}
+        >          <div className="bg-primary px-6 py-5 flex items-center gap-4">
             <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center text-white">
               <Icon name="support_agent" filled />
             </div>
@@ -61,7 +68,7 @@ export default function Chatbot() {
             </button>
           </div>
 
-          <div className="h-80 p-4 overflow-y-auto scrollbar-hide bg-surface-container-low space-y-4">
+          <div className="h-80 p-4 overflow-y-auto scrollbar-hide bg-surface-container-low space-y-4" aria-live="polite" role="log">
             {mensajes.map((m, i) => (
               <div
                 key={i}
@@ -77,7 +84,9 @@ export default function Chatbot() {
           </div>
 
           <div className="p-4 border-t border-outline-variant/20 flex gap-3">
+            <label htmlFor="chat-input" className="sr-only">Escribe tu consulta</label>
             <input
+              id="chat-input"
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}

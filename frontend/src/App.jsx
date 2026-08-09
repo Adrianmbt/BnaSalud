@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import AOS from 'aos';
 import Home from './pages/Home';
+import Farmacia from './pages/Farmacia';
+import Doctores from './pages/Doctores';
 
 function Proximamente({ titulo }) {
   return (
@@ -23,6 +25,7 @@ export default function App() {
       once: true,
       duration: 600,
       easing: 'ease-out-cubic',
+      disable: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     });
   }, []);
 
@@ -30,6 +33,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/paciente" element={<Proximamente titulo="Portal del Paciente" />} />
+      <Route path="/farmacia" element={<Farmacia />} />
+      <Route path="/doctores" element={<Doctores />} />
       <Route path="/admin" element={<Proximamente titulo="Panel de Administración" />} />
       <Route path="*" element={<Proximamente titulo="Página no encontrada" />} />
     </Routes>
