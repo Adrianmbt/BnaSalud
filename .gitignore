@@ -36,3 +36,4 @@ Thumbs.db
 # Configuración del agente
 .agents/
 skills-lock.json
+.kiro/

@@ -68,6 +68,45 @@ export const INVENTARIO_DEMO = [
   { nombre: 'Enalapril 10mg', stock: 510, stock_minimo: 100, vencimiento: 'Jun 2027', estado: 'OK' },
 ];
 
+// Catálogo de centros de salud (respaldo cuando el backend no responde).
+export const CENTROS_DEMO = [
+  {
+    id: 1, nombre: 'Clínica del Niño', codigo: 'CLN-NINO', parroquia: 'El Carmen',
+    direccion: 'Barcelona, Anzoátegui', subtitulo: 'Pediatría y crecimiento infantil',
+    tipo: 'Especializada', horario: 'Lun - Sáb 7:00 AM - 6:00 PM',
+    servicios: ['Pediatría', 'Vacunación', 'Nutrición Infantil'],
+    logo: '/identidad visual/CliNiño.jpeg', fondoColor: '#00b4d8', activo: true,
+  },
+  {
+    id: 2, nombre: 'Clínica de los Trabajadores (CITAB)', codigo: 'CLN-CITAB', parroquia: 'El Carmen',
+    direccion: 'Barcelona, Anzoátegui', subtitulo: 'Clínica de los Trabajadores',
+    tipo: 'Aliado', horario: 'Lun - Vie 7:00 AM - 6:00 PM',
+    servicios: ['Medicina Laboral', 'Medicina General', 'Farmacia'],
+    logo: '/identidad visual/Citab.jpeg', fondoColor: '#1d52d8', activo: true,
+  },
+  {
+    id: 3, nombre: 'Clínica de la Mujer', codigo: 'CLN-MUJER', parroquia: 'San Cristóbal',
+    direccion: 'Barcelona, Anzoátegui', subtitulo: 'Atención integral de la mujer',
+    tipo: 'Especializada', horario: 'Lun - Sáb 7:00 AM - 5:00 PM',
+    servicios: ['Ginecología', 'Obstetricia', 'Ecografía', 'Planificación'],
+    logo: '/identidad visual/CliMujer.jpeg', fondoColor: '#541e8c', activo: true,
+  },
+  {
+    id: 4, nombre: 'Centro Oncológico Municipal', codigo: 'CLN-ONCO', parroquia: 'El Carmen',
+    direccion: 'Barcelona, Anzoátegui', subtitulo: 'Oncología y cuidados paliativos',
+    tipo: 'Especializado', horario: 'Lun - Vie 7:00 AM - 5:00 PM',
+    servicios: ['Oncología', 'Quimioterapia', 'Cuidados Paliativos'],
+    logo: '/identidad visual/Oncologico.jpeg', fondoColor: '#6f42c1', activo: true,
+  },
+  {
+    id: 5, nombre: 'Jornadas de Salud Móviles', codigo: 'CLN-JORNADAS', parroquia: 'General',
+    direccion: 'Atención Itinerante - Municipio Simón Bolívar', subtitulo: 'Atención comunitaria itinerante',
+    tipo: 'Comunitario', horario: 'Fines de semana · Calendario público',
+    servicios: ['Atención Primaria', 'Vacunación', 'Despistaje'],
+    logo: '/identidad visual/JornadasSaludBna.jpeg', fondoColor: '#0d9488', activo: true,
+  },
+];
+
 export const COLA_DEMO = {
   espera: [
     {
@@ -318,6 +357,7 @@ let ordenesStore = [
 let ordenSeq = 1002;
 
 export const DEMO = {
+  getCentros: async () => CENTROS_DEMO.map((c) => ({ ...c, servicios: [...c.servicios] })),
   buscarPaciente: async (cedula) => {
     if (cedula.replace(/\D/g, '') !== CEDULA_ACTIVA) throw new Error('Paciente no encontrado');
     return { id: 'hc-maria-gonzalez', ...HISTORIAL_DEMO.paciente };

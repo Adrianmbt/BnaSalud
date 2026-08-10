@@ -17,7 +17,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Divider from '@mui/material/Divider';
 import Icon from '../components/Icon';
 import { API } from '../api';
-import { DEMO, COLA_DEMO, CIE10_DEMO, CATALOGO_EXAMENES } from '../clinical/demo';
+import { DEMO, COLA_DEMO, CIE10_DEMO, CATALOGO_EXAMENES, CENTROS_DEMO } from '../clinical/demo';
+import { getCentroTheme } from '../centroTheme';
 
 const MEDICO = { nombre: 'Dra. Laura Fernández', id: 1043, especialidad: 'Medicina General' };
 
@@ -27,10 +28,10 @@ const TABS = [
   { id: 'finalizado', etiqueta: 'Finalizado' },
 ];
 
-const NAV = [
-  { etiqueta: 'Portal de la Comunidad', to: '/', icono: 'home' },
-  { etiqueta: 'Farmacia', to: '/farmacia', icono: 'prescriptions' },
-  { etiqueta: 'Atención Médica', to: '/doctores', icono: 'stethoscope' },
+const SECCIONES_FORM = [
+  { id: 'consulta', etiqueta: 'Consulta', icono: 'clinical_notes' },
+  { id: 'recetas', etiqueta: 'Recetas', icono: 'prescriptions' },
+  { id: 'estudios', etiqueta: 'Estudios', icono: 'monitor_heart' },
 ];
 
 const GRADIENTES = [
@@ -39,6 +40,15 @@ const GRADIENTES = [
   'linear-gradient(135deg, #0d5c47, #43ffbb)',
   'linear-gradient(135deg, #a8631b, #e09a4a)',
 ];
+
+function gradientesTema(t) {
+  return [
+    `linear-gradient(135deg, ${t.accentLight} 0%, ${t.accent} 55%, ${t.accentDark} 100%)`,
+    `linear-gradient(135deg, ${t.accentDark} 0%, ${t.primary} 60%, ${t.primaryLight} 100%)`,
+    `linear-gradient(135deg, ${t.primary} 0%, ${t.accentDark} 60%, ${t.accent} 100%)`,
+    `linear-gradient(135deg, ${t.accent} 0%, ${t.accentLight} 50%, ${t.primaryLight} 100%)`,
+  ];
+}
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
@@ -73,10 +83,11 @@ function iniciales(nombre = '') {
     .join('');
 }
 
-function gradiente(nombre = '') {
+function gradiente(nombre = '', t = null) {
+  const lista = t ? gradientesTema(t) : GRADIENTES;
   let h = 0;
   for (const c of nombre) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return GRADIENTES[h % GRADIENTES.length];
+  return lista[h % lista.length];
 }
 
 export default function Doctores() {
@@ -95,6 +106,16 @@ export default function Doctores() {
   const [recetaAbierto, setRecetaAbierto] = useState(false);
   const [formNuevo, setFormNuevo] = useState(false);
   const [aviso, setAviso] = useState('');
+
+  const [centros, setCentros] = useState([]);
+  const [centroId, setCentroId] = useState(() => {
+    try {
+      return localStorage.getItem('bna_centro_activo') || 'CLN-NINO';
+    } catch {
+      return 'CLN-NINO';
+    }
+  });
+  const [seccion, setSeccion] = useState('consulta');
 
   const [form, setForm] = useState({
     motivo: '',
@@ -133,8 +154,46 @@ export default function Doctores() {
     return lista.find((p) => p.id === activoId) || lista[0] || null;
   }, [cola, activoId]);
 
-  const perfilCedula = activo?.perfil?.cedula;
-  const perfilMotivo = activo?.perfil?.motivo;
+  const centro = useMemo(
+    () => centros.find((c) => c.codigo === centroId) || centros[0] || null,
+    [centros, centroId]
+  );
+
+  const temaCentro = useMemo(
+    () => getCentroTheme(centro || { codigo: centroId, nombre: '' }),
+    [centro, centroId]
+  );
+
+  const varsCentro = useMemo(
+    () => ({
+      '--color-primary': temaCentro.primary,
+      '--color-primary-light': temaCentro.primaryLight,
+      '--color-primary-dark': temaCentro.primaryDark,
+      '--color-secondary': temaCentro.accent,
+      '--color-secondary-light': temaCentro.accentLight,
+      '--color-secondary-dark': temaCentro.accentDark,
+      '--color-secondary-container': temaCentro.soft,
+      '--color-on-secondary': '#ffffff',
+      '--color-on-secondary-container': temaCentro.primary,
+      '--color-surface': temaCentro.surface,
+      '--color-surface-container': temaCentro.container,
+      '--color-surface-container-low': temaCentro.containerLow,
+      '--color-surface-container-high': temaCentro.containerHigh,
+      '--color-surface-container-highest': temaCentro.containerHigh,
+      '--color-on-surface-variant': temaCentro.onSurfaceVariant,
+      '--color-outline': temaCentro.outline,
+      '--color-outline-variant': temaCentro.outlineVariant,
+      '--color-doc': temaCentro.accent,
+      '--color-doc-deep': temaCentro.accentDark,
+      '--color-doc-soft': temaCentro.soft,
+      '--color-tertiary': temaCentro.primary,
+      '--color-tertiary-fixed': temaCentro.accentLight,
+      '--color-tertiary-fixed-dim': temaCentro.accent,
+    }),
+    [temaCentro]
+  );
+
+  const perfilCedula = activo?.perfil?.cedula;  const perfilMotivo = activo?.perfil?.motivo;
 
   const cargarOrdenesPaciente = useCallback(async () => {
     if (!perfilCedula) return;
@@ -161,6 +220,7 @@ export default function Doctores() {
 
   useEffect(() => {
     if (!activoId) return;
+    setSeccion('consulta');
     setForm({
       motivo: perfilMotivo || '',
       examen: '',
@@ -196,6 +256,21 @@ export default function Doctores() {
       .finally(() => setHistorialCargando(false));
     cargarOrdenesPaciente();
   }, [activoId, perfilCedula, perfilMotivo, cargarOrdenesPaciente]);
+
+  useEffect(() => {
+    let vivo = true;
+    API.getCentros()
+      .then((d) => {
+        if (!vivo) return;
+        setCentros(Array.isArray(d) && d.length ? d : CENTROS_DEMO);
+      })
+      .catch(() => {
+        if (vivo) setCentros(CENTROS_DEMO);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   useEffect(() => {
     function cerrar(e) {
@@ -511,7 +586,7 @@ export default function Doctores() {
   const puedeGuardar =
     form.motivo.trim() && form.cie10_codigo.trim() && form.tratamiento.trim();
 
-  async function guardarConsulta() {
+  async function guardarConsulta(proximo = null) {
     if (!activo || !puedeGuardar) return;
     setGuardando(true);
     setError('');
@@ -552,15 +627,61 @@ export default function Doctores() {
         consulta: c.consulta.filter((x) => x.id !== activo.id),
         finalizado: [{ id: activo.id, nombre: activo.nombre, prioridad: activo.prioridad }, ...c.finalizado],
       }));
-      setTimeout(() => {
-        setActivoId(null);
-        setRegistrada(null);
+      if (proximo) {
         setTab('espera');
-      }, 3400);
+        setRegistrada(null);
+        setAviso(`Consulta registrada · Siguiente: ${proximo.nombre}`);
+        seleccionarPaciente(proximo);
+      } else {
+        setTimeout(() => {
+          setActivoId(null);
+          setRegistrada(null);
+          setTab('espera');
+        }, 3400);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
       setGuardando(false);
+    }
+  }
+
+  function finalizarSiguiente() {
+    if (!activo || guardando) return;
+    const siguiente =
+      cola.espera.find((p) => p.id !== activo.id) ||
+      cola.consulta.find((p) => p.id !== activo.id) ||
+      null;
+    const conContenido = Boolean(
+      form.motivo.trim() ||
+        form.examen.trim() ||
+        form.cie10_codigo.trim() ||
+        form.tratamiento.trim() ||
+        form.recomendaciones.trim() ||
+        recetas.some((r) => r.nombre.trim()) ||
+        estudios.length > 0
+    );
+    if (conContenido && !puedeGuardar) {
+      setSeccion('consulta');
+      setError('La consulta tiene datos incompletos: complete motivo, diagnóstico CIE-10 y tratamiento para finalizar.');
+      return;
+    }
+    if (conContenido) {
+      guardarConsulta(siguiente);
+      return;
+    }
+    setAtendidosHoy((n) => n + 1);
+    setCola((c) => ({
+      espera: c.espera.filter((x) => x.id !== activo.id),
+      consulta: c.consulta.filter((x) => x.id !== activo.id),
+      finalizado: [{ id: activo.id, nombre: activo.nombre, prioridad: activo.prioridad }, ...c.finalizado],
+    }));
+    setAviso(siguiente ? `Llamando a ${siguiente.nombre}` : `${activo.nombre} fue retirado de la fila sin registro.`);
+    if (siguiente) {
+      seleccionarPaciente(siguiente);
+    } else {
+      setActivoId(null);
+      setTab('espera');
     }
   }
 
@@ -571,6 +692,38 @@ export default function Doctores() {
 
   const contenidoCola = (
     <>
+      {/* Identidad del centro de salud */}
+      <div
+        className="relative overflow-hidden px-5 py-4 text-white shrink-0"
+        style={{ background: temaCentro.gradient }}
+      >
+        <div
+          className="absolute inset-0 opacity-15 pointer-events-none"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(-45deg, rgba(255,255,255,0.35) 0 10px, transparent 10px 26px)',
+          }}
+        />
+        <div className="relative flex items-center gap-3">
+          <img
+            src={centro?.logo || '/identidad visual/SBna.jpeg'}
+            alt=""
+            className="w-9 h-9 rounded-xl bg-white/90 object-contain p-1 shadow"
+          />
+          <div className="min-w-0">
+            <p className="text-[13px] font-extrabold leading-tight truncate">
+              {centro?.nombre || 'Salud Barcelona'}
+            </p>
+            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/75 truncate">
+              {temaCentro.lema}
+            </p>
+          </div>
+          <span className="ml-auto font-mono text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-white/15 border border-white/25 shrink-0">
+            {centro?.codigo || 'BNA'}
+          </span>
+        </div>
+      </div>
+
       {/* Cabecera */}
       <div className="px-5 pt-6 pb-4 border-b border-outline-variant bg-surface-container-low/60">
         <div className="flex items-center justify-between mb-4">
@@ -641,69 +794,109 @@ export default function Doctores() {
             </p>
           </div>
         )}
-        {listaTab.map((p) => {
+        {listaTab.map((p, i) => {
           const esActivo = activo && activo.id === p.id;
           const esAlta = p.prioridad === 'ALTA';
           return (
-            <button
+            <div
               key={p.id}
-              onClick={() => seleccionarPaciente(p)}
-              className={`w-full text-left p-3 rounded-2xl border flex items-center gap-3 transition-all ${
+              className={`rise-in flex items-center gap-2 rounded-2xl border transition-all ${
                 esActivo
                   ? 'bg-secondary-container/30 border-secondary shadow-md'
                   : 'bg-surface border-outline-variant hover:border-secondary/50 hover:shadow-md'
               }`}
+              style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
             >
-              <div className={`w-1 self-stretch rounded-full shrink-0 ${esAlta ? 'bg-error' : 'bg-success'}`} />
-              <Avatar
-                sx={{
-                  bgcolor: esActivo ? 'var(--color-secondary)' : 'transparent',
-                  color: esActivo ? 'var(--color-on-secondary)' : 'var(--color-secondary)',
-                  border: `1.5px solid ${esAlta ? 'var(--color-error)' : 'var(--color-secondary)'}`,
-                  fontWeight: 700,
-                  fontSize: '0.8rem',
-                }}
+              <button
+                onClick={() => seleccionarPaciente(p)}
+                className="flex-1 min-w-0 flex items-center gap-3 p-3 text-left"
               >
-                {iniciales(p.nombre)}
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`font-semibold text-sm leading-tight ${esActivo ? 'text-on-secondary-container' : 'text-primary'}`}>
-                    {p.nombre}
+                <div className={`w-1 self-stretch rounded-full shrink-0 ${esAlta ? 'bg-error' : 'bg-success'}`} />
+                <Avatar
+                  sx={{
+                    bgcolor: esActivo ? 'var(--color-secondary)' : 'transparent',
+                    color: esActivo ? 'var(--color-on-secondary)' : 'var(--color-secondary)',
+                    border: `1.5px solid ${esAlta ? 'var(--color-error)' : 'var(--color-secondary)'}`,
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  {iniciales(p.nombre)}
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`font-semibold text-sm leading-tight ${esActivo ? 'text-on-secondary-container' : 'text-primary'}`}>
+                      {p.nombre}
+                    </span>
+                    {esAlta && (
+                      <Chip
+                        size="small"
+                        icon={<Icon name="warning" className="text-sm !text-on-error-container" />}
+                        label="Alta prioridad"
+                        sx={{
+                          height: 20,
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          bgcolor: 'var(--color-error-container)',
+                          color: 'var(--color-on-error-container)',
+                          '& .MuiChip-icon': { color: 'var(--color-on-error-container)' },
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div className={`flex items-center gap-1.5 font-mono text-[10px] mt-1 ${esActivo ? 'text-on-secondary-container/70' : 'text-on-surface-variant'}`}>
+                    <Icon name={tab === 'consulta' ? 'timer' : 'schedule'} className="text-xs" />
+                    {tab === 'consulta'
+                      ? `Sesión: ${String(Math.floor(p.espera * 0.3)).padStart(2, '0')}:${String((p.espera * 18) % 60).padStart(2, '0')} min`
+                      : `Espera: ${p.espera} min`}
+                    <span className="opacity-60">· {p.id}</span>
+                  </div>
+                </div>
+                {esActivo && (
+                  <span className="font-mono text-[9px] uppercase tracking-widest text-secondary font-semibold whitespace-nowrap">
+                    En consulta
                   </span>
-                  {esAlta && (
-                    <Chip
-                      size="small"
-                      icon={<Icon name="warning" className="text-sm !text-on-error-container" />}
-                      label="Alta prioridad"
-                      sx={{
-                        height: 20,
-                        fontSize: '0.62rem',
-                        fontWeight: 700,
-                        bgcolor: 'var(--color-error-container)',
-                        color: 'var(--color-on-error-container)',
-                        '& .MuiChip-icon': { color: 'var(--color-on-error-container)' },
-                      }}
-                    />
-                  )}
-                </div>
-                <div className={`flex items-center gap-1.5 font-mono text-[10px] mt-1 ${esActivo ? 'text-on-secondary-container/70' : 'text-on-surface-variant'}`}>
-                  <Icon name={tab === 'consulta' ? 'timer' : 'schedule'} className="text-xs" />
-                  {tab === 'consulta'
-                    ? `Sesión: ${String(Math.floor(p.espera * 0.3)).padStart(2, '0')}:${String((p.espera * 18) % 60).padStart(2, '0')} min`
-                    : `Espera: ${p.espera} min`}
-                  <span className="opacity-60">· {p.id}</span>
-                </div>
-              </div>
+                )}
+              </button>
               {esActivo && (
-                <span className="font-mono text-[9px] uppercase tracking-widest text-secondary font-semibold whitespace-nowrap">
-                  En consulta
-                </span>
+                <div className="pr-2.5 shrink-0">
+                  <button
+                    onClick={finalizarSiguiente}
+                    disabled={guardando}
+                    title="Finalizar consulta y llamar al siguiente paciente"
+                    aria-label={`Finalizar consulta de ${p.nombre} y pasar al siguiente`}
+                    className="flex items-center gap-1 rounded-full px-3 py-1.5 text-white text-[11px] font-bold shadow-md transition-all hover:brightness-110 active:scale-95 disabled:opacity-60"
+                    style={{ background: temaCentro.gradient }}
+                  >
+                    <Icon name="skip_next" className="text-base" />
+                    Finalizar
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
+
+      {/* Finalizar consulta activa */}
+      {activo && (
+        <div className="px-4 pt-3.5 pb-1 shrink-0">
+          <button
+            onClick={finalizarSiguiente}
+            disabled={guardando}
+            className="w-full flex items-center justify-between gap-2 rounded-2xl px-4 py-3 text-white font-bold text-sm shadow-lg transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
+            style={{ background: temaCentro.gradient }}
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <Icon name="flag" filled className="text-lg shrink-0" />
+              <span className="truncate">Finalizar consulta</span>
+            </span>
+            <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-white/80 shrink-0">
+              Siguiente <Icon name="skip_next" className="text-lg" />
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Registrar paciente */}
       <div className="p-4 border-t border-outline-variant bg-surface-container-low/60">
@@ -784,71 +977,21 @@ export default function Doctores() {
   );
 
   return (
-    <div className="min-h-screen bg-surface text-primary font-ui">
+    <div className="min-h-screen bg-surface text-primary font-ui" style={varsCentro}>
       {/* ===== Barra superior ===== */}
       <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-outline-variant">
         <div className="flex items-center gap-4 px-4 md:px-6 h-16">
-          {/* Móvil: menú */}
+          {/* Menú: abre/cierra la cola de turnos */}
           <button
-            onClick={() => setQueueAbierta(true)}
-            className="lg:hidden p-2 -ml-2 rounded-full text-on-surface-variant hover:bg-surface-container"
-            aria-label="Abrir cola de turnos"
+            onClick={() => setQueueAbierta((v) => !v)}
+            className="p-2 -ml-2 rounded-full text-on-surface-variant hover:bg-surface-container lg:ring-1 lg:ring-outline-variant transition-colors"
+            aria-label={queueAbierta ? 'Cerrar cola de turnos' : 'Abrir cola de turnos'}
+            aria-expanded={queueAbierta}
           >
-            <Icon name="menu" />
+            <Icon name={queueAbierta ? 'close' : 'menu'} />
           </button>
 
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 group min-w-0">
-            <div className="w-10 h-9 rounded-lg overflow-hidden bg-surface ring-1 ring-outline-variant flex items-center justify-center px-1 shrink-0">
-              <img src="/identidad visual/SBna.jpeg" alt="Logo Salud Barcelona" className="h-full w-auto object-contain" />
-            </div>
-            <div className="hidden sm:block min-w-0">
-              <p className="text-[15px] font-extrabold text-primary leading-tight truncate">Salud Barcelona</p>
-              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant leading-tight">
-                Municipal · S. Bolívar
-              </p>
-            </div>
-          </Link>
-
-          {/* Navegación */}
-          <nav className="hidden lg:flex items-center gap-1 ml-6" aria-label="Navegación principal">
-            {NAV.map((n) => {
-              const activado = n.to === '/doctores';
-              return (
-                <Link
-                  key={n.to}
-                  to={n.to}
-                  aria-current={activado ? 'page' : undefined}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                    activado
-                      ? 'bg-secondary-container/40 text-secondary'
-                      : 'text-on-surface-variant hover:text-secondary hover:bg-surface-container'
-                  }`}
-                >
-                  {n.etiqueta}
-                </Link>
-              );
-            })}
-          </nav>
-
           <div className="flex-1" />
-
-          {/* Acciones */}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<Icon name="calendar_month" className="text-base" />}
-            className="hidden md:inline-flex"
-            sx={{
-              backgroundColor: 'var(--color-secondary)',
-              '&:hover': { backgroundColor: 'var(--color-secondary-dark)' },
-              textTransform: 'none',
-              fontWeight: 600,
-              borderRadius: 3,
-            }}
-          >
-            Solicitar Cita
-          </Button>
 
           <IconButton
             aria-label="Notificaciones"
@@ -870,47 +1013,36 @@ export default function Doctores() {
               </p>
             </div>
           </div>
+
+          <div className="w-px h-8 bg-outline-variant/70 hidden sm:block" aria-hidden="true" />
+
+          <Link
+            to="/"
+            className="flex items-center justify-center w-10 h-10 rounded-full text-on-surface-variant hover:text-error hover:bg-error/5 transition-colors"
+            aria-label="Cerrar sesión y volver al portal"
+            title="Cerrar sesión"
+          >
+            <Icon name="logout" className="text-xl" />
+          </Link>
         </div>
       </header>
 
       <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
-        {/* ===== Cola de turnos ===== */}
-        <div
-          className={`lg:hidden fixed inset-0 z-40 bg-primary/50 backdrop-blur-sm transition-opacity duration-300 ${queueAbierta ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-          onClick={() => setQueueAbierta(false)}
-          aria-hidden="true"
-        />
+        {/* ===== Cola de turnos (encoge la vista al abrirse) ===== */}
         <aside
-          className={`lg:static lg:translate-x-0 fixed inset-y-0 left-0 z-40 w-[320px] max-w-[85vw] shrink-0 bg-surface border-r border-outline-variant flex flex-col transition-transform duration-300 ease-out ${
-            queueAbierta ? 'translate-x-0' : '-translate-x-full'
+          className={`shrink-0 w-[min(320px,85vw)] bg-surface border-r border-outline-variant flex flex-col transition-all duration-300 ease-out ${
+            queueAbierta ? 'ml-0' : '-ml-[min(320px,85vw)]'
           }`}
           aria-label="Cola de pacientes"
         >
           {contenidoCola}
         </aside>
 
-        {/* ===== Área de consulta ===== */}
-        <main className="flex-1 flex flex-col min-w-0 bg-surface overflow-hidden">
+        {/* ===== Área de consulta (se encoge y se expande junto al drawer) ===== */}
+        <main className="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden">
           {activo ? (
             <>
               <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
-                {/* Botón móvil para abrir la cola */}
-                <div className="lg:hidden">
-                  <button
-                    onClick={() => setQueueAbierta(true)}
-                    className="w-full flex items-center justify-between gap-3 bg-secondary text-on-secondary rounded-xl px-4 py-3 shadow-md"
-                  >
-                    <span className="flex items-center gap-2 text-sm font-semibold">
-                      <Icon name="groups" filled className="text-lg" />
-                      Cola de turnos
-                    </span>
-                    <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-on-secondary/80">
-                      {cola.espera.length + cola.consulta.length} esperando
-                      <Icon name="chevron_right" className="text-base" />
-                    </span>
-                  </button>
-                </div>
-
                 {/* Cabecera paciente */}
                 <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6 relative overflow-hidden">
                   <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
@@ -920,7 +1052,7 @@ export default function Doctores() {
                         sx={{
                           width: 76,
                           height: 76,
-                          background: gradiente(activo.nombre),
+                          background: gradiente(activo.nombre, temaCentro),
                           fontWeight: 800,
                           fontSize: '1.6rem',
                           boxShadow: '0 12px 28px -10px rgba(15,37,55,0.4)',
@@ -934,7 +1066,7 @@ export default function Doctores() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2.5 flex-wrap mb-1.5">
-                        <h2 className="text-2xl font-extrabold text-primary tracking-tight">
+                        <h2 className="font-display text-[26px] font-bold text-primary tracking-tight">
                           {activo.nombre}
                         </h2>
                         <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-surface border border-outline-variant text-on-surface-variant whitespace-nowrap">
@@ -996,20 +1128,73 @@ export default function Doctores() {
                   </div>
                 </section>
 
-                {/* Formulario clínico */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* Secciones del registro clínico */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div
+                    className="flex bg-surface-container rounded-full p-1"
+                    role="tablist"
+                    aria-label="Sección del registro clínico"
+                  >
+                    {SECCIONES_FORM.map((s) => {
+                      const activado = seccion === s.id;
+                      const contador =
+                        s.id === 'recetas'
+                          ? recetasContables.length
+                          : s.id === 'estudios'
+                            ? estudios.length
+                            : 0;
+                      return (
+                        <button
+                          key={s.id}
+                          role="tab"
+                          aria-selected={activado}
+                          onClick={() => setSeccion(s.id)}
+                          className={`flex-1 px-3.5 py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                            activado ? 'bg-surface text-secondary shadow-sm' : 'text-on-surface-variant hover:text-secondary'
+                          }`}
+                        >
+                          <Icon name={s.icono} className="text-sm" />
+                          {s.etiqueta}
+                          {contador > 0 && (
+                            <span
+                              className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
+                                activado ? 'bg-secondary text-on-secondary' : 'bg-surface-container-high text-on-surface-variant'
+                              }`}
+                            >
+                              {contador}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant hidden md:inline">
+                    {seccion === 'consulta' &&
+                      (puedeGuardar
+                        ? 'Diagnóstico completo · listo para registrar'
+                        : 'Pendiente: motivo · CIE-10 · tratamiento')}
+                    {seccion === 'recetas' && `${recetasContables.length} medicamento(s) para despacho`}
+                    {seccion === 'estudios' &&
+                      `${estudios.length} estudio(s) · ${ordenesPaciente.length} orden(es)`}
+                  </span>
+                </div>
+
+                {seccion === 'consulta' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Motivo de consulta */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="description" filled className="text-base" />
+                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">01</span>
+                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                        <Icon name="description" filled className="text-sm" />
                       </span>
                       <h3 className="text-sm font-bold text-primary">Motivo de Consulta</h3>
+                      <span className="flex-1 ledger-rule opacity-70" />
                     </div>
                     <TextField
                       fullWidth
                       multiline
-                      minRows={4}
+                      minRows={3}
                       value={form.motivo}
                       onChange={(e) => setForm((f) => ({ ...f, motivo: e.target.value }))}
                       placeholder="Síntoma principal y duración..."
@@ -1018,17 +1203,19 @@ export default function Doctores() {
                   </section>
 
                   {/* Examen físico */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="stethoscope" filled className="text-base" />
+                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">02</span>
+                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                        <Icon name="stethoscope" filled className="text-sm" />
                       </span>
                       <h3 className="text-sm font-bold text-primary">Examen Físico</h3>
+                      <span className="flex-1 ledger-rule opacity-70" />
                     </div>
                     <TextField
                       fullWidth
                       multiline
-                      minRows={4}
+                      minRows={3}
                       value={form.examen}
                       onChange={(e) => setForm((f) => ({ ...f, examen: e.target.value }))}
                       placeholder="Hallazgos en exploración física..."
@@ -1037,12 +1224,14 @@ export default function Doctores() {
                   </section>
 
                   {/* Diagnóstico CIE-10 */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="medical_information" filled className="text-base" />
+                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">03</span>
+                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                        <Icon name="medical_information" filled className="text-sm" />
                       </span>
                       <h3 className="text-sm font-bold text-primary">Diagnóstico CIE-10</h3>
+                      <span className="flex-1 ledger-rule opacity-70" />
                     </div>
                     <div className="relative" ref={cieRef}>
                       <TextField
@@ -1092,17 +1281,19 @@ export default function Doctores() {
                   </section>
 
                   {/* Tratamiento / Indicaciones */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="medication" filled className="text-base" />
+                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">04</span>
+                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                        <Icon name="medication" filled className="text-sm" />
                       </span>
                       <h3 className="text-sm font-bold text-primary">Tratamiento / Indicaciones</h3>
+                      <span className="flex-1 ledger-rule opacity-70" />
                     </div>
                     <TextField
                       fullWidth
                       multiline
-                      minRows={4}
+                      minRows={3}
                       value={form.tratamiento}
                       onChange={(e) => setForm((f) => ({ ...f, tratamiento: e.target.value }))}
                       placeholder="Medicación, dosis y frecuencia..."
@@ -1111,12 +1302,14 @@ export default function Doctores() {
                   </section>
 
                   {/* Recomendaciones generales */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6 lg:col-span-2">
-                    <div className="flex items-center gap-2.5 mb-4">
-                      <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="tips_and_updates" filled className="text-base" />
+                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 lg:col-span-2">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">05</span>
+                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                        <Icon name="tips_and_updates" filled className="text-sm" />
                       </span>
                       <h3 className="text-sm font-bold text-primary">Recomendaciones Generales</h3>
+                      <span className="flex-1 ledger-rule opacity-70" />
                     </div>
                     <TextField
                       fullWidth
@@ -1128,9 +1321,13 @@ export default function Doctores() {
                       sx={fieldSx}
                     />
                   </section>
+                </div>
+                )}
 
+                {seccion === 'recetas' && (
+                  <div className="space-y-4 tab-fade">
                   {/* Recetas a despachar */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6 lg:col-span-2">
+                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 md:p-5">
                     <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
                       <div className="flex items-center gap-2.5">
                         <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
@@ -1230,9 +1427,13 @@ export default function Doctores() {
                       </button>
                     </div>
                   </section>
+                  </div>
+                )}
 
+                {seccion === 'estudios' && (
+                  <div className="space-y-4 tab-fade">
                   {/* Estudios y resultados */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6 lg:col-span-2">
+                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 md:p-5">
                     <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
                       <div className="flex items-center gap-2.5">
                         <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
@@ -1651,7 +1852,8 @@ export default function Doctores() {
                       </button>
                     </div>
                   </section>
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Barra de acciones inferior */}
@@ -1727,13 +1929,16 @@ export default function Doctores() {
           ) : (
             <div className="flex-1 flex items-center justify-center p-6">
               <div className="text-center max-w-md">
-                <div className="mx-auto w-20 h-20 rounded-full bg-secondary-container/30 text-secondary flex items-center justify-center mb-5">
+                <div
+                  className="mx-auto w-20 h-20 rounded-full text-white flex items-center justify-center mb-5 shadow-xl"
+                  style={{ background: temaCentro.gradient }}
+                >
                   <Icon name="stethoscope" className="text-4xl" />
                 </div>
                 <h2 className="text-2xl font-extrabold text-primary mb-2">Seleccione un paciente</h2>
                 <p className="text-sm text-on-surface-variant">
-                  Elija un turno de la cola para comenzar la valoración clínica, el diagnóstico
-                  y el registro de la consulta.
+                  Elija un turno de la cola de {centro?.nombre || 'su centro'} para comenzar la
+                  valoración clínica, el diagnóstico y el registro de la consulta.
                 </p>
               </div>
             </div>
@@ -1747,7 +1952,7 @@ export default function Doctores() {
         onClose={() => setHistorialAbierto(false)}
         fullWidth
         maxWidth="sm"
-        PaperProps={{ sx: { borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
           <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
@@ -1827,7 +2032,7 @@ export default function Doctores() {
         onClose={() => setRecetaAbierto(false)}
         fullWidth
         maxWidth="sm"
-        PaperProps={{ sx: { borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
           <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
@@ -1906,7 +2111,7 @@ export default function Doctores() {
         onClose={() => setOrdenEmitida(null)}
         fullWidth
         maxWidth="sm"
-        PaperProps={{ sx: { borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
           <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
@@ -2013,7 +2218,7 @@ export default function Doctores() {
         onClose={() => setOrdenAbierta(false)}
         fullWidth
         maxWidth="md"
-        PaperProps={{ sx: { borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
           <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
@@ -2153,7 +2358,7 @@ export default function Doctores() {
       <Dialog
         open={!!registrada}
         maxWidth="xs"
-        PaperProps={{ sx: { borderRadius: 4, textAlign: 'center', px: 2, py: 1 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: 4, textAlign: 'center', px: 2, py: 1 } }}
       >
         <DialogContent>
           <span

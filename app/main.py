@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -58,7 +60,9 @@ app.include_router(emergencias_router, prefix="/api/v1/emergencias", tags=["Emer
 app.include_router(estudios_router, prefix="/api/v1/estudios", tags=["Estudios / OCR"])
 app.include_router(rag_router, prefix="/api/v1/rag", tags=["RAG / Asistente"])
 
-# Servir el frontend React (build de Vite en frontend/dist/)
-app.mount("/static", StaticFiles(directory="frontend/dist"), name="static")
+# Servir el frontend React (build de Vite en frontend/dist/) solo si existe
+DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if DIST_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=DIST_DIR), name="static")
+    app.mount("/", StaticFiles(directory=DIST_DIR, html=True), name="frontend")
 app.mount("/maquetas", StaticFiles(directory="frontend/maquetas", html=True), name="maquetas")
-app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="frontend")
