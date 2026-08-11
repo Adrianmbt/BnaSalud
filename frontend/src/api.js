@@ -59,10 +59,14 @@ export const API = {
   /* === Módulo Doctores === */
   buscarPaciente: (cedula) =>
     apiFetch(`/pacientes/${encodeURIComponent(cedula)}`),
+  actualizarPaciente: (cedula, payload) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}`, { method: 'PATCH', body: payload }),
   crearConsulta: (payload) =>
     apiFetch('/consultas', { method: 'POST', body: payload }),
   historialPaciente: (cedula) =>
     apiFetch(`/pacientes/${encodeURIComponent(cedula)}/historial`),
+  citasPaciente: (cedula) =>
+    apiFetch(`/citas?cedula=${encodeURIComponent(cedula)}`),
 
   /* === Estudios médicos / OCR === */
   procesarEstudio: (payload) =>

@@ -137,6 +137,16 @@ class HistoriaClinicaBase(BaseModel):
 class HistoriaClinicaCreate(HistoriaClinicaBase):
     pass
 
+class HistoriaClinicaUpdate(BaseModel):
+    """Actualización parcial de los datos del paciente (perfil editable)."""
+    nombre_completo: Optional[str] = None
+    fecha_nacimiento: Optional[date] = None
+    telefono: Optional[str] = None
+    email: Optional[EmailStr] = None
+    tipo_sangre: Optional[str] = None
+    antecedentes_medicos: Optional[List[str]] = None
+    alergias: Optional[List[str]] = None
+
 class HistoriaClinicaResponse(HistoriaClinicaBase):
     id: str
     numero_historia: str = Field(..., json_schema_extra={"example": "HIS-V12345678"})

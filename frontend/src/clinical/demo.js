@@ -356,6 +356,42 @@ let ordenesStore = [
 ];
 let ordenSeq = 1002;
 
+// Citas de la paciente demo para el portal del paciente.
+let citasStore = [
+  {
+    id: 'cita-demo-1',
+    codigo_confirmacion: 'CITAB-2026-8F1A',
+    centro_id: 2,
+    centro_salud: 'Clínica de los Trabajadores (CITAB)',
+    especialidad_id: 101,
+    especialidad: 'Medicina General',
+    fecha_cita: '2026-08-20',
+    hora_inicio: '09:30:00',
+    motivo: 'Control de rutina',
+    estado: 'confirmada',
+    origen: 'cita_web',
+    paciente_id: 'hc-maria-gonzalez',
+    paciente_nombre: 'María González Pérez',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 'cita-demo-2',
+    codigo_confirmacion: 'CITAB-2026-4C92',
+    centro_id: 2,
+    centro_salud: 'Clínica de los Trabajadores (CITAB)',
+    especialidad_id: 101,
+    especialidad: 'Medicina General',
+    fecha_cita: '2026-08-12',
+    hora_inicio: '08:00:00',
+    motivo: 'Seguimiento de presión arterial',
+    estado: 'completada',
+    origen: 'cita_web',
+    paciente_id: 'hc-maria-gonzalez',
+    paciente_nombre: 'María González Pérez',
+    created_at: new Date().toISOString(),
+  },
+];
+
 export const DEMO = {
   getCentros: async () => CENTROS_DEMO.map((c) => ({ ...c, servicios: [...c.servicios] })),
   buscarPaciente: async (cedula) => {
@@ -397,6 +433,20 @@ export const DEMO = {
   historialPaciente: async (cedula) => {
     if (cedula.replace(/\D/g, '') !== CEDULA_ACTIVA) throw new Error('Paciente no encontrado');
     return JSON.parse(JSON.stringify(HISTORIAL_DEMO));
+  },
+  actualizarPaciente: async (cedula, payload) => {
+    if (cedula.replace(/\D/g, '') !== CEDULA_ACTIVA) throw new Error('Paciente no encontrado');
+    const p = HISTORIAL_DEMO.paciente;
+    Object.keys(payload).forEach((k) => {
+      if (payload[k] !== undefined) p[k] = payload[k];
+    });
+    return { ...p };
+  },
+  citasPaciente: async (cedula) => {
+    if (cedula.replace(/\D/g, '') !== CEDULA_ACTIVA) throw new Error('Paciente no encontrado');
+    return citasStore
+      .filter((c) => c.paciente_id === 'hc-maria-gonzalez')
+      .map((c) => ({ ...c, estudios: (c.estudios || []).map((e) => ({ ...e })) }));
   },
   crearConsulta: async (payload) => {
     if (payload.recetas && payload.recetas.length > 0) {

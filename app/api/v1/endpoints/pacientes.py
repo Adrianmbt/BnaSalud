@@ -3,12 +3,13 @@ from typing import Dict, List
 
 from fastapi import APIRouter
 
-from app.api.v1.errors import db_fail, not_found
+from app.api.v1.errors import db_fail, fail, not_found
 from app.api.v1.utils import parse_json_list, parse_list
 from app.core.database import supabase
 from app.schemas.schemas import (
     ConsultaDetalleResponse,
     HistoriaClinicaResponse,
+    HistoriaClinicaUpdate,
     MedicamentoItem,
     LaboratorioResultado,
     ProgresoPacienteResponse,
@@ -97,6 +98,41 @@ def _a_consulta_detalle(fila: dict) -> ConsultaDetalleResponse:
 def obtener_paciente(cedula: str) -> HistoriaClinicaResponse:
     """Obtiene la historia clínica de un paciente por su cédula."""
     return _a_historia(_buscar_paciente(cedula.strip()))
+
+
+@router.patch("/{cedula}", response_model=HistoriaClinicaResponse)
+def actualizar_paciente(cedula: str, payload: HistoriaClinicaUpdate) -> HistoriaClinicaResponse:
+    """Actualiza el perfil editable del paciente (datos clínicos y contacto).
+
+    El paciente puede registrar su tipo de sangre, alergias, antecedentes
+    y datos de contacto; el médico los ve en su módulo de consultas.
+    """
+    fila = _buscar_paciente(cedula.strip())
+    datos = payload.model_dump(exclude_unset=True, mode="json")
+    if not datos:
+        fail("No hay campos para actualizar.")
+
+    # Normalizar listas vacías a [] (evita enviar None que Supabase rechaza).
+    for campo in ("alergias", "antecedentes_medicos"):
+        if campo in datos and datos[campo] is None:
+            datos[campo] = []
+
+    try:
+        supabase.table("historias_clinicas").update(datos).eq("id", fila["id"]).execute()
+    except Exception:
+        db_fail("actualizar los datos del paciente")
+
+    try:
+        actualizado = (
+            supabase.table("historias_clinicas")
+            .select("*")
+            .eq("id", fila["id"])
+            .execute()
+            .data[0]
+        )
+    except Exception:
+        db_fail("recargar los datos actualizados")
+    return _a_historia(actualizado)
 
 
 @router.get("/{cedula}/historial", response_model=ProgresoPacienteResponse)

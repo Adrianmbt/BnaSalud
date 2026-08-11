@@ -83,6 +83,10 @@ function iniciales(nombre = '') {
     .join('');
 }
 
+function horaActual() {
+  return new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+}
+
 function gradiente(nombre = '', t = null) {
   const lista = t ? gradientesTema(t) : GRADIENTES;
   let h = 0;
@@ -94,9 +98,12 @@ export default function Doctores() {
   const [cola, setCola] = useState({
     espera: COLA_DEMO.espera.map((p) => ({ ...p, perfil: { ...p.perfil } })),
     consulta: [],
-    finalizado: [],
+    finalizado: [
+      { id: 'P-31001', nombre: 'María González Pérez', prioridad: 'NORMAL', cedula: '0912345678', hora: '08:12' },
+      { id: 'P-31002', nombre: 'Francisco García Martos', prioridad: 'ALTA', cedula: '14302771', hora: '08:47' },
+    ],
   });
-  const [atendidosHoy, setAtendidosHoy] = useState(COLA_DEMO.finalizado);
+  const atendidosHoy = cola.finalizado.length;
   const [tab, setTab] = useState('espera');
   const [queueAbierta, setQueueAbierta] = useState(false);
   const [activoId, setActivoId] = useState(null);
@@ -106,6 +113,8 @@ export default function Doctores() {
   const [recetaAbierto, setRecetaAbierto] = useState(false);
   const [formNuevo, setFormNuevo] = useState(false);
   const [aviso, setAviso] = useState('');
+  const [informePaciente, setInformePaciente] = useState(null);
+  const [listadoAbierto, setListadoAbierto] = useState(false);
 
   const [centros, setCentros] = useState([]);
   const [centroId, setCentroId] = useState(() => {
@@ -144,7 +153,6 @@ export default function Doctores() {
   const [ordenCompletando, setOrdenCompletando] = useState(null);
   const [ordenEmitida, setOrdenEmitida] = useState(null);
   const [guardando, setGuardando] = useState(false);
-  const [registrada, setRegistrada] = useState(null);
   const [error, setError] = useState('');
   const [inventario, setInventario] = useState([]);
   const cieRef = useRef(null);
@@ -237,7 +245,6 @@ export default function Doctores() {
     setOrdenAbierta(false);
     setOrdenBusqueda('');
     setOrdenSeleccion([]);
-    setRegistrada(null);
     setError('');
     setOrdenCompletando(null);
     setOrdenEmitida(null);
@@ -552,6 +559,7 @@ export default function Doctores() {
   const sinStock = recetasContables.filter((r) => disponibilidad(r.nombre).estado === 'no').length;
 
   function seleccionarPaciente(p) {
+    setTab('consulta');
     setActivoId(p.id);
     setCola((c) => {
       if (c.consulta.some((x) => x.id === p.id)) return c;
@@ -586,8 +594,8 @@ export default function Doctores() {
   const puedeGuardar =
     form.motivo.trim() && form.cie10_codigo.trim() && form.tratamiento.trim();
 
-  async function guardarConsulta(proximo = null) {
-    if (!activo || !puedeGuardar) return;
+  async function guardarConsulta() {
+    if (!activo || !puedeGuardar) return null;
     setGuardando(true);
     setError('');
     const payload = {
@@ -620,29 +628,33 @@ export default function Doctores() {
       } catch {
         respuesta = await DEMO.crearConsulta(payload);
       }
-      setRegistrada(respuesta.comprobante_ref || respuesta.id);
-      setAtendidosHoy((n) => n + 1);
       setCola((c) => ({
         espera: c.espera.filter((x) => x.id !== activo.id),
         consulta: c.consulta.filter((x) => x.id !== activo.id),
-        finalizado: [{ id: activo.id, nombre: activo.nombre, prioridad: activo.prioridad }, ...c.finalizado],
+        finalizado: [
+          { id: activo.id, nombre: activo.nombre, prioridad: activo.prioridad, cedula: activo.perfil.cedula, hora: horaActual() },
+          ...c.finalizado,
+        ],
       }));
-      if (proximo) {
-        setTab('espera');
-        setRegistrada(null);
-        setAviso(`Consulta registrada · Siguiente: ${proximo.nombre}`);
-        seleccionarPaciente(proximo);
-      } else {
-        setTimeout(() => {
-          setActivoId(null);
-          setRegistrada(null);
-          setTab('espera');
-        }, 3400);
-      }
+      return respuesta;
     } catch (e) {
       setError(e.message);
+      return null;
     } finally {
       setGuardando(false);
+    }
+  }
+
+  function cerrarInforme() {
+    const proximo = informePaciente?.proximo || null;
+    setInformePaciente(null);
+    if (proximo) {
+      setTab('espera');
+      setAviso(`Consulta registrada · Siguiente: ${proximo.nombre}`);
+      seleccionarPaciente(proximo);
+    } else {
+      setActivoId(null);
+      setTab('espera');
     }
   }
 
@@ -667,14 +679,40 @@ export default function Doctores() {
       return;
     }
     if (conContenido) {
-      guardarConsulta(siguiente);
+      guardarConsulta().then((respuesta) => {
+        if (!respuesta) return;
+        setInformePaciente({
+          paciente: { ...activo, perfil: { ...activo.perfil } },
+          comprobante: respuesta.comprobante_ref || respuesta.id,
+          fecha: new Date().toISOString(),
+          registro: {
+            motivo: form.motivo,
+            examen: form.examen,
+            cie10_codigo: form.cie10_codigo,
+            cie10_descripcion: form.cie10_descripcion,
+            tratamiento: form.tratamiento,
+            recomendaciones: form.recomendaciones,
+            recetas: recetas.filter((r) => r.nombre.trim()),
+            estudios: estudios.map((e) => ({
+              tipo: e.tipo,
+              nombre: e.nombre,
+              parametros: e.parametros.filter((p) => p.parametro.trim() || p.valor.trim()),
+              descripcion: e.descripcion || null,
+              conclusion: e.conclusion || null,
+            })),
+          },
+          proximo: siguiente,
+        });
+      });
       return;
     }
-    setAtendidosHoy((n) => n + 1);
     setCola((c) => ({
       espera: c.espera.filter((x) => x.id !== activo.id),
       consulta: c.consulta.filter((x) => x.id !== activo.id),
-      finalizado: [{ id: activo.id, nombre: activo.nombre, prioridad: activo.prioridad }, ...c.finalizado],
+      finalizado: [
+        { id: activo.id, nombre: activo.nombre, prioridad: activo.prioridad, cedula: activo.perfil.cedula, hora: horaActual() },
+        ...c.finalizado,
+      ],
     }));
     setAviso(siguiente ? `Llamando a ${siguiente.nombre}` : `${activo.nombre} fue retirado de la fila sin registro.`);
     if (siguiente) {
@@ -686,7 +724,7 @@ export default function Doctores() {
   }
 
   const listaTab = cola[tab] || [];
-  const sinResultados = tab === 'finalizado' ? atendidosHoy === 0 && listaTab.length === 0 : listaTab.length === 0;
+  const sinResultados = listaTab.length === 0;
 
   const notificaciones = 3;
 
@@ -781,6 +819,15 @@ export default function Doctores() {
 
       {/* Lista de pacientes */}
       <div className="flex-1 overflow-y-auto ledger-scroll px-4 py-4 space-y-2.5">
+        {tab === 'finalizado' && atendidosHoy > 0 && (
+          <button
+            onClick={() => setListadoAbierto(true)}
+            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-secondary/40 bg-secondary/5 px-4 py-2.5 text-xs font-bold text-secondary hover:bg-secondary/10 transition-colors"
+          >
+            <Icon name="print" className="text-base" />
+            Imprimir listado de atendidos
+          </button>
+        )}
         {sinResultados && (
           <div className="text-center py-12 text-on-surface-variant space-y-2">
             <Icon
@@ -848,8 +895,10 @@ export default function Doctores() {
                     <Icon name={tab === 'consulta' ? 'timer' : 'schedule'} className="text-xs" />
                     {tab === 'consulta'
                       ? `Sesión: ${String(Math.floor(p.espera * 0.3)).padStart(2, '0')}:${String((p.espera * 18) % 60).padStart(2, '0')} min`
-                      : `Espera: ${p.espera} min`}
-                    <span className="opacity-60">· {p.id}</span>
+                      : tab === 'finalizado'
+                        ? `Atendido: ${p.hora || '—'}`
+                        : `Espera: ${p.espera} min`}
+                    <span className="opacity-60">· {p.cedula || p.id}</span>
                   </div>
                 </div>
                 {esActivo && (
@@ -877,26 +926,6 @@ export default function Doctores() {
           );
         })}
       </div>
-
-      {/* Finalizar consulta activa */}
-      {activo && (
-        <div className="px-4 pt-3.5 pb-1 shrink-0">
-          <button
-            onClick={finalizarSiguiente}
-            disabled={guardando}
-            className="w-full flex items-center justify-between gap-2 rounded-2xl px-4 py-3 text-white font-bold text-sm shadow-lg transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
-            style={{ background: temaCentro.gradient }}
-          >
-            <span className="flex items-center gap-2 min-w-0">
-              <Icon name="flag" filled className="text-lg shrink-0" />
-              <span className="truncate">Finalizar consulta</span>
-            </span>
-            <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-white/80 shrink-0">
-              Siguiente <Icon name="skip_next" className="text-lg" />
-            </span>
-          </button>
-        </div>
-      )}
 
       {/* Registrar paciente */}
       <div className="p-4 border-t border-outline-variant bg-surface-container-low/60">
@@ -1903,26 +1932,6 @@ export default function Doctores() {
                       {error}
                     </span>
                   )}
-                  <Button
-                    variant="contained"
-                    onClick={guardarConsulta}
-                    disabled={!puedeGuardar || guardando}
-                    startIcon={
-                      guardando ? <Icon name="sync" className="animate-spin text-base" /> : <Icon name="check_circle" className="text-base" />
-                    }
-                    className="flex-1 md:flex-none"
-                    sx={{
-                      backgroundColor: 'var(--color-secondary)',
-                      '&:hover': { backgroundColor: 'var(--color-secondary-dark)' },
-                      '&.Mui-disabled': { bgcolor: 'var(--color-secondary)/0.5', color: '#fff' },
-                      textTransform: 'none',
-                      fontWeight: 700,
-                      borderRadius: 3,
-                      px: 3,
-                    }}
-                  >
-                    {guardando ? 'Registrando...' : 'Finalizar Consulta'}
-                  </Button>
                 </div>
               </div>
             </>
@@ -2354,27 +2363,241 @@ export default function Doctores() {
         </DialogActions>
       </Dialog>
 
-      {/* ===== Sello: consulta registrada ===== */}
+      {/* ===== Diálogo: informe de consulta registrada ===== */}
       <Dialog
-        open={!!registrada}
-        maxWidth="xs"
-        PaperProps={{ sx: { ...varsCentro, borderRadius: 4, textAlign: 'center', px: 2, py: 1 } }}
+        open={!!informePaciente}
+        fullWidth
+        maxWidth="md"
+        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
       >
-        <DialogContent>
-          <span
-            className="block font-display italic font-black text-3xl tracking-tight border-[4px] rounded px-5 py-2 text-success"
-            style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)', animation: 'var(--animate-stamp)' }}
-          >
-            Consulta registrada
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
+          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+            <Icon name="check_circle" filled className="text-lg" />
           </span>
-          <p className="text-sm text-on-surface-variant mt-5">
-            Comprobante de referencia:
-            <span className="block font-mono text-base font-semibold text-primary mt-1">{registrada}</span>
-          </p>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant mt-3">
-            Paciente notificado · Historial actualizado
-          </p>
+          Informe de consulta
+        </DialogTitle>
+        <DialogContent dividers>
+          {informePaciente && (
+            <div className="print-area">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between flex-wrap gap-2 pb-3 border-b border-outline-variant/60">
+                  <div>
+                    <p className="font-display font-black text-lg text-primary tracking-tight">BNA Salud</p>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                      {centro?.nombre || 'Salud Barcelona'} · Informe de consulta médica
+                    </p>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="font-mono text-sm font-semibold text-secondary">{informePaciente.comprobante}</p>
+                    <p className="font-mono text-[10px] text-on-surface-variant">
+                      {formatoFecha(informePaciente.fecha)} ·{' '}
+                      {new Date(informePaciente.fecha).toLocaleTimeString('es-VE', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className="inline-block font-display italic font-black text-base tracking-tight border-[4px] rounded px-3 py-1"
+                  style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}
+                >
+                  Consulta registrada
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Paciente</p>
+                    <p className="text-sm font-semibold text-primary">{informePaciente.paciente.nombre}</p>
+                    <p className="font-mono text-[10px] text-on-surface-variant">
+                      C.I. {informePaciente.paciente.perfil?.cedula}
+                      {informePaciente.paciente.perfil?.edad ? ` · ${informePaciente.paciente.perfil.edad}` : ''}
+                    </p>
+                    {informePaciente.paciente.perfil?.alergia && (
+                      <p className="font-mono text-[10px] text-error">Alergia: {informePaciente.paciente.perfil.alergia}</p>
+                    )}
+                  </div>
+                  <div className="sm:text-right">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Médico tratante</p>
+                    <p className="text-sm font-semibold text-primary">{MEDICO.nombre}</p>
+                    <p className="font-mono text-[10px] text-on-surface-variant">
+                      {MEDICO.especialidad} · ID {MEDICO.id}
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2.5 pt-2 border-t border-outline-variant/60">
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Motivo de consulta</p>
+                    <p className="text-sm text-primary whitespace-pre-wrap">{informePaciente.registro.motivo}</p>
+                  </div>
+                  {informePaciente.registro.examen && (
+                    <div>
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Examen físico</p>
+                      <p className="text-sm text-primary whitespace-pre-wrap">{informePaciente.registro.examen}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Diagnóstico (CIE-10)</p>
+                    <p className="text-sm font-semibold text-primary">
+                      <span className="text-secondary">{informePaciente.registro.cie10_codigo}</span> ·{' '}
+                      {informePaciente.registro.cie10_descripcion}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Tratamiento / Indicaciones</p>
+                    <p className="text-sm text-primary whitespace-pre-wrap">{informePaciente.registro.tratamiento}</p>
+                  </div>
+                  {informePaciente.registro.recomendaciones && (
+                    <div>
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Recomendaciones</p>
+                      <p className="text-sm text-primary whitespace-pre-wrap">{informePaciente.registro.recomendaciones}</p>
+                    </div>
+                  )}
+                </div>
+                {informePaciente.registro.recetas.length > 0 && (
+                  <div className="border-t border-outline-variant/60 pt-3">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">Recetas</p>
+                    <ol className="space-y-1.5">
+                      {informePaciente.registro.recetas.map((r, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <span className="font-mono text-xs text-on-surface-variant w-5">
+                            {(i + 1).toString().padStart(2, '0')}
+                          </span>
+                          <span className="text-sm font-semibold text-primary">{r.nombre}</span>
+                          <span className="text-sm text-on-surface-variant">{r.posologia}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {informePaciente.registro.estudios.length > 0 && (
+                  <div className="border-t border-outline-variant/60 pt-3">
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant mb-1.5">
+                      Estudios solicitados
+                    </p>
+                    <ol className="space-y-1">
+                      {informePaciente.registro.estudios.map((e, i) => (
+                        <li key={i} className="flex items-center gap-3">
+                          <span className="font-mono text-xs text-on-surface-variant w-5">
+                            {(i + 1).toString().padStart(2, '0')}
+                          </span>
+                          <span className="font-mono text-[10px] uppercase tracking-widest text-secondary w-24">{e.tipo}</span>
+                          <span className="text-sm font-semibold text-primary">{e.nombre}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                <div className="pt-3 border-t border-outline-variant/60 flex items-end justify-between flex-wrap gap-2">
+                  <p className="font-mono text-[10px] text-on-surface-variant italic">Firma y sello del médico</p>
+                  <p className="font-mono text-[10px] text-on-surface-variant italic text-right">
+                    Original para el paciente · Copia para el expediente
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button
+            onClick={cerrarInforme}
+            sx={{ color: 'var(--color-on-surface-variant)', textTransform: 'none', fontWeight: 600 }}
+          >
+            Cerrar
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Icon name="print" className="text-base" />}
+            onClick={() => window.print()}
+            sx={{
+              backgroundColor: 'var(--color-secondary)',
+              '&:hover': { backgroundColor: 'var(--color-secondary-dark)' },
+              textTransform: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Imprimir informe
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ===== Diálogo: listado de pacientes atendidos hoy ===== */}
+      <Dialog
+        open={listadoAbierto}
+        onClose={() => setListadoAbierto(false)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
+          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+            <Icon name="done_all" filled className="text-lg" />
+          </span>
+          Pacientes atendidos hoy
+        </DialogTitle>
+        <DialogContent dividers>
+          <div className="print-area">
+            <div className="space-y-3">
+              <div className="flex items-start justify-between flex-wrap gap-2 pb-3 border-b border-outline-variant/60">
+                <div>
+                  <p className="font-display font-black text-lg text-primary tracking-tight">BNA Salud</p>
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                    {centro?.nombre || 'Salud Barcelona'} · Listado diario de atención
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono text-sm font-semibold text-secondary">
+                    {formatoFecha(new Date().toISOString())}
+                  </p>
+                  <p className="font-mono text-[10px] text-on-surface-variant">{atendidosHoy} pacientes atendidos</p>
+                </div>
+              </div>
+              <ol className="divide-y divide-outline-variant/50 border border-outline-variant rounded-2xl">
+                {cola.finalizado.map((p, i) => (
+                  <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="font-mono text-xs text-on-surface-variant w-6">
+                      {(i + 1).toString().padStart(2, '0')}
+                    </span>
+                    <span className="font-mono text-[11px] text-secondary font-semibold w-14">{p.hora || '—'}</span>
+                    <span className="flex-1 text-sm font-semibold text-primary">{p.nombre}</span>
+                    <span className="font-mono text-[10px] text-on-surface-variant">{p.cedula || ''}</span>
+                    <span
+                      className={`font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                        p.prioridad === 'ALTA' ? 'bg-error/10 text-error' : 'bg-mint-soft text-mint'
+                      }`}
+                    >
+                      {p.prioridad || 'NORMAL'}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <div className="pt-3 border-t border-outline-variant/60 flex items-end justify-between flex-wrap gap-2">
+                <p className="font-mono text-[10px] text-on-surface-variant italic">Firma y sello del responsable</p>
+                <p className="font-mono text-[10px] text-on-surface-variant italic text-right">Total: {atendidosHoy} pacientes</p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button
+            onClick={() => setListadoAbierto(false)}
+            sx={{ color: 'var(--color-on-surface-variant)', textTransform: 'none', fontWeight: 600 }}
+          >
+            Cerrar
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Icon name="print" className="text-base" />}
+            onClick={() => window.print()}
+            sx={{
+              backgroundColor: 'var(--color-secondary)',
+              '&:hover': { backgroundColor: 'var(--color-secondary-dark)' },
+              textTransform: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Imprimir PDF
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* ===== Avisos ===== */}

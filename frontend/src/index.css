@@ -328,8 +328,8 @@ body {
     visibility: visible !important;
   }
   .print-area {
-    position: absolute !important;
-    inset: 0;
+    position: static !important;
+    inset: auto !important;
     margin: 0;
     padding: 1.5rem;
     background: #fff;
@@ -337,6 +337,16 @@ body {
   .print-area * {
     box-shadow: none !important;
     text-shadow: none !important;
+  }
+  .MuiDialog-root,
+  .MuiDialog-container,
+  .MuiDialog-paper,
+  .MuiDialogContent-root {
+    position: static !important;
+    inset: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
   }
 }
 
