@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { API, parseCedula } from '../api';
 import Icon from './Icon';
 import LogoPlate from './LogoPlate';
@@ -23,6 +24,7 @@ export default function CitaModal({ centro, onClose }) {
   const [enviando, setEnviando] = useState(false);
   const [apiError, setApiError] = useState('');
   const [exitoCodigo, setExitoCodigo] = useState(null);
+  const [exitoPin, setExitoPin] = useState('');
 
   const [form, setForm] = useState({ nombre: '', cedula: '', email: '' });
   const [errores, setErrores] = useState({});
@@ -161,6 +163,7 @@ export default function CitaModal({ centro, onClose }) {
     try {
       const cita = await API.crearCita(payload);
       setExitoCodigo(cita.codigo_confirmacion || 'CITAB-2026-OK');
+      setExitoPin(cita.pin_inicial || '');
     } catch (err) {
       setApiError(err.message);
     } finally {
@@ -178,6 +181,10 @@ export default function CitaModal({ centro, onClose }) {
         day: 'numeric',
         month: 'long',
       })
+    : '';
+  const identRegistro = parseCedula(form.cedula);
+  const numeroHistoria = identRegistro.cedula
+    ? `HIS-${identRegistro.tipo_cedula}${identRegistro.cedula}`
     : '';
 
   return (
@@ -256,6 +263,33 @@ export default function CitaModal({ centro, onClose }) {
                   <p className="text-xs text-on-surface-variant mb-1">Código de Confirmación</p>
                   <p className="text-xl md:text-2xl font-extrabold tracking-widest text-secondary">{exitoCodigo}</p>
                 </div>
+
+                <div className="mt-3 w-full max-w-sm text-left rounded-2xl p-5 relative overflow-hidden bg-doc-soft/50 border border-doc/25">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-7 h-7 rounded-lg bg-doc text-white flex items-center justify-center">
+                      <Icon name="folder_shared" filled className="text-base" />
+                    </span>
+                    <p className="text-sm font-extrabold text-primary">Tu historia clínica fue creada</p>
+                  </div>
+                  <p className="font-mono text-xs text-on-surface-variant">
+                    Expediente <span className="font-bold text-doc">{numeroHistoria}</span>
+                  </p>
+                  {exitoPin && (
+                    <div className="mt-3 flex items-center justify-between gap-3 bg-white/70 rounded-xl px-3.5 py-2.5 border border-doc/30">
+                      <div className="flex items-center gap-2">
+                        <Icon name="pin" filled className="text-doc text-lg" />
+                        <p className="text-xs font-bold text-primary">Tu PIN de acceso</p>
+                      </div>
+                      <span className="font-mono text-xl font-extrabold tracking-[0.3em] text-doc">{exitoPin}</span>
+                    </div>
+                  )}
+                  <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+                    {exitoPin
+                      ? 'Guárdalo bien: lo usarás con tu cédula para entrar al portal y ver tu historial.'
+                      : 'Quedaste registrado en la red. Entra al portal con tu cédula para ver tu historial y el médico tratante asignado.'}
+                  </p>
+                </div>
+
                 <dl className="mt-4 text-left text-sm space-y-2 w-full max-w-sm bg-surface-container-low rounded-2xl p-5">
                   {[
                     ['Especialidad', especialidadSeleccionada?.nombre || '—'],
@@ -268,12 +302,22 @@ export default function CitaModal({ centro, onClose }) {
                     </div>
                   ))}
                 </dl>
-                <button
-                  onClick={onClose}
-                  className="mt-8 btn-primary text-white px-8 py-3 rounded-xl font-semibold text-sm shadow-lg"
-                >
-                  Cerrar
-                </button>
+                <div className="mt-8 flex items-center gap-3">
+                  <button
+                    onClick={onClose}
+                    className="px-5 py-3 rounded-xl font-semibold text-sm border border-outline-variant text-on-surface-variant hover:bg-surface-container-low transition-all"
+                  >
+                    Cerrar
+                  </button>
+                  <Link
+                    to="/paciente"
+                    className="text-white px-7 py-3 rounded-xl font-semibold text-sm shadow-lg flex items-center gap-2"
+                    style={{ background: theme.gradient }}
+                  >
+                    <Icon name="person" className="text-base" />
+                    Entrar al portal del paciente
+                  </Link>
+                </div>
               </div>
             ) : (
               <>

@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Dict, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api.v1.deps import exigir_paciente_o_staff
 from app.api.v1.errors import db_fail, fail, not_found
 from app.api.v1.utils import parse_json_list, parse_list
 from app.core.database import supabase
@@ -12,6 +13,7 @@ from app.schemas.schemas import (
     HistoriaClinicaUpdate,
     MedicamentoItem,
     LaboratorioResultado,
+    MedicoPacienteResponse,
     ProgresoPacienteResponse,
 )
 
@@ -95,13 +97,23 @@ def _a_consulta_detalle(fila: dict) -> ConsultaDetalleResponse:
 
 
 @router.get("/{cedula}", response_model=HistoriaClinicaResponse)
-def obtener_paciente(cedula: str) -> HistoriaClinicaResponse:
-    """Obtiene la historia clínica de un paciente por su cédula."""
+def obtener_paciente(
+    cedula: str,
+    _: dict = Depends(exigir_paciente_o_staff),
+) -> HistoriaClinicaResponse:
+    """Obtiene la historia clínica de un paciente por su cédula.
+
+    Acceso: el propio paciente (cédula+PIN) o el personal autenticado.
+    """
     return _a_historia(_buscar_paciente(cedula.strip()))
 
 
 @router.patch("/{cedula}", response_model=HistoriaClinicaResponse)
-def actualizar_paciente(cedula: str, payload: HistoriaClinicaUpdate) -> HistoriaClinicaResponse:
+def actualizar_paciente(
+    cedula: str,
+    payload: HistoriaClinicaUpdate,
+    _: dict = Depends(exigir_paciente_o_staff),
+) -> HistoriaClinicaResponse:
     """Actualiza el perfil editable del paciente (datos clínicos y contacto).
 
     El paciente puede registrar su tipo de sangre, alergias, antecedentes
@@ -135,8 +147,71 @@ def actualizar_paciente(cedula: str, payload: HistoriaClinicaUpdate) -> Historia
     return _a_historia(actualizado)
 
 
+@router.get("/{cedula}/medico", response_model=MedicoPacienteResponse)
+def medico_tratante(
+    cedula: str,
+    _: dict = Depends(exigir_paciente_o_staff),
+) -> MedicoPacienteResponse:
+    """Médico principal asignado al paciente (relación médico_pacientes).
+
+    Si aún no hay vínculo formal, se deduce del médico de la última consulta.
+    """
+    fila = _buscar_paciente(cedula.strip())
+    try:
+        relacion = (
+            supabase.table("medico_pacientes")
+            .select("tipo, estado, personal(id, nombre, apellido, especialidad, cargo)")
+            .eq("paciente_id", fila["id"])
+            .eq("tipo", "principal")
+            .eq("estado", "activo")
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        relacion = []
+    if relacion:
+        m = relacion[0].get("personal") or {}
+        nombre = f"{m.get('nombre', '')} {m.get('apellido', '')}".strip()
+        return MedicoPacienteResponse(
+            medico_id=m.get("id"),
+            nombre=nombre or None,
+            especialidad=m.get("especialidad"),
+            tipo=relacion[0].get("tipo", "principal"),
+            estado=relacion[0].get("estado", "activo"),
+        )
+
+    try:
+        consulta = (
+            supabase.table("consultas")
+            .select("medico_id, medico_nombre, especialidad")
+            .eq("paciente_id", fila["id"])
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        consulta = []
+    if consulta:
+        c = consulta[0]
+        return MedicoPacienteResponse(
+            medico_id=c.get("medico_id"),
+            nombre=c.get("medico_nombre") or None,
+            especialidad=c.get("especialidad"),
+            tipo="seguimiento",
+            estado="activo",
+        )
+    return MedicoPacienteResponse()
+
+
 @router.get("/{cedula}/historial", response_model=ProgresoPacienteResponse)
-def historial_paciente(cedula: str) -> ProgresoPacienteResponse:
+def historial_paciente(
+    cedula: str,
+    _: dict = Depends(exigir_paciente_o_staff),
+) -> ProgresoPacienteResponse:
     """Historial clínico completo del paciente (datos + consultas)."""
     fila = _buscar_paciente(cedula.strip())
     try:

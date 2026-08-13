@@ -14,16 +14,24 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
 import Icon from '../components/Icon';
-import { API, parseCedula } from '../api';
-import { DEMO, CENTROS_DEMO } from '../clinical/demo';
+import HistorialLinea from '../components/HistorialLinea';
+import DemoSwitcher from '../components/DemoSwitcher';
+import { API, parseCedula, cerrarSesion } from '../api';
+import { DEMO, CENTROS_DEMO, getPersonaDemo, PIN_POR_DEFECTO } from '../clinical/demo';
 import { getCentroTheme } from '../centroTheme';
 import CitaModal from '../components/CitaModal';
 
 const SECCIONES = [
   { id: 'dashboard', etiqueta: 'Dashboard', detalle: 'Resumen de salud', icono: 'grid_view' },
   { id: 'citas', etiqueta: 'Citas', detalle: 'Agenda y confirmación', icono: 'calendar_month' },
+  { id: 'historial', etiqueta: 'Historial', detalle: 'Consultas y evolución', icono: 'timeline' },
   { id: 'estudios', etiqueta: 'Estudios', detalle: 'Órdenes y resultados', icono: 'monitor_heart' },
   { id: 'misalud', etiqueta: 'Mi Salud', detalle: 'Perfil y datos clínicos', icono: 'favorite' },
+];
+
+const VISTAS_HISTORIAL = [
+  { id: 'general', etiqueta: 'Historial General', detalle: 'Todas tus consultas', icono: 'timeline' },
+  { id: 'actual', etiqueta: 'Actual', detalle: 'Cita y tratamiento vigente', icono: 'schedule' },
 ];
 
 const TIPOS_SANGRE = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
@@ -129,15 +137,24 @@ function EtiquetaEstado({ estado, mapa }) {
 
 export default function Paciente() {
   const [cedulaEntrada, setCedulaEntrada] = useState('');
+  const [pinEntrada, setPinEntrada] = useState('');
   const [entrando, setEntrando] = useState(false);
   const [errorEntrada, setErrorEntrada] = useState('');
+  const [infoEntrada, setInfoEntrada] = useState('');
+  const [flujoAcceso, setFlujoAcceso] = useState('login'); // login | recuperar | reset
+  const [recuperarForm, setRecuperarForm] = useState({ cedula: '', email: '', codigo: '', pinNuevo: '' });
+  const [recuperando, setRecuperando] = useState(false);
+  const [codigoDemo, setCodigoDemo] = useState('');
+  const [modoDemo, setModoDemo] = useState(false);
   const [paciente, setPaciente] = useState(null);
   const [historial, setHistorial] = useState(null);
   const [citas, setCitas] = useState([]);
   const [ordenes, setOrdenes] = useState([]);
+  const [medico, setMedico] = useState(null);
   const [cargando, setCargando] = useState(false);
 
   const [seccion, setSeccion] = useState('dashboard');
+  const [historialVista, setHistorialVista] = useState('general');
   const [navAbierta, setNavAbierta] = useState(false);
   const [citaModal, setCitaModal] = useState(null);
   const [aviso, setAviso] = useState('');
@@ -176,24 +193,175 @@ export default function Paciente() {
     [temaCentro]
   );
 
-  const entrar = useCallback(async (cedula) => {
+  const entrar = useCallback(async (cedula, pin) => {
     setEntrando(true);
     setErrorEntrada('');
+    setInfoEntrada('');
     try {
       let datos;
+      let token;
+      let esDemo = false;
       try {
-        datos = await API.buscarPaciente(cedula);
+        const res = await API.loginPaciente(cedula, pin);
+        token = res.token;
+        datos = res.paciente;
       } catch {
-        datos = await DEMO.buscarPaciente(cedula);
+        const res = await DEMO.loginPaciente({ cedula, pin });
+        token = res.token;
+        datos = res.paciente;
+        esDemo = true;
       }
+      try {
+        localStorage.setItem('bna_token_paciente', token);
+        localStorage.setItem('bna_sesion_paciente', JSON.stringify({ cedula }));
+      } catch {
+        /* sin almacenamiento */
+      }
+      setModoDemo(esDemo);
       setPaciente(datos);
       setSeccion('dashboard');
       setNavAbierta(false);
     } catch (err) {
-      setErrorEntrada(err.message || 'No se encontró el paciente. Verifique la cédula.');
+      setErrorEntrada(err.message || 'No se pudo iniciar sesión. Verifique sus datos.');
     } finally {
       setEntrando(false);
     }
+  }, []);
+
+  const cerrarSesionPaciente = useCallback(() => {
+    cerrarSesion('paciente');
+    try {
+      localStorage.removeItem('bna_sesion_paciente');
+    } catch {
+      /* sin almacenamiento */
+    }
+    setPaciente(null);
+    setCedulaEntrada('');
+    setPinEntrada('');
+    setErrorEntrada('');
+    setInfoEntrada('');
+    setFlujoAcceso('login');
+    setSeccion('dashboard');
+  }, []);
+
+  const solicitarRecuperacion = async (e) => {
+    e.preventDefault();
+    setRecuperando(true);
+    setErrorEntrada('');
+    setInfoEntrada('');
+    const ident = parseCedula(recuperarForm.cedula);
+    if (!ident.cedula) {
+      setErrorEntrada('Ingrese su cédula.');
+      setRecuperando(false);
+      return;
+    }
+    try {
+      let res;
+      try {
+        res = await API.recuperarPin(ident.cedula, recuperarForm.email);
+      } catch {
+        res = await DEMO.recuperarPin({ cedula: ident.cedula, email: recuperarForm.email });
+      }
+      setCodigoDemo(res.codigo_demo || '');
+      setInfoEntrada(res.mensaje || 'Se envió el código a su correo.');
+      setRecuperarForm((f) => ({ ...f, cedula: ident.cedula }));
+      setFlujoAcceso('reset');
+    } catch (err) {
+      setErrorEntrada(err.message || 'No se pudo generar el código de recuperación.');
+    } finally {
+      setRecuperando(false);
+    }
+  };
+
+  const restablecerPin = async (e) => {
+    e.preventDefault();
+    setRecuperando(true);
+    setErrorEntrada('');
+    setInfoEntrada('');
+    const pinNuevo = String(recuperarForm.pinNuevo || '');
+    if (pinNuevo.length < 4) {
+      setErrorEntrada('El PIN nuevo debe tener al menos 4 dígitos.');
+      setRecuperando(false);
+      return;
+    }
+    try {
+      try {
+        await API.resetPin(recuperarForm.cedula, recuperarForm.codigo, pinNuevo);
+      } catch {
+        await DEMO.resetPin({
+          cedula: recuperarForm.cedula,
+          codigo: recuperarForm.codigo,
+          pin_nuevo: pinNuevo,
+        });
+      }
+      setFlujoAcceso('login');
+      setRecuperarForm({ cedula: '', email: '', codigo: '', pinNuevo: '' });
+      setCodigoDemo('');
+      setInfoEntrada('¡PIN restablecido! Ingrese con su cédula y el nuevo PIN.');
+    } catch (err) {
+      setErrorEntrada(err.message || 'No se pudo restablecer el PIN.');
+    } finally {
+      setRecuperando(false);
+    }
+  };
+
+  // Restaurar sesión (o la persona activa del modo demo) al montar.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      const persona = getPersonaDemo();
+      if (persona && persona.tipo === 'paciente') {
+        try {
+          const res = await DEMO.loginPaciente({ cedula: persona.cedula, pin: PIN_POR_DEFECTO });
+          if (activo) {
+            try {
+              localStorage.setItem('bna_token_paciente', res.token);
+              localStorage.setItem('bna_sesion_paciente', JSON.stringify({ cedula: persona.cedula }));
+            } catch {
+              /* sin almacenamiento */
+            }
+            setModoDemo(true);
+            setPaciente(res.paciente);
+          }
+        } catch {
+          /* persona inválida: seguir con la sesión normal */
+        }
+        return;
+      }
+      let sesion = null;
+      try {
+        sesion = JSON.parse(localStorage.getItem('bna_sesion_paciente') || 'null');
+      } catch {
+        sesion = null;
+      }
+      if (!sesion || !sesion.cedula) return;
+      try {
+        const datos = await API.buscarPaciente(sesion.cedula);
+        if (activo) setPaciente(datos);
+      } catch (err) {
+        if (err.status === 401) {
+          cerrarSesion('paciente');
+          try {
+            localStorage.removeItem('bna_sesion_paciente');
+          } catch {
+            /* sin almacenamiento */
+          }
+        } else {
+          try {
+            const datos = await DEMO.buscarPaciente(sesion.cedula);
+            if (activo) {
+              setModoDemo(true);
+              setPaciente(datos);
+            }
+          } catch {
+            /* sin datos demo ni backend */
+          }
+        }
+      }
+    })();
+    return () => {
+      activo = false;
+    };
   }, []);
 
   const cargarTodo = useCallback(async () => {
@@ -204,16 +372,21 @@ export default function Paciente() {
       API.historialPaciente(cedula).catch(async () => DEMO.historialPaciente(cedula)),
       API.citasPaciente(cedula).catch(async () => DEMO.citasPaciente(cedula)),
       API.ordenesPaciente(paciente.id).catch(async () => DEMO.ordenesPaciente(paciente.id || cedula)),
+      API.medicoTratante(cedula)
+        .catch(async () => DEMO.medicoTratante(cedula))
+        .catch(() => null),
     ];
     try {
-      const [h, c, o] = await Promise.all(promesas);
+      const [h, c, o, m] = await Promise.all(promesas);
       setHistorial(h && h.historial ? h : null);
       setCitas(Array.isArray(c) ? c : []);
       setOrdenes(Array.isArray(o) ? o : []);
+      setMedico(m && m.nombre ? m : null);
     } catch {
       setHistorial(null);
       setCitas([]);
       setOrdenes([]);
+      setMedico(null);
     } finally {
       setCargando(false);
     }
@@ -236,6 +409,21 @@ export default function Paciente() {
     () => (historial && historial.historial && historial.historial.length > 0 ? historial.historial[0] : null),
     [historial]
   );
+
+  const medicoTratante = useMemo(() => {
+    if (medico) return medico;
+    if (ultimaConsulta && ultimaConsulta.medico_nombre) {
+      return { nombre: ultimaConsulta.medico_nombre, especialidad: ultimaConsulta.especialidad, tipo: 'seguimiento' };
+    }
+    return null;
+  }, [medico, ultimaConsulta]);
+
+  const evolucionTratamientos = useMemo(() => {
+    const h = (historial && historial.historial) || [];
+    return [...h]
+      .filter((c) => c.tratamiento)
+      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+  }, [historial]);
 
   const abrirPerfil = () => {
     setPerfilForm({
@@ -411,6 +599,11 @@ export default function Paciente() {
 
           {paciente && (
             <>
+              {modoDemo && (
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-amber/10 text-amber border border-amber/30 hidden sm:inline">
+                  Demo
+                </span>
+              )}
               <IconButton aria-label="Notificaciones" sx={{ color: 'var(--color-on-surface-variant)' }}>
                 <Badge badgeContent={citas.filter((c) => c.estado === 'pendiente').length} color="error">
                   <Icon name="notifications" className="text-xl" />
@@ -430,6 +623,7 @@ export default function Paciente() {
               <div className="w-px h-8 bg-outline-variant/70 hidden sm:block" aria-hidden="true" />
               <Link
                 to="/"
+                onClick={cerrarSesionPaciente}
                 className="flex items-center justify-center w-10 h-10 rounded-full text-on-surface-variant hover:text-error hover:bg-error/5 transition-colors"
                 aria-label="Cerrar sesión y volver al portal"
                 title="Cerrar sesión"
@@ -472,48 +666,244 @@ export default function Paciente() {
                         <p className="text-xs font-semibold text-error">{errorEntrada}</p>
                       </div>
                     )}
+                    {infoEntrada && (
+                      <div className="mt-5 p-3 bg-doc-soft rounded-xl border border-doc/20 flex items-start gap-2" role="status">
+                        <Icon name="info" className="text-doc text-lg shrink-0" />
+                        <p className="text-xs font-semibold text-doc-deep">{infoEntrada}</p>
+                      </div>
+                    )}
+                    {codigoDemo && (
+                      <div className="mt-3 p-3 rounded-xl border border-dashed border-amber bg-amber/5 flex items-center justify-between" role="status">
+                        <p className="text-xs font-semibold text-amber">
+                          Código de demostración (sin correo real)
+                        </p>
+                        <span className="font-mono text-base font-bold tracking-[0.3em] text-amber">{codigoDemo}</span>
+                      </div>
+                    )}
 
-                    <form
-                      className="mt-5 space-y-4"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const ident = parseCedula(cedulaEntrada);
-                        if (!ident.cedula) {
-                          setErrorEntrada('Ingrese su cédula.');
-                          return;
-                        }
-                        entrar(ident.cedula);
-                      }}
-                    >
-                      <TextField
-                        fullWidth
-                        label="Cédula de Identidad"
-                        placeholder="V-12345678"
-                        value={cedulaEntrada}
-                        onChange={(e) => setCedulaEntrada(e.target.value)}
-                        sx={fieldSx}
-                        autoFocus
-                      />
-                      <Button
-                        type="submit"
-                        fullWidth
-                        disabled={entrando}
-                        variant="contained"
-                        sx={{
-                          background: temaCentro.gradient,
-                          borderRadius: 2,
-                          py: 1.4,
-                          fontWeight: 700,
-                          textTransform: 'none',
+                    {flujoAcceso === 'login' && (
+                      <form
+                        className="mt-5 space-y-4"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const ident = parseCedula(cedulaEntrada);
+                          if (!ident.cedula) {
+                            setErrorEntrada('Ingrese su cédula.');
+                            return;
+                          }
+                          if (String(pinEntrada).length < 4) {
+                            setErrorEntrada('Ingrese su PIN de 4 dígitos.');
+                            return;
+                          }
+                          entrar(ident.cedula, pinEntrada);
                         }}
                       >
-                        {entrando ? 'Verificando...' : 'Entrar al portal'}
-                      </Button>
-                    </form>
+                        <TextField
+                          fullWidth
+                          label="Cédula de Identidad"
+                          placeholder="V-12345678"
+                          value={cedulaEntrada}
+                          onChange={(e) => {
+                            setCedulaEntrada(e.target.value);
+                            setErrorEntrada('');
+                          }}
+                          sx={fieldSx}
+                          autoFocus
+                        />
+                        <TextField
+                          fullWidth
+                          type="password"
+                          label="PIN de acceso"
+                          placeholder="4 dígitos"
+                          value={pinEntrada}
+                          onChange={(e) => {
+                            setPinEntrada(e.target.value.replace(/\D/g, '').slice(0, 8));
+                            setErrorEntrada('');
+                          }}
+                          sx={fieldSx}
+                          inputProps={{ inputMode: 'numeric', autoComplete: 'current-password' }}
+                          helperText="Tu PIN fue creado al registrarte en tu primera cita."
+                        />
+                        <Button
+                          type="submit"
+                          fullWidth
+                          disabled={entrando}
+                          variant="contained"
+                          sx={{
+                            background: temaCentro.gradient,
+                            borderRadius: 2,
+                            py: 1.4,
+                            fontWeight: 700,
+                            textTransform: 'none',
+                          }}
+                        >
+                          {entrando ? 'Verificando...' : 'Entrar al portal'}
+                        </Button>
+                      </form>
+                    )}
+
+                    {flujoAcceso === 'recuperar' && (
+                      <form
+                        className="mt-5 space-y-4"
+                        onSubmit={solicitarRecuperacion}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon name="lock_reset" className="text-doc" />
+                          <p className="text-sm font-bold text-primary">Recuperar mi PIN</p>
+                        </div>
+                        <p className="text-xs text-on-surface-variant -mt-2">
+                          Ingrese su cédula y el correo con el que se registró. Le enviaremos un código de 6 dígitos.
+                        </p>
+                        <TextField
+                          fullWidth
+                          label="Cédula de Identidad"
+                          placeholder="V-12345678"
+                          value={recuperarForm.cedula}
+                          onChange={(e) =>
+                            setRecuperarForm((f) => ({ ...f, cedula: e.target.value }))
+                          }
+                          sx={fieldSx}
+                          autoFocus
+                        />
+                        <TextField
+                          fullWidth
+                          type="email"
+                          label="Correo registrado"
+                          placeholder="usted@correo.com"
+                          value={recuperarForm.email}
+                          onChange={(e) =>
+                            setRecuperarForm((f) => ({ ...f, email: e.target.value }))
+                          }
+                          sx={fieldSx}
+                        />
+                        <Button
+                          type="submit"
+                          fullWidth
+                          disabled={recuperando}
+                          variant="contained"
+                          sx={{
+                            backgroundColor: 'var(--color-doc)',
+                            borderRadius: 2,
+                            py: 1.3,
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            '&:hover': { backgroundColor: 'var(--color-doc-deep)' },
+                          }}
+                        >
+                          {recuperando ? 'Enviando...' : 'Enviar código por correo'}
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFlujoAcceso('login');
+                            setErrorEntrada('');
+                          }}
+                          className="w-full text-xs font-bold text-secondary hover:underline"
+                        >
+                          Volver al acceso
+                        </button>
+                      </form>
+                    )}
+
+                    {flujoAcceso === 'reset' && (
+                      <form className="mt-5 space-y-4" onSubmit={restablecerPin}>
+                        <div className="flex items-center gap-2">
+                          <Icon name="password" className="text-doc" />
+                          <p className="text-sm font-bold text-primary">Crear un PIN nuevo</p>
+                        </div>
+                        <p className="text-xs text-on-surface-variant -mt-2">
+                          Ingrese el código recibido y elija su nuevo PIN de 4 dígitos.
+                        </p>
+                        <TextField
+                          fullWidth
+                          label="Cédula"
+                          value={recuperarForm.cedula}
+                          disabled
+                          sx={fieldSx}
+                        />
+                        <TextField
+                          fullWidth
+                          label="Código de 6 dígitos"
+                          inputProps={{ inputMode: 'numeric', maxLength: 6 }}
+                          value={recuperarForm.codigo}
+                          onChange={(e) =>
+                            setRecuperarForm((f) => ({
+                              ...f,
+                              codigo: e.target.value.replace(/\D/g, '').slice(0, 6),
+                            }))
+                          }
+                          sx={fieldSx}
+                          autoFocus
+                        />
+                        <TextField
+                          fullWidth
+                          type="password"
+                          label="PIN nuevo (4 dígitos)"
+                          inputProps={{ inputMode: 'numeric', maxLength: 8 }}
+                          value={recuperarForm.pinNuevo}
+                          onChange={(e) =>
+                            setRecuperarForm((f) => ({
+                              ...f,
+                              pinNuevo: e.target.value.replace(/\D/g, '').slice(0, 8),
+                            }))
+                          }
+                          sx={fieldSx}
+                        />
+                        <Button
+                          type="submit"
+                          fullWidth
+                          disabled={recuperando}
+                          variant="contained"
+                          sx={{
+                            backgroundColor: 'var(--color-doc)',
+                            borderRadius: 2,
+                            py: 1.3,
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            '&:hover': { backgroundColor: 'var(--color-doc-deep)' },
+                          }}
+                        >
+                          {recuperando ? 'Guardando...' : 'Restablecer mi PIN'}
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFlujoAcceso('login');
+                            setErrorEntrada('');
+                          }}
+                          className="w-full text-xs font-bold text-secondary hover:underline"
+                        >
+                          Volver al acceso
+                        </button>
+                      </form>
+                    )}
 
                     <div className="mt-5 pt-4 border-t border-outline-variant/40">
                       <p className="text-[11px] text-on-surface-variant text-center">
-                        ¿No tienes cuenta? <span className="font-semibold text-secondary">Reserva tu cita primero</span> y el sistema te registra.
+                        {flujoAcceso === 'login' ? (
+                          <>
+                            ¿Olvidaste tu PIN?{' '}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFlujoAcceso('recuperar');
+                                setErrorEntrada('');
+                              }}
+                              className="font-semibold text-secondary hover:underline"
+                            >
+                              Recupéralo por correo
+                            </button>
+                          </>
+                        ) : null}
+                        {flujoAcceso === 'login' && (
+                          <span className="block mt-1">
+                            ¿No tienes cuenta?{' '}
+                            <span className="font-semibold text-secondary">
+                              Reserva tu cita primero
+                            </span>{' '}
+                            y el sistema te registra con tu PIN.
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -625,6 +1015,43 @@ export default function Paciente() {
                       </button>
 
                       <button
+                        onClick={() => {
+                          setSeccion('historial');
+                          setHistorialVista('actual');
+                        }}
+                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
+                      >
+                        <span className="w-11 h-11 rounded-xl bg-doc-soft text-doc flex items-center justify-center group-hover:bg-doc group-hover:text-paper transition-colors">
+                          <Icon name="schedule" filled className="text-xl" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-bold text-primary">Cita y Tratamiento Actual</span>
+                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
+                            {proximaCita
+                              ? `${formatoFecha(proximaCita.fecha_cita)} · ${horaCorta(proximaCita.hora_inicio)}`
+                              : 'Tu próxima cita y tratamiento vigente'}
+                          </span>
+                        </span>
+                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
+                      </button>
+
+                      <button
+                        onClick={() => setSeccion('historial')}
+                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
+                      >
+                        <span className="w-11 h-11 rounded-xl bg-fx-soft text-fx flex items-center justify-center group-hover:bg-fx group-hover:text-paper transition-colors">
+                          <Icon name="timeline" filled className="text-xl" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-bold text-primary">Historial Médico</span>
+                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
+                            {historial ? `${historial.total_consultas} consultas · evolución de tratamientos` : 'Todas tus consultas'}
+                          </span>
+                        </span>
+                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
+                      </button>
+
+                      <button
                         onClick={() => setSeccion('misalud')}
                         className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
                       >
@@ -667,7 +1094,7 @@ export default function Paciente() {
                           </p>
                         </div>
                         <button
-                          onClick={() => setSeccion('citas')}
+                          onClick={() => setSeccion('historial')}
                           className="flex items-center gap-1 text-xs font-bold text-secondary hover:text-secondary-light transition-colors"
                         >
                           Ver todas <Icon name="arrow_forward" className="text-sm" />
@@ -1009,6 +1436,311 @@ export default function Paciente() {
                 </div>
               )}
 
+              {/* ====== HISTORIAL MÉDICO ====== */}
+              {seccion === 'historial' && (
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <h2 className="font-display text-2xl font-bold text-primary">Historial Médico</h2>
+                      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
+                        {historial ? `${historial.total_consultas} consultas · expediente ${paciente.numero_historia}` : 'Expediente clínico'}
+                      </p>
+                    </div>
+                    <div className="flex bg-surface-container rounded-full p-1" role="tablist" aria-label="Vista del historial">
+                      {VISTAS_HISTORIAL.map((v) => {
+                        const activado = historialVista === v.id;
+                        return (
+                          <button
+                            key={v.id}
+                            role="tab"
+                            aria-selected={activado}
+                            onClick={() => setHistorialVista(v.id)}
+                            className={`flex-1 px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                              activado ? 'bg-surface text-secondary shadow-sm' : 'text-on-surface-variant hover:text-secondary'
+                            }`}
+                          >
+                            <Icon name={v.icono} className="text-sm" />
+                            {v.etiqueta}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {historialVista === 'general' ? (
+                    <>
+                      {/* Resumen del expediente */}
+                      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                          { etiqueta: 'Consultas registradas', valor: historial ? historial.total_consultas : '—', icono: 'clinical_notes' },
+                          { etiqueta: 'Médicos que te han atendido', valor: historial ? new Set(historial.historial.map((c) => c.medico_nombre).filter(Boolean)).size : '—', icono: 'stethoscope' },
+                          { etiqueta: 'Tratamientos registrados', valor: historial ? historial.historial.filter((c) => c.tratamiento).length : '—', icono: 'medication' },
+                          { etiqueta: 'Estudios solicitados', valor: historial ? historial.historial.reduce((a, c) => a + ((c.estudios || []).length || 0), 0) : '—', icono: 'monitor_heart' },
+                        ].map((s) => (
+                          <div key={s.etiqueta} className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                            <span className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center mb-2">
+                              <Icon name={s.icono} filled className="text-base" />
+                            </span>
+                            <p className="font-display text-2xl font-bold text-primary leading-none">{s.valor}</p>
+                            <p className="text-[11px] text-on-surface-variant mt-1">{s.etiqueta}</p>
+                          </div>
+                        ))}
+                      </section>
+
+                      {cargando ? (
+                        <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">
+                          Cargando historial...
+                        </div>
+                      ) : (
+                        <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
+                          <div className="flex items-center justify-between gap-3 mb-5">
+                            <div>
+                              <h3 className="font-display text-lg font-bold text-primary">Todas tus consultas</h3>
+                              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
+                                De la más reciente a la más antigua · la primera es tu estado actual
+                              </p>
+                            </div>
+                          </div>
+                          <HistorialLinea consultas={(historial && historial.historial) || []} marcarActual />
+                        </section>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* ===== VISTA ACTUAL: cita + tratamiento vigente + médico tratante ===== */}
+                      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+                        {/* Cita médica actual */}
+                        <section className="xl:col-span-2 relative overflow-hidden rounded-3xl text-white p-6 md:p-7 shadow-lg min-h-[220px] flex flex-col justify-between" style={{ background: temaCentro.gradient }}>
+                          <div className="absolute inset-0 opacity-15 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(-45deg, rgba(255,255,255,0.35) 0 10px, transparent 10px 26px)' }} />
+                          <div className="relative flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                                <Icon name="event_available" filled className="text-2xl" />
+                              </div>
+                              <div>
+                                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/75">Cita Médica Actual</p>
+                                <p className="text-lg font-extrabold leading-tight">
+                                  {proximaCita ? proximaCita.especialidad : 'Sin citas programadas'}
+                                </p>
+                              </div>
+                            </div>
+                            {proximaCita && (
+                              <EtiquetaEstado estado={proximaCita.estado} mapa={ESTADOS_CITA} />
+                            )}
+                          </div>
+
+                          {proximaCita ? (
+                            <div className="relative grid sm:grid-cols-2 gap-4 mt-6">
+                              <div className="space-y-1">
+                                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">Fecha</p>
+                                <p className="text-sm font-bold capitalize">{formatoFechaLarga(proximaCita.fecha_cita)}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">Hora</p>
+                                <p className="text-sm font-bold">{horaCorta(proximaCita.hora_inicio)}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">Centro</p>
+                                <p className="text-sm font-bold leading-snug">{proximaCita.centro_salud}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">Confirmación</p>
+                                <p className="font-mono text-sm font-bold tracking-wider">{proximaCita.codigo_confirmacion}</p>
+                              </div>
+                              {proximaCita.motivo && (
+                                <div className="sm:col-span-2 space-y-1">
+                                  <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">Motivo</p>
+                                  <p className="text-sm font-semibold leading-snug">"{proximaCita.motivo}"</p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="relative mt-6">
+                              <p className="text-sm text-white/85">
+                                No tienes citas próximas. Reserva tu consulta y mantenla al día desde tu portal.
+                              </p>
+                              <button
+                                onClick={() => setCitaModal(centroCITAB)}
+                                className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-primary font-bold text-sm shadow hover:shadow-lg transition-shadow"
+                              >
+                                <Icon name="event_available" className="text-lg" /> Agendar Cita
+                              </button>
+                            </div>
+                          )}
+                        </section>
+
+                        {/* Médico tratante */}
+                        <section className="bg-card border border-ink-line rounded-3xl p-6 flex flex-col relative overflow-hidden">
+                          <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: temaCentro.gradient }} />
+                          <div className="flex items-center gap-3 mb-5">
+                            <span className="w-10 h-10 rounded-xl bg-doc-soft text-doc flex items-center justify-center">
+                              <Icon name="stethoscope" filled className="text-xl" />
+                            </span>
+                            <div>
+                              <h3 className="font-display text-lg font-bold text-primary leading-tight">Médico Tratante</h3>
+                              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-on-surface-variant">
+                                El médico que registra tu evolución
+                              </p>
+                            </div>
+                          </div>
+
+                          {medicoTratante ? (
+                            <>
+                              <div className="flex items-center gap-3 pb-4 border-b border-ink-line">
+                                <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 46, height: 46, fontWeight: 800, fontSize: '0.9rem' }}>
+                                  {iniciales(medicoTratante.nombre)}
+                                </Avatar>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-extrabold text-primary leading-tight">{medicoTratante.nombre}</p>
+                                  <p className="text-xs text-on-surface-variant">{medicoTratante.especialidad || 'Médico'}</p>
+                                </div>
+                                <span className="ml-auto shrink-0 font-mono text-[9px] uppercase tracking-widest px-2 py-1 rounded-md bg-fx-soft text-fx font-bold">
+                                  {medicoTratante.tipo === 'principal' ? 'Principal' : 'Seguimiento'}
+                                </span>
+                              </div>
+                              <div className="mt-4 space-y-2.5 flex-1">
+                                <div className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="text-on-surface-variant">Consultas registradas por él</span>
+                                  <span className="font-mono font-bold text-primary">
+                                    {historial ? historial.historial.filter((c) => c.medico_nombre === medicoTratante.nombre).length : '—'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="text-on-surface-variant">Tratamientos en curso</span>
+                                  <span className="font-mono font-bold text-primary">
+                                    {ultimaConsulta && ultimaConsulta.medico_nombre === medicoTratante.nombre && ultimaConsulta.tratamiento ? '1' : '—'}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-on-surface-variant italic flex items-start gap-1.5 pt-1">
+                                  <Icon name="sync_alt" className="text-sm text-doc shrink-0 mt-0.5" />
+                                  Tu médico ve esta misma historia en su módulo de consultas.
+                                </p>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="py-8 text-center text-on-surface-variant space-y-2">
+                              <Icon name="stethoscope" className="text-5xl opacity-40" />
+                              <p className="text-sm font-medium">Aún no tienes médico asignado.</p>
+                              <p className="text-xs">Se asignará automáticamente en tu próxima consulta.</p>
+                            </div>
+                          )}
+                        </section>
+
+                        {/* Tratamiento actual */}
+                        {ultimaConsulta && (
+                          <section className="xl:col-span-2 bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6 relative overflow-hidden">
+                            <div className="absolute -top-14 -right-14 w-44 h-44 bg-fx-soft/50 rounded-full pointer-events-none" />
+                            <div className="relative flex items-start justify-between gap-3 mb-4">
+                              <div>
+                                <h3 className="font-display text-lg font-bold text-primary">Tratamiento Actual</h3>
+                                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
+                                  Registrado el {formatoFechaLarga(ultimaConsulta.fecha)} · {ultimaConsulta.especialidad}
+                                </p>
+                              </div>
+                              <span className="font-mono text-[9px] uppercase tracking-[0.18em] font-bold px-3 py-1.5 rounded-lg bg-fx text-white shadow-sm">
+                                Vigente
+                              </span>
+                            </div>
+
+                            <div className="grid sm:grid-cols-2 gap-4">
+                              <div className="bg-surface rounded-2xl border border-outline-variant/40 p-4">
+                                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-fx font-bold mb-2 flex items-center gap-1.5">
+                                  <Icon name="medication" className="text-sm" /> Tratamiento
+                                </p>
+                                <p className="text-sm text-primary leading-snug">{ultimaConsulta.tratamiento}</p>
+                              </div>
+                              <div className="bg-surface rounded-2xl border border-outline-variant/40 p-4">
+                                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">Diagnóstico</p>
+                                <p className="text-sm text-primary">
+                                  <span className="font-mono font-bold text-secondary">{ultimaConsulta.cie10_codigo}</span> · {ultimaConsulta.cie10_descripcion}
+                                </p>
+                              </div>
+                              {ultimaConsulta.recomendaciones && (
+                                <div className="bg-surface rounded-2xl border border-outline-variant/40 p-4">
+                                  <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-amber font-bold mb-2 flex items-center gap-1.5">
+                                    <Icon name="tips_and_updates" className="text-sm" /> Indicaciones médicas
+                                  </p>
+                                  <p className="text-sm text-primary leading-snug">{ultimaConsulta.recomendaciones}</p>
+                                </div>
+                              )}
+                              {ultimaConsulta.recetas && ultimaConsulta.recetas.length > 0 && (
+                                <div className="bg-surface rounded-2xl border border-outline-variant/40 p-4">
+                                  <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">Recetas vigentes</p>
+                                  <div className="space-y-2">
+                                    {ultimaConsulta.recetas.map((r, i) => (
+                                      <div key={i} className="flex items-start gap-2">
+                                        <Icon name="prescriptions" className="text-base text-fx mt-0.5" />
+                                        <div>
+                                          <p className="text-sm font-semibold text-primary">{r.nombre}</p>
+                                          {r.posologia && <p className="text-xs text-on-surface-variant">{r.posologia}</p>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </section>
+                        )}
+
+                        {/* Evolución de tratamientos */}
+                        <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
+                          <div className="flex items-center gap-2.5 mb-4">
+                            <span className="w-9 h-9 rounded-xl bg-amber-soft text-amber flex items-center justify-center">
+                              <Icon name="history_edu" filled className="text-lg" />
+                            </span>
+                            <div>
+                              <h3 className="font-display text-lg font-bold text-primary leading-tight">Evolución de Tratamientos</h3>
+                              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
+                                Anteriores y presente
+                              </p>
+                            </div>
+                          </div>
+
+                          {evolucionTratamientos.length === 0 ? (
+                            <div className="py-8 text-center text-on-surface-variant space-y-2">
+                              <Icon name="medication" className="text-5xl opacity-40" />
+                              <p className="text-sm font-medium">Sin tratamientos registrados.</p>
+                            </div>
+                          ) : (
+                            <ol className="relative">
+                              <span className="absolute left-[9px] top-2 bottom-2 w-px bg-ink-line-strong" aria-hidden="true" />
+                              {evolucionTratamientos.map((c, i) => {
+                                const esUltimo = i === evolucionTratamientos.length - 1;
+                                return (
+                                  <li key={c.consulta_id} className="relative pl-8 pb-4 last:pb-0">
+                                    <span
+                                      className={`absolute left-0 top-1 w-[19px] h-[19px] rounded-full border-2 ${
+                                        esUltimo ? 'bg-fx border-fx' : 'bg-surface border-ink-line-strong'
+                                      }`}
+                                      aria-hidden="true"
+                                    />
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-mono text-[10px] font-bold text-on-surface-variant uppercase">
+                                        {formatoFecha(c.fecha)}
+                                      </span>
+                                      {esUltimo && (
+                                        <span className="font-mono text-[8px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-fx text-white">
+                                          Vigente
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs font-semibold text-primary mt-0.5">{c.tratamiento}</p>
+                                    <p className="font-mono text-[9px] text-on-surface-variant mt-0.5">
+                                      {c.especialidad} · {c.medico_nombre}
+                                    </p>
+                                  </li>
+                                );
+                              })}
+                            </ol>
+                          )}
+                        </section>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* ====== MI SALUD ====== */}
               {seccion === 'misalud' && (
                 <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
@@ -1315,6 +2047,8 @@ export default function Paciente() {
           {aviso}
         </Alert>
       </Snackbar>
+
+      <DemoSwitcher />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import secrets
 from typing import List
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
+from app.api.v1.deps import exigir_staff
 from app.api.v1.errors import db_fail, fail, not_found
 from app.api.v1.utils import parse_json_list
 from app.core.database import supabase
@@ -38,7 +39,10 @@ def _generar_comprobante() -> str:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def crear_consulta(payload: ConsultaCargarRequest) -> dict:
+def crear_consulta(
+    payload: ConsultaCargarRequest,
+    _: dict = Depends(exigir_staff),
+) -> dict:
     """Registra una consulta médica en el historial clínico del paciente."""
     try:
         paciente = (
@@ -125,7 +129,10 @@ def crear_consulta(payload: ConsultaCargarRequest) -> dict:
 
 
 @router.get("/{paciente_id}", response_model=List[ConsultaDetalleResponse])
-def listar_consultas(paciente_id: str) -> List[ConsultaDetalleResponse]:
+def listar_consultas(
+    paciente_id: str,
+    _: dict = Depends(exigir_staff),
+) -> List[ConsultaDetalleResponse]:
     """Lista las consultas de un paciente por su id."""
     try:
         filas = (

@@ -16,11 +16,13 @@ import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Divider from '@mui/material/Divider';
 import Icon from '../components/Icon';
-import { API } from '../api';
-import { DEMO, COLA_DEMO, CIE10_DEMO, CATALOGO_EXAMENES, CENTROS_DEMO } from '../clinical/demo';
+import HistorialLinea from '../components/HistorialLinea';
+import DemoSwitcher from '../components/DemoSwitcher';
+import { API, cerrarSesion } from '../api';
+import { DEMO, CIE10_DEMO, CATALOGO_EXAMENES, CATEGORIA_ESTILO, GRUPOS_ESTILO, CENTROS_DEMO, getPersonaDemo, PIN_POR_DEFECTO } from '../clinical/demo';
 import { getCentroTheme } from '../centroTheme';
 
-const MEDICO = { nombre: 'Dra. Laura Fernández', id: 1043, especialidad: 'Medicina General' };
+const MEDICO_DEFECTO = { nombre: 'Dra. Laura Fernández', id: 1043, especialidad: 'Medicina General' };
 
 const TABS = [
   { id: 'espera', etiqueta: 'En Espera' },
@@ -95,21 +97,115 @@ function gradiente(nombre = '', t = null) {
 }
 
 export default function Doctores() {
-  const [cola, setCola] = useState({
-    espera: COLA_DEMO.espera.map((p) => ({ ...p, perfil: { ...p.perfil } })),
-    consulta: [],
-    finalizado: [
-      { id: 'P-31001', nombre: 'María González Pérez', prioridad: 'NORMAL', cedula: '0912345678', hora: '08:12' },
-      { id: 'P-31002', nombre: 'Francisco García Martos', prioridad: 'ALTA', cedula: '14302771', hora: '08:47' },
-    ],
-  });
+  const [sesion, setSesion] = useState(null);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [loginEntrando, setLoginEntrando] = useState(false);
+  const [cola, setCola] = useState({ espera: [], consulta: [], finalizado: [] });
   const atendidosHoy = cola.finalizado.length;
+  const MEDICO = sesion
+    ? {
+        nombre: sesion.nombre,
+        especialidad: sesion.especialidad,
+        id: sesion.personal_id,
+        username: sesion.username,
+      }
+    : MEDICO_DEFECTO;
+
+  const cargarCola = useCallback(async (username) => {
+    try {
+      const colaDemo = await DEMO.colaDoctor(username);
+      setCola(colaDemo);
+    } catch {
+      setCola({ espera: [], consulta: [], finalizado: [] });
+    }
+  }, []);
+
+  const iniciarSesion = async (e) => {
+    e.preventDefault();
+    setLoginEntrando(true);
+    setLoginError('');
+    try {
+      let res;
+      try {
+        res = await API.login(loginForm.username, loginForm.password);
+      } catch {
+        res = await DEMO.login({ username: loginForm.username, password: loginForm.password });
+      }
+      try {
+        localStorage.setItem('bna_token', res.token);
+        localStorage.setItem('bna_sesion_doctor', JSON.stringify(res.usuario));
+      } catch {
+        /* sin almacenamiento */
+      }
+      setSesion(res.usuario);
+      cargarCola(res.usuario.username);
+    } catch (err) {
+      setLoginError(err.message || 'No se pudo iniciar sesión.');
+    } finally {
+      setLoginEntrando(false);
+    }
+  };
+
+  const cerrarSesionDoctor = () => {
+    cerrarSesion('staff');
+    try {
+      localStorage.removeItem('bna_sesion_doctor');
+    } catch {
+      /* sin almacenamiento */
+    }
+    setSesion(null);
+    setActivoId(null);
+    setHistorial(null);
+    setLoginForm({ username: '', password: '' });
+    setLoginError('');
+  };
+
+  // Restaurar sesión (o la persona activa del modo demo) al montar.
+  useEffect(() => {
+    let activo = true;
+    (async () => {
+      const persona = getPersonaDemo();
+      if (persona && persona.tipo === 'doctor') {
+        try {
+          const res = await DEMO.login({ username: persona.username, password: PIN_POR_DEFECTO });
+          if (activo) {
+            try {
+              localStorage.setItem('bna_token', res.token);
+              localStorage.setItem('bna_sesion_doctor', JSON.stringify(res.usuario));
+            } catch {
+              /* sin almacenamiento */
+            }
+            setSesion(res.usuario);
+            setCola(await DEMO.colaDoctor(persona.username));
+          }
+        } catch {
+          /* persona inválida: seguir con la sesión normal */
+        }
+        return;
+      }
+      let guardada = null;
+      try {
+        guardada = JSON.parse(localStorage.getItem('bna_sesion_doctor') || 'null');
+      } catch {
+        guardada = null;
+      }
+      if (guardada && guardada.username) {
+        if (activo) setSesion(guardada);
+        cargarCola(guardada.username);
+      }
+    })();
+    return () => {
+      activo = false;
+    };
+  }, [cargarCola]);
   const [tab, setTab] = useState('espera');
   const [queueAbierta, setQueueAbierta] = useState(false);
   const [activoId, setActivoId] = useState(null);
   const [historial, setHistorial] = useState(null);
   const [historialCargando, setHistorialCargando] = useState(false);
   const [historialAbierto, setHistorialAbierto] = useState(false);
+  const [medicoRel, setMedicoRel] = useState(null);
   const [recetaAbierto, setRecetaAbierto] = useState(false);
   const [formNuevo, setFormNuevo] = useState(false);
   const [aviso, setAviso] = useState('');
@@ -117,7 +213,7 @@ export default function Doctores() {
   const [listadoAbierto, setListadoAbierto] = useState(false);
 
   const [centros, setCentros] = useState([]);
-  const [centroId, setCentroId] = useState(() => {
+  const [centroId] = useState(() => {
     try {
       return localStorage.getItem('bna_centro_activo') || 'CLN-NINO';
     } catch {
@@ -251,6 +347,7 @@ export default function Doctores() {
     setOrdenesIdsConsulta([]);
     setHistorial(null);
     setHistorialCargando(true);
+    setMedicoRel(null);
     API.historialPaciente(perfilCedula)
       .then((h) => setHistorial(h))
       .catch(async () => {
@@ -261,6 +358,15 @@ export default function Doctores() {
         }
       })
       .finally(() => setHistorialCargando(false));
+    API.medicoTratante(perfilCedula)
+      .then(setMedicoRel)
+      .catch(async () => {
+        try {
+          setMedicoRel(await DEMO.medicoTratante(perfilCedula));
+        } catch {
+          setMedicoRel(null);
+        }
+      });
     cargarOrdenesPaciente();
   }, [activoId, perfilCedula, perfilMotivo, cargarOrdenesPaciente]);
 
@@ -408,6 +514,7 @@ export default function Doctores() {
   }
 
   const ordenCatalog = useMemo(() => CATALOGO_EXAMENES[ordenCategoria] || [], [ordenCategoria]);
+  const catEstilo = CATEGORIA_ESTILO[ordenCategoria] || {};
   const ordenGrupos = useMemo(() => {
     const q = ordenBusqueda.trim().toLowerCase();
     if (!q) return ordenCatalog;
@@ -1005,6 +1112,101 @@ export default function Doctores() {
     </>
   );
 
+  if (!sesion) {
+    return (
+      <div className="min-h-screen bg-surface text-primary font-ui" style={varsCentro}>
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <div className="w-full max-w-md">
+            <div className="bg-surface-container-low border border-outline-variant rounded-3xl p-8 relative overflow-hidden">
+              <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
+              <div className="relative">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg mb-5" style={{ background: temaCentro.gradient }}>
+                  <Icon name="stethoscope" filled className="text-2xl" />
+                </div>
+                <h2 className="font-display text-2xl font-bold text-primary">Acceso del personal de salud</h2>
+                <p className="text-sm text-on-surface-variant mt-1">
+                  Ingresa con tu usuario y contraseña institucional para atender la cola y registrar consultas.
+                </p>
+
+                {loginError && (
+                  <div className="mt-5 p-3 bg-error-container rounded-xl border border-error/20 flex items-center gap-2" role="alert">
+                    <Icon name="error" className="text-error text-lg" />
+                    <p className="text-xs font-semibold text-error">{loginError}</p>
+                  </div>
+                )}
+
+                <form className="mt-5 space-y-4" onSubmit={iniciarSesion}>
+                  <TextField
+                    fullWidth
+                    label="Usuario"
+                    placeholder="lfernandez"
+                    value={loginForm.username}
+                    onChange={(e) => {
+                      setLoginForm((f) => ({ ...f, username: e.target.value }));
+                      setLoginError('');
+                    }}
+                    sx={fieldSx}
+                    autoFocus
+                    autoComplete="username"
+                  />
+                  <TextField
+                    fullWidth
+                    type="password"
+                    label="Contraseña"
+                    placeholder="••••••••"
+                    value={loginForm.password}
+                    onChange={(e) => {
+                      setLoginForm((f) => ({ ...f, password: e.target.value }));
+                      setLoginError('');
+                    }}
+                    sx={fieldSx}
+                    autoComplete="current-password"
+                  />
+                  <Button
+                    type="submit"
+                    fullWidth
+                    disabled={loginEntrando}
+                    variant="contained"
+                    sx={{
+                      background: temaCentro.gradient,
+                      borderRadius: 2,
+                      py: 1.4,
+                      fontWeight: 700,
+                      textTransform: 'none',
+                    }}
+                  >
+                    {loginEntrando ? 'Verificando...' : 'Iniciar sesión'}
+                  </Button>
+                </form>
+
+                <div className="mt-5 pt-4 border-t border-outline-variant/40">
+                  <p className="text-[11px] text-on-surface-variant text-center">
+                    Modo demostración: use cualquier usuario de la semilla con clave{' '}
+                    <span className="font-mono font-bold text-secondary">1234</span>
+                    <br />
+                    (ej. <span className="font-mono">lfernandez</span> ·{' '}
+                    <span className="font-mono">avalera</span> ·{' '}
+                    <span className="font-mono">mgonzalez</span> ·{' '}
+                    <span className="font-mono">psanchez</span>)
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p className="text-center mt-4">
+              <Link
+                to="/"
+                className="text-xs font-bold text-on-surface-variant hover:text-secondary transition-colors"
+              >
+                ← Volver al sitio público
+              </Link>
+            </p>
+          </div>
+        </div>
+        <DemoSwitcher />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface text-primary font-ui" style={varsCentro}>
       {/* ===== Barra superior ===== */}
@@ -1047,6 +1249,7 @@ export default function Doctores() {
 
           <Link
             to="/"
+            onClick={cerrarSesionDoctor}
             className="flex items-center justify-center w-10 h-10 rounded-full text-on-surface-variant hover:text-error hover:bg-error/5 transition-colors"
             aria-label="Cerrar sesión y volver al portal"
             title="Cerrar sesión"
@@ -1120,6 +1323,39 @@ export default function Doctores() {
                           label={activo.perfil.antecedente}
                           sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.78rem' }}
                         />
+                        {medicoRel && medicoRel.nombre ? (
+                          <Chip
+                            icon={
+                              <Icon
+                                name={medicoRel.nombre === MEDICO.nombre ? 'verified_user' : 'stethoscope'}
+                                className={`text-sm ${medicoRel.nombre === MEDICO.nombre ? '!text-on-secondary' : '!text-doc'}`}
+                              />
+                            }
+                            label={
+                              medicoRel.nombre === MEDICO.nombre
+                                ? 'Paciente asignado a ti · principal'
+                                : `Médico tratante: ${medicoRel.nombre}`
+                            }
+                            sx={{
+                              bgcolor:
+                                medicoRel.nombre === MEDICO.nombre
+                                  ? 'var(--color-fx)'
+                                  : 'var(--color-doc-soft)',
+                              color:
+                                medicoRel.nombre === MEDICO.nombre
+                                  ? '#fff'
+                                  : 'var(--color-doc-deep)',
+                              fontWeight: 700,
+                              fontSize: '0.72rem',
+                            }}
+                          />
+                        ) : (
+                          <Chip
+                            icon={<Icon name="person_add" className="text-sm !text-on-surface-variant" />}
+                            label="Sin médico principal asignado"
+                            sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.72rem' }}
+                          />
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -1482,6 +1718,7 @@ export default function Doctores() {
                           { id: 'funcional', etiqueta: 'Funcional', icono: 'monitor_heart' },
                         ].map((t) => {
                           const activado = tabEstudio === t.id;
+                          const est = CATEGORIA_ESTILO[t.id] || {};
                           return (
                             <button
                               key={t.id}
@@ -1489,8 +1726,9 @@ export default function Doctores() {
                               aria-selected={activado}
                               onClick={() => setTabEstudio(t.id)}
                               className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                                activado ? 'bg-surface text-secondary shadow-sm' : 'text-on-surface-variant hover:text-secondary'
+                                activado ? 'text-white shadow-sm' : 'text-on-surface-variant hover:text-secondary'
                               }`}
+                              style={activado ? { backgroundColor: est.color } : undefined}
                             >
                               <Icon name={t.icono} className="text-sm" />
                               {t.etiqueta}
@@ -1645,7 +1883,19 @@ export default function Doctores() {
                         const esLab = est.tipo === 'laboratorio';
                         const esImagen = est.tipo === 'imagen';
                         return (
-                          <div key={est.id} className="bg-surface border border-outline-variant rounded-2xl p-4 space-y-3">
+                          <div
+                            key={est.id}
+                            className="bg-surface border border-outline-variant rounded-2xl p-4 space-y-3"
+                            style={{
+                              borderLeftWidth: 3,
+                              borderLeftColor:
+                                esLab
+                                  ? 'var(--color-fx)'
+                                  : esImagen
+                                    ? 'var(--color-doc)'
+                                    : 'var(--color-amber)',
+                            }}
+                          >
                             <div className="flex items-start gap-3">
                               <span className="font-mono text-xs pt-2.5 w-6 text-on-surface-variant">
                                 {(estudios.filter((e) => e.tipo === tabEstudio).indexOf(est) + 1).toString().padStart(2, '0')}
@@ -1891,7 +2141,7 @@ export default function Doctores() {
                   <Button
                     variant="outlined"
                     size="small"
-                    startIcon={<Icon name="science" className="text-base" />}
+                    startIcon={<Icon name="science" className="text-base !text-fx" />}
                     onClick={() => abrirOrden('laboratorio')}
                     sx={{ borderColor: 'var(--color-outline-variant)', color: 'var(--color-on-surface-variant)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600 }}
                   >
@@ -1900,7 +2150,7 @@ export default function Doctores() {
                   <Button
                     variant="outlined"
                     size="small"
-                    startIcon={<Icon name="image_search" className="text-base" />}
+                    startIcon={<Icon name="image_search" className="text-base !text-doc" />}
                     onClick={() => abrirOrden('imagen')}
                     sx={{ borderColor: 'var(--color-outline-variant)', color: 'var(--color-on-surface-variant)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600 }}
                   >
@@ -1960,14 +2210,19 @@ export default function Doctores() {
         open={historialAbierto && !!activo}
         onClose={() => setHistorialAbierto(false)}
         fullWidth
-        maxWidth="sm"
+        maxWidth="md"
         PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
           <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
             <Icon name="history" filled className="text-lg" />
           </span>
-          Historial clínico de {activo?.nombre}
+          <div>
+            Historial clínico de {activo?.nombre}
+            <p className="font-mono text-[10px] font-medium uppercase tracking-widest text-on-surface-variant mt-0.5">
+              {historial ? `${historial.total_consultas} consulta(s) · ${historial.paciente.numero_historia || ''}` : 'Expediente del paciente'}
+            </p>
+          </div>
         </DialogTitle>
         <DialogContent dividers>
           {historialCargando && (
@@ -1979,50 +2234,48 @@ export default function Doctores() {
             <p className="text-sm text-on-surface-variant italic">Sin registros previos.</p>
           )}
           {!historialCargando && historial && (
-            <ol className="divide-y divide-outline-variant/60">
+            <div className="space-y-4">
+              {/* Estado actual del paciente */}
+              {historial.historial.length > 0 && (
+                <div className="rounded-2xl border border-fx/30 bg-fx-soft/50 p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="w-8 h-8 rounded-lg bg-fx text-white flex items-center justify-center shrink-0">
+                      <Icon name="medication" filled className="text-base" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs font-bold text-primary">Tratamiento actual</p>
+                        <span className="font-mono text-[8px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-fx text-white">
+                          Vigente
+                        </span>
+                        <span className="font-mono text-[10px] text-on-surface-variant">
+                          {formatoFecha(historial.historial[0].fecha)} · {historial.historial[0].especialidad}
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-primary mt-1 leading-snug">
+                        {historial.historial[0].tratamiento || 'Sin tratamiento registrado'}
+                      </p>
+                      {historial.historial[0].cie10_codigo && (
+                        <p className="font-mono text-[11px] text-secondary font-bold mt-1">
+                          {historial.historial[0].cie10_codigo} · {historial.historial[0].cie10_descripcion}
+                        </p>
+                      )}
+                      {Array.isArray(historial.historial[0].recetas) && historial.historial[0].recetas.length > 0 && (
+                        <p className="font-mono text-[10px] text-on-surface-variant mt-1 truncate">
+                          Rx: {historial.historial[0].recetas.map((r) => r.nombre).join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               {historial.historial.length === 0 && (
                 <p className="text-sm text-on-surface-variant italic">
-                  Paciente {historial.paciente.nombre_completo} · {historial.total_consultas} consultas registradas.
+                  Paciente {historial.paciente.nombre_completo} · sin consultas registradas.
                 </p>
               )}
-              {historial.historial.map((c, i) => (
-                <li key={c.consulta_id} className="py-3.5 flex items-start gap-4">
-                  <span className="font-mono text-xs pt-1 w-6 text-on-surface-variant">{(i + 1).toString().padStart(2, '0')}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant">
-                        {formatoFecha(c.fecha)}
-                      </span>
-                      <span className="font-mono text-[10px] uppercase tracking-widest text-secondary font-semibold">
-                        {c.especialidad}
-                      </span>
-                      <span className="font-mono text-[10px] text-on-surface-variant">{c.medico_nombre}</span>
-                    </div>
-                    <p className="text-sm text-primary mt-1">
-                      <span className="font-semibold text-secondary">{c.cie10_codigo}</span>{' '}
-                      {c.cie10_descripcion} — {c.motivo_consulta}
-                    </p>
-                    {c.recetas?.length > 0 && (
-                      <p className="font-mono text-[10px] text-on-surface-variant mt-1 truncate">
-                        Rx: {c.recetas.map((r) => r.nombre).join(' · ')}
-                      </p>
-                    )}
-                    {c.estudios?.length > 0 && (
-                      <div className="mt-1.5 space-y-0.5">
-                        {c.estudios.map((e, ei) => (
-                          <p key={ei} className="font-mono text-[10px] text-on-surface-variant truncate">
-                            <span className="uppercase tracking-widest text-secondary">{e.tipo}</span> · {e.nombre}
-                            {e.parametros?.length > 0 && (
-                              <> — {e.parametros.map((p) => `${p.parametro} ${p.valor}`).join(' · ')}</>
-                            )}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ol>
+              <HistorialLinea consultas={historial.historial} marcarActual />
+            </div>
           )}
         </DialogContent>
         <DialogActions>
@@ -2230,8 +2483,11 @@ export default function Doctores() {
         PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
-          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-            <Icon name={ordenCategoria === 'laboratorio' ? 'science' : ordenCategoria === 'imagen' ? 'image_search' : 'monitor_heart'} filled className="text-lg" />
+          <span
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0"
+            style={{ backgroundColor: catEstilo.color || 'var(--color-secondary)' }}
+          >
+            <Icon name={catEstilo.icono || 'science'} filled className="text-lg" />
           </span>
           <div>
             Orden médica de estudios
@@ -2250,6 +2506,7 @@ export default function Doctores() {
                 { id: 'funcional', etiqueta: 'Funcional', icono: 'monitor_heart' },
               ].map((t) => {
                 const activado = ordenCategoria === t.id;
+                const tEstilo = CATEGORIA_ESTILO[t.id] || {};
                 return (
                   <button
                     key={t.id}
@@ -2260,8 +2517,9 @@ export default function Doctores() {
                       setOrdenBusqueda('');
                     }}
                     className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                      activado ? 'bg-surface text-secondary shadow-sm' : 'text-on-surface-variant hover:text-secondary'
+                      activado ? 'text-white shadow-sm' : 'text-on-surface-variant hover:text-secondary'
                     }`}
+                    style={activado ? { backgroundColor: tEstilo.color } : undefined}
                   >
                     <Icon name={t.icono} className="text-sm" />
                     {t.etiqueta}
@@ -2294,48 +2552,86 @@ export default function Doctores() {
                   Sin resultados para "{ordenBusqueda}".
                 </p>
               )}
-              {ordenGrupos.map((g) => (
-                <div key={g.grupo} className="py-2">
-                  <div className="flex items-center gap-2 px-4 py-1.5">
-                    <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                      <Icon name={g.icono} className="text-sm" />
-                    </span>
-                    <span className="text-xs font-bold text-primary uppercase tracking-wide">{g.grupo}</span>
-                    <span className="font-mono text-[10px] text-on-surface-variant">
-                      {g.estudios.filter((e) => ordenSeleccion.includes(e)).length}/{g.estudios.length}
-                    </span>
+              {ordenGrupos.map((g) => {
+                const gEstilo = GRUPOS_ESTILO[g.grupo] || {};
+                const color = gEstilo.color || 'var(--color-secondary)';
+                const elegidos = g.estudios.filter((e) => ordenSeleccion.includes(e)).length;
+                return (
+                  <div
+                    key={g.grupo}
+                    className="py-2"
+                    style={gEstilo.rayas ? { backgroundColor: `${gEstilo.soft}66` } : undefined}
+                  >
+                    {gEstilo.rayas && (
+                      <div className="hazard-stripes h-1.5 w-full" aria-hidden="true" />
+                    )}
+                    <div className="flex items-center gap-2.5 px-4 py-2">
+                      <span
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 shadow-sm"
+                        style={{ backgroundColor: color }}
+                        aria-hidden="true"
+                      >
+                        {gEstilo.sigla ? (
+                          <span className="font-mono text-[10px] font-bold tracking-wide">{gEstilo.sigla}</span>
+                        ) : (
+                          <Icon name={g.icono} className="text-base" />
+                        )}
+                      </span>
+                      <span className="text-xs font-bold text-primary uppercase tracking-wide">{g.grupo}</span>
+                      {gEstilo.rayas && (
+                        <span
+                          className="font-mono text-[8px] uppercase tracking-[0.2em] font-bold px-2 py-0.5 rounded border hidden sm:inline"
+                          style={{ color, borderColor: color }}
+                        >
+                          Radiación ionizante
+                        </span>
+                      )}
+                      <span className="font-mono text-[10px] text-on-surface-variant ml-auto">
+                        {elegidos}/{g.estudios.length}
+                      </span>
+                    </div>
+                    <div className="px-4 pb-1">
+                      {g.estudios.map((estudio) => {
+                        const marcado = ordenSeleccion.includes(estudio);
+                        return (
+                          <FormControlLabel
+                            key={estudio}
+                            control={
+                              <Checkbox
+                                size="small"
+                                checked={marcado}
+                                onChange={() => toggleExamen(estudio)}
+                                sx={{
+                                  color: 'var(--color-outline)',
+                                  '&.Mui-checked': { color },
+                                }}
+                              />
+                            }
+                            label={<span className="text-sm text-primary">{estudio}</span>}
+                            sx={{ marginLeft: 0, width: '100%', '& .MuiFormControlLabel-label': { flex: 1 } }}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="px-4 pb-1">
-                    {g.estudios.map((estudio) => {
-                      const marcado = ordenSeleccion.includes(estudio);
-                      return (
-                        <FormControlLabel
-                          key={estudio}
-                          control={
-                            <Checkbox
-                              size="small"
-                              checked={marcado}
-                              onChange={() => toggleExamen(estudio)}
-                              sx={{
-                                color: 'var(--color-outline)',
-                                '&.Mui-checked': { color: 'var(--color-secondary)' },
-                              }}
-                            />
-                          }
-                          label={<span className="text-sm text-primary">{estudio}</span>}
-                          sx={{ marginLeft: 0, width: '100%', '& .MuiFormControlLabel-label': { flex: 1 } }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <Divider />
-            <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
-              {ordenSeleccion.length} estudio(s) seleccionado(s) · la orden se guardará en la consulta
-            </p>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                {ordenSeleccion.length} estudio(s) seleccionado(s) · la orden se guardará en la consulta
+              </p>
+              {catEstilo.color && ordenSeleccion.length > 0 && (
+                <span
+                  className="font-mono text-[9px] uppercase tracking-widest font-bold px-2.5 py-1 rounded-md text-white"
+                  style={{ backgroundColor: catEstilo.color }}
+                >
+                  Orden de {catEstilo.etiqueta}
+                </span>
+              )}
+            </div>
           </div>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -2351,8 +2647,8 @@ export default function Doctores() {
             startIcon={<Icon name="description" className="text-base" />}
             onClick={emitirOrden}
             sx={{
-              backgroundColor: 'var(--color-secondary)',
-              '&:hover': { backgroundColor: 'var(--color-secondary-dark)' },
+              backgroundColor: catEstilo.color || 'var(--color-secondary)',
+              '&:hover': { backgroundColor: catEstilo.color || 'var(--color-secondary-dark)' },
               '&.Mui-disabled': { bgcolor: 'var(--color-secondary)/0.5', color: '#fff' },
               textTransform: 'none',
               fontWeight: 700,
@@ -2611,6 +2907,8 @@ export default function Doctores() {
           {aviso}
         </Alert>
       </Snackbar>
+
+      <DemoSwitcher />
     </div>
   );
 }

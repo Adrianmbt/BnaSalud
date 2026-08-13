@@ -1,13 +1,41 @@
 const API_BASE = '/api/v1';
 
+export const CLAVES_SESION = {
+  staff: 'bna_token',
+  paciente: 'bna_token_paciente',
+};
+
+function tokenActivo() {
+  try {
+    return (
+      localStorage.getItem(CLAVES_SESION.staff) ||
+      localStorage.getItem(CLAVES_SESION.paciente) ||
+      ''
+    );
+  } catch {
+    return '';
+  }
+}
+
+export function cerrarSesion(tipo) {
+  try {
+    if (tipo === 'staff' || !tipo) localStorage.removeItem(CLAVES_SESION.staff);
+    if (tipo === 'paciente' || !tipo) localStorage.removeItem(CLAVES_SESION.paciente);
+  } catch {
+    /* sin almacenamiento disponible */
+  }
+}
+
 async function apiFetch(endpoint, options = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
 
+  const token = tokenActivo();
   const config = {
     method: options.method || 'GET',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
     signal: controller.signal,
@@ -20,7 +48,9 @@ async function apiFetch(endpoint, options = {}) {
 
     if (!res.ok) {
       const detail = data && (data.detail || data.message);
-      throw new Error(detail || `Error ${res.status} en el servidor`);
+      const err = new Error(detail || `Error ${res.status} en el servidor`);
+      err.status = res.status;
+      throw err;
     }
     return data;
   } catch (err) {
@@ -65,6 +95,8 @@ export const API = {
     apiFetch('/consultas', { method: 'POST', body: payload }),
   historialPaciente: (cedula) =>
     apiFetch(`/pacientes/${encodeURIComponent(cedula)}/historial`),
+  medicoTratante: (cedula) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}/medico`),
   citasPaciente: (cedula) =>
     apiFetch(`/citas?cedula=${encodeURIComponent(cedula)}`),
 
@@ -82,6 +114,16 @@ export const API = {
       method: 'POST',
       body: payload,
     }),
+
+  /* === Autenticación === */
+  login: (username, password) =>
+    apiFetch('/auth/login', { method: 'POST', body: { username, password } }),
+  loginPaciente: (cedula, pin) =>
+    apiFetch('/auth/paciente', { method: 'POST', body: { cedula, pin } }),
+  recuperarPin: (cedula, email) =>
+    apiFetch('/auth/paciente/recuperar', { method: 'POST', body: { cedula, email } }),
+  resetPin: (cedula, codigo, pin_nuevo) =>
+    apiFetch('/auth/paciente/reset', { method: 'POST', body: { cedula, codigo, pin_nuevo } }),
 };
 
 export function parseCedula(valor) {

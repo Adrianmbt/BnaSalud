@@ -4,8 +4,10 @@ from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, Query, status
 
+from app.api.v1.deps import exigir_paciente_o_staff
 from app.api.v1.errors import db_fail, fail, not_found
 from app.core.database import supabase
+from app.core.security import hash_secreto
 from app.schemas.schemas import (
     CitaConPacienteCreate,
     CitaCreate,
@@ -67,8 +69,12 @@ def _generar_slots(centro_id: int, fecha: date, especialidad_id: Optional[int]) 
     return slots
 
 
-def _upsert_paciente(paciente: HistoriaClinicaBase) -> str:
-    """Busca o crea un paciente en historias_clinicas por cédula y retorna su id."""
+def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str]]:
+    """Busca o crea un paciente en historias_clinicas por cédula.
+
+    Devuelve (paciente_id, pin_inicial): el PIN se genera solo al
+    registrar un paciente nuevo (primer acceso del portal del paciente).
+    """
     cedula = paciente.cedula.strip()
     if not cedula.isdigit():
         fail("La cédula debe contener solo dígitos.")
@@ -98,17 +104,19 @@ def _upsert_paciente(paciente: HistoriaClinicaBase) -> str:
                 ).execute()
             except Exception:
                 db_fail("actualizar los datos del paciente")
-        return fila["id"]
+        return fila["id"], None
 
     registro = dict(datos)
     registro["numero_historia"] = f"HIS-{paciente.tipo_cedula.value}{cedula}"
     registro["antecedentes_medicos"] = registro.get("antecedentes_medicos") or []
     registro["alergias"] = registro.get("alergias") or []
+    pin_inicial = f"{secrets.randbelow(10000):04d}"
+    registro["pin_hash"] = hash_secreto(pin_inicial)
     try:
         creado = supabase.table("historias_clinicas").insert(registro).execute()
     except Exception:
         db_fail("registrar al paciente")
-    return creado.data[0]["id"]
+    return creado.data[0]["id"], pin_inicial
 
 
 def _generar_codigo(centro_id: int) -> str:
@@ -193,9 +201,10 @@ def crear_cita(
         )
 
     if isinstance(payload, CitaConPacienteCreate):
-        paciente_id = _upsert_paciente(payload.paciente)
+        paciente_id, pin_inicial = _upsert_paciente(payload.paciente)
     else:
         paciente_id = payload.paciente_id
+        pin_inicial = None
         try:
             existe_paciente = (
                 supabase.table("historias_clinicas")
@@ -240,6 +249,7 @@ def crear_cita(
         origen=fila.get("origen", "cita_web"),
         estado=fila.get("estado", "pendiente"),
         created_at=fila.get("created_at", datetime.now()),
+        pin_inicial=pin_inicial,
     )
 
 
@@ -323,6 +333,7 @@ def buscar_cita(codigo: str) -> CitaDetalleResponse:
 @router.get("/", response_model=List[CitaDetalleResponse])
 def listar_citas_por_cedula(
     cedula: str = Query(..., description="Cédula del paciente (solo dígitos)"),
+    _: dict = Depends(exigir_paciente_o_staff),
 ) -> List[CitaDetalleResponse]:
     """Lista las citas de un paciente por su cédula."""
     try:

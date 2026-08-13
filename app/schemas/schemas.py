@@ -179,6 +179,10 @@ class CitaResponse(CitaBase):
     paciente_id: str
     origen: OrigenAtencion = Field(default=OrigenAtencion.CITA_WEB)
     estado: EstadoCita = Field(default=EstadoCita.PENDIENTE)
+    pin_inicial: Optional[str] = Field(
+        default=None,
+        description="PIN de acceso generado al registrar al paciente por primera vez (solo primera cita)",
+    )
     created_at: datetime
 
     class Config:
@@ -255,6 +259,15 @@ class ProgresoPacienteResponse(BaseModel):
     paciente: HistoriaClinicaResponse
     total_consultas: int
     historial: List[ConsultaDetalleResponse] = Field(default_factory=list)
+
+
+class MedicoPacienteResponse(BaseModel):
+    """Médico tratante (principal) vinculado al paciente."""
+    medico_id: Optional[int] = None
+    nombre: Optional[str] = None
+    especialidad: Optional[str] = None
+    tipo: Optional[str] = None
+    estado: Optional[str] = None
 
 
 # ==========================================
@@ -392,3 +405,53 @@ class InventarioItemSchema(BaseModel):
     unidad: str = "unidad"
     categoria: Optional[str] = None
     vencimiento: Optional[str] = None
+
+
+# ==========================================
+# ESQUEMAS: AUTENTICACIÓN Y ACCESO SEGURO
+# ==========================================
+
+class LoginRequest(BaseModel):
+    """Credenciales del personal (médicos, farmacia, enfermería...)."""
+    username: str = Field(..., min_length=2, json_schema_extra={"example": "lfernandez"})
+    password: str = Field(..., min_length=4, json_schema_extra={"example": "BnaSalud2026!"})
+
+class LoginUsuarioResponse(BaseModel):
+    """Identidad del personal autenticado (para la sesión del módulo)."""
+    username: str
+    rol: str
+    nombre: str
+    especialidad: Optional[str] = None
+    clinica_id: Optional[int] = None
+    personal_id: Optional[int] = None
+
+class LoginResponse(BaseModel):
+    token: str
+    usuario: LoginUsuarioResponse
+
+class PacienteLoginRequest(BaseModel):
+    """Acceso al portal del paciente: cédula + PIN (4-8 dígitos)."""
+    cedula: str = Field(..., json_schema_extra={"example": "12345678"})
+    pin: str = Field(..., min_length=4, max_length=8, json_schema_extra={"example": "1234"})
+
+class PacienteLoginResponse(BaseModel):
+    token: str
+    paciente: HistoriaClinicaResponse
+
+class RecuperarPinRequest(BaseModel):
+    """Solicitud de recuperación de PIN: verifica la cédula contra el correo."""
+    cedula: str = Field(..., json_schema_extra={"example": "12345678"})
+    email: EmailStr = Field(..., json_schema_extra={"example": "maria@example.com"})
+
+class RecuperarPinResponse(BaseModel):
+    mensaje: str
+    expira_minutos: int
+    codigo_demo: Optional[str] = Field(
+        None, description="Código devuelto solo en modo demo (sin envío por correo)"
+    )
+
+class ResetPinRequest(BaseModel):
+    """Restablece el PIN con el código recibido por correo."""
+    cedula: str = Field(..., json_schema_extra={"example": "12345678"})
+    codigo: str = Field(..., min_length=6, max_length=6, json_schema_extra={"example": "482913"})
+    pin_nuevo: str = Field(..., min_length=4, max_length=8, json_schema_extra={"example": "9876"})

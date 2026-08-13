@@ -2,8 +2,9 @@ import json
 import secrets
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.api.v1.deps import exigir_staff, usuario_actual
 from app.core.config import settings
 from app.api.v1.errors import db_fail, fail, not_found
 from app.api.v1.utils import parse_json_list
@@ -148,7 +149,10 @@ def _normalizar(extraido: dict, tipo: str) -> EstudioProcesadoResponse:
 
 
 @router.post("/procesar", response_model=EstudioProcesadoResponse)
-def procesar_estudio(payload: ProcesarEstudioRequest) -> EstudioProcesadoResponse:
+def procesar_estudio(
+    payload: ProcesarEstudioRequest,
+    _: dict = Depends(exigir_staff),
+) -> EstudioProcesadoResponse:
     """Extrae resultados de un estudio (laboratorio, imagen o funcional) desde una foto/escaneo."""
     tipo = payload.tipo_estudio
     if tipo not in PROMPTS:
@@ -193,7 +197,10 @@ def _a_orden(fila: dict) -> OrdenEstudiosResponse:
 
 
 @router.post("/ordenes", status_code=201, response_model=OrdenEstudiosResponse)
-def crear_orden(payload: OrdenEstudiosCreate) -> OrdenEstudiosResponse:
+def crear_orden(
+    payload: OrdenEstudiosCreate,
+    _: dict = Depends(exigir_staff),
+) -> OrdenEstudiosResponse:
     """Emite una orden médica de estudios (laboratorio, imagen o funcional)."""
     try:
         paciente = (
@@ -235,8 +242,19 @@ def crear_orden(payload: OrdenEstudiosCreate) -> OrdenEstudiosResponse:
 
 
 @router.get("/ordenes/paciente/{paciente_id}", response_model=List[OrdenEstudiosResponse])
-def listar_ordenes(paciente_id: str) -> List[OrdenEstudiosResponse]:
-    """Lista las órdenes de estudios de un paciente (pendientes y con resultados)."""
+def listar_ordenes(
+    paciente_id: str,
+    usuario: dict = Depends(usuario_actual),
+) -> List[OrdenEstudiosResponse]:
+    """Lista las órdenes de estudios de un paciente.
+
+    Acceso: el propio paciente o el personal autenticado.
+    """
+    if usuario.get("tipo") != "staff" and usuario.get("paciente_id") != paciente_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo puede consultar sus propias órdenes de estudios.",
+        )
     try:
         filas = (
             supabase.table("ordenes_estudios")
@@ -253,7 +271,11 @@ def listar_ordenes(paciente_id: str) -> List[OrdenEstudiosResponse]:
 
 
 @router.post("/ordenes/{orden_id}/resultados", response_model=OrdenEstudiosResponse)
-def registrar_resultados(orden_id: str, payload: OrdenResultadosUpdate) -> OrdenEstudiosResponse:
+def registrar_resultados(
+    orden_id: str,
+    payload: OrdenResultadosUpdate,
+    _: dict = Depends(exigir_staff),
+) -> OrdenEstudiosResponse:
     """Registra los resultados de una orden previamente emitida."""
     try:
         filas = (

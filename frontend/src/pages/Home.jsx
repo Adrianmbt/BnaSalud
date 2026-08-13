@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
 import Metrics from '../components/Metrics';
+import ComoFunciona from '../components/ComoFunciona';
 import Specialties from '../components/Specialties';
 import Centros from '../components/Centros';
 import Testimonials from '../components/Testimonials';
@@ -19,6 +20,7 @@ export default function Home() {
       <Navbar />
       <Hero onSolicitarCita={() => window.location.hash = '#sedes'} />
       <Metrics />
+      <ComoFunciona onSolicitarCita={() => window.location.hash = '#sedes'} />
       <Specialties />
       <Centros onPedirCita={setCentroModal} />
       <Testimonials />

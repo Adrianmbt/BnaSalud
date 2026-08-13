@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     # Google Gemini / GCP
     GOOGLE_API_KEY: str = ""
 
+    # Autenticación (JWT)
+    JWT_SECRET: str = "bna-salud-cambiar-en-produccion-por-un-secreto-largo"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRACION_MINUTOS: int = 480  # 8 horas
+    PIN_EXPIRACION_MINUTOS: int = 15   # códigos de recuperación de PIN
+    PIN_EMITIR_DEMO: bool = True       # devuelve el código en la respuesta (sin SMTP)
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",

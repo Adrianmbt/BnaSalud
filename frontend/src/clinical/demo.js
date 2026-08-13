@@ -1,10 +1,578 @@
 // ============================================================
-// Datos de demostración para los módulos internos.
+// Datos de demostración para los módulos internos de BnaSalud.
 // Se usan como respaldo cuando el backend no está disponible,
 // para poder visualizar y probar la interfaz sin servidor.
+//
+// SEMILLA DEMO:
+//   • PACIENTES_DEMO → 4 pacientes con su historia clínica,
+//     citas, órdenes y médico tratante. PIN por defecto: 1234.
+//   • DOCTORES_DEMO  → 4 doctores con credenciales de acceso
+//     (usuario + clave 1234) y su cola de pacientes.
+//   • La "persona activa" se alterna con el panel Modo Demo
+//     (componente DemoSwitcher) y se persiste en localStorage.
 // ============================================================
 
+export const PIN_POR_DEFECTO = '1234';
+const PERSONA_CLAVE = 'bna_persona_demo';
 const CEDULA_ACTIVA = '0912345678';
+
+export function getPersonaDemo() {
+  try {
+    const crudo = localStorage.getItem(PERSONA_CLAVE);
+    return crudo ? JSON.parse(crudo) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setPersonaDemo(persona) {
+  try {
+    if (persona) localStorage.setItem(PERSONA_CLAVE, JSON.stringify(persona));
+    else localStorage.removeItem(PERSONA_CLAVE);
+  } catch {
+    /* sin almacenamiento */
+  }
+}
+
+// ============================================================
+// Pacientes de la semilla (perfil + historia clínica completa)
+// ============================================================
+
+export const PACIENTES_DEMO = [
+  {
+    perfil: {
+      id: 'hc-maria-gonzalez',
+      numero_historia: 'HIS-V0912345678',
+      tipo_cedula: 'V',
+      cedula: '0912345678',
+      nombre_completo: 'María González Pérez',
+      fecha_nacimiento: '1990-04-12',
+      telefono: '0414-1234567',
+      email: 'maria.gonzalez@correo.com',
+      tipo_sangre: 'O+',
+      alergias: ['Penicilina'],
+      antecedentes_medicos: ['Hipertensión'],
+    },
+    pin: PIN_POR_DEFECTO,
+    historial: [
+      {
+        consulta_id: 'c-001',
+        fecha: '2026-05-14T10:00:00',
+        especialidad: 'Medicina General',
+        medico_nombre: 'Dr. Carlos Ruiz',
+        cie10_codigo: 'J06',
+        cie10_descripcion: 'Infección aguda de vías respiratorias superiores',
+        motivo_consulta: 'Odínofagia y fiebre de 38°C.',
+        tratamiento: 'Paracetamol 500mg cada 8 horas por 5 días.',
+        recetas: [{ nombre: 'Paracetamol 500mg', posologia: '1 tableta cada 8 horas por 5 días.' }],
+        recomendaciones: 'Hidratación abundante y reposo relativo.',
+      },
+      {
+        consulta_id: 'c-002',
+        fecha: '2026-03-02T15:30:00',
+        especialidad: 'Medicina General',
+        medico_nombre: 'Dra. Laura Fernández',
+        cie10_codigo: 'I10',
+        cie10_descripcion: 'Hipertensión esencial (primaria)',
+        motivo_consulta: 'Control de tensión arterial.',
+        tratamiento: 'Losartán 50mg cada 12 horas.',
+        recetas: [{ nombre: 'Losartán 50mg', posologia: '1 tableta cada 12 horas.' }],
+      },
+      {
+        consulta_id: 'c-003',
+        fecha: '2026-08-12T09:10:00',
+        especialidad: 'Medicina General',
+        medico_nombre: 'Dra. Laura Fernández',
+        cie10_codigo: 'I10',
+        cie10_descripcion: 'Hipertensión esencial (primaria)',
+        motivo_consulta: 'Seguimiento de presión arterial y solicitud de exámenes de rutina.',
+        examen_fisico: 'PA 128/82 mmHg, FC 74 lpm. Consciente, orientada, sin déficit.',
+        tratamiento: 'Losartán 50mg cada 12 horas · se ordena hemograma y glucosa.',
+        recetas: [{ nombre: 'Losartán 50mg', posologia: '1 tableta cada 12 horas.' }],
+        estudios: [
+          { tipo: 'laboratorio', nombre: 'Hemograma completo', parametros: [], estado: 'solicitado' },
+          { tipo: 'laboratorio', nombre: 'Glucosa en ayunas', parametros: [], estado: 'solicitado' },
+        ],
+        recomendaciones: 'Dieta baja en sodio y control de peso.',
+      },
+    ],
+    citas: [
+      {
+        id: 'cita-demo-1',
+        codigo_confirmacion: 'CITAB-2026-8F1A',
+        centro_id: 2,
+        centro_salud: 'Clínica de los Trabajadores (CITAB)',
+        especialidad_id: 101,
+        especialidad: 'Medicina General',
+        fecha_cita: '2026-08-20',
+        hora_inicio: '09:30:00',
+        motivo: 'Control de rutina',
+        estado: 'confirmada',
+        origen: 'cita_web',
+        paciente_id: 'hc-maria-gonzalez',
+        paciente_nombre: 'María González Pérez',
+      },
+      {
+        id: 'cita-demo-2',
+        codigo_confirmacion: 'CITAB-2026-4C92',
+        centro_id: 2,
+        centro_salud: 'Clínica de los Trabajadores (CITAB)',
+        especialidad_id: 101,
+        especialidad: 'Medicina General',
+        fecha_cita: '2026-08-12',
+        hora_inicio: '08:00:00',
+        motivo: 'Seguimiento de presión arterial',
+        estado: 'completada',
+        origen: 'cita_web',
+        paciente_id: 'hc-maria-gonzalez',
+        paciente_nombre: 'María González Pérez',
+      },
+    ],
+    ordenes: [
+      {
+        id: 'ord-demo-1',
+        comprobante_orden: 'ORD-2026-1001',
+        paciente_cedula: '0912345678',
+        origen: 'consulta',
+        estado: 'solicitada',
+        prioridad: 'normal',
+        medico_nombre: 'Dra. Laura Fernández',
+        especialidad: 'Medicina General',
+        estudios: [
+          { tipo: 'laboratorio', nombre: 'Hemograma completo', parametros: [], estado: 'solicitado' },
+          { tipo: 'laboratorio', nombre: 'Glucosa en ayunas', parametros: [], estado: 'solicitado' },
+        ],
+      },
+    ],
+    medicoTratante: {
+      medico_id: 1043,
+      nombre: 'Dra. Laura Fernández',
+      especialidad: 'Medicina General',
+      tipo: 'principal',
+      estado: 'activo',
+    },
+  },
+  {
+    perfil: {
+      id: 'hc-francisco-garcia',
+      numero_historia: 'HIS-V14302771',
+      tipo_cedula: 'V',
+      cedula: '14302771',
+      nombre_completo: 'Francisco García Martos',
+      fecha_nacimiento: '1964-07-03',
+      telefono: '0424-5566778',
+      email: 'francisco.garcia@correo.com',
+      tipo_sangre: 'B+',
+      alergias: ['Penicilina'],
+      antecedentes_medicos: ['Hipertensión', 'Dislipidemia'],
+    },
+    pin: PIN_POR_DEFECTO,
+    historial: [
+      {
+        consulta_id: 'f-001',
+        fecha: '2026-07-20T11:00:00',
+        especialidad: 'Cardiología',
+        medico_nombre: 'Dr. Antonio Valera',
+        cie10_codigo: 'I10',
+        cie10_descripcion: 'Hipertensión esencial (primaria)',
+        motivo_consulta: 'Control cardiovascular trimestral.',
+        examen_fisico: 'PA 142/90 mmHg, FC 78 lpm. Soplo sistólico leve en foco aórtico.',
+        tratamiento: 'Losartán 50mg cada 12 horas.',
+        recetas: [{ nombre: 'Losartán 50mg', posologia: '1 tableta cada 12 horas.' }],
+        recomendaciones: 'Evitar el consumo de sal y mantener actividad física moderada.',
+      },
+      {
+        consulta_id: 'f-002',
+        fecha: '2026-04-11T09:30:00',
+        especialidad: 'Cardiología',
+        medico_nombre: 'Dr. Antonio Valera',
+        cie10_codigo: 'E78.5',
+        cie10_descripcion: 'Hiperlipidemia no especificada',
+        motivo_consulta: 'Resultados de perfil lipídico elevados.',
+        tratamiento: 'Atorvastatina 20mg en la noche.',
+        recetas: [{ nombre: 'Atorvastatina 20mg', posologia: '1 tableta en la noche.' }],
+        estudios: [
+          { tipo: 'laboratorio', nombre: 'Perfil lipídico', parametros: [], estado: 'solicitado' },
+        ],
+      },
+    ],
+    citas: [
+      {
+        id: 'cita-demo-3',
+        codigo_confirmacion: 'CITAB-2026-3B7C',
+        centro_id: 2,
+        centro_salud: 'Clínica de los Trabajadores (CITAB)',
+        especialidad_id: 104,
+        especialidad: 'Cardiología',
+        fecha_cita: '2026-08-19',
+        hora_inicio: '10:00:00',
+        motivo: 'Control cardiovascular',
+        estado: 'confirmada',
+        origen: 'cita_web',
+        paciente_id: 'hc-francisco-garcia',
+        paciente_nombre: 'Francisco García Martos',
+      },
+    ],
+    ordenes: [
+      {
+        id: 'ord-demo-2',
+        comprobante_orden: 'ORD-2026-1002',
+        paciente_cedula: '14302771',
+        origen: 'consulta',
+        estado: 'solicitada',
+        prioridad: 'normal',
+        medico_nombre: 'Dr. Antonio Valera',
+        especialidad: 'Cardiología',
+        estudios: [
+          { tipo: 'laboratorio', nombre: 'Perfil lipídico', parametros: [], estado: 'solicitado' },
+          { tipo: 'funcional', nombre: 'Electrocardiograma (ECG) de reposo', parametros: [], estado: 'solicitado' },
+        ],
+      },
+    ],
+    medicoTratante: {
+      medico_id: 11111111,
+      nombre: 'Dr. Antonio Valera',
+      especialidad: 'Cardiología',
+      tipo: 'principal',
+      estado: 'activo',
+    },
+  },
+  {
+    perfil: {
+      id: 'hc-ana-torres',
+      numero_historia: 'HIS-V24567890',
+      tipo_cedula: 'V',
+      cedula: '24567890',
+      nombre_completo: 'Ana Torres Díaz',
+      fecha_nacimiento: '1998-01-25',
+      telefono: '0416-8899001',
+      email: 'ana.torres@correo.com',
+      tipo_sangre: 'A-',
+      alergias: [],
+      antecedentes_medicos: ['Asma', 'Diabetes gestacional'],
+    },
+    pin: PIN_POR_DEFECTO,
+    historial: [
+      {
+        consulta_id: 'a-001',
+        fecha: '2026-06-30T08:30:00',
+        especialidad: 'Ginecología',
+        medico_nombre: 'Dra. Luisa Pérez',
+        cie10_codigo: 'O24',
+        cie10_descripcion: 'Diabetes mellitus en el embarazo',
+        motivo_consulta: 'Control prenatal y despistaje de diabetes gestacional.',
+        examen_fisico: 'AU 28 cm, FCF 142 lpm, TA 110/70 mmHg.',
+        tratamiento: 'Control de glicemia en ayunas y posprandial.',
+        recetas: [],
+        recomendaciones: 'Dieta balanceada y consulta de nutrición.',
+      },
+      {
+        consulta_id: 'a-002',
+        fecha: '2026-02-10T14:00:00',
+        especialidad: 'Medicina General',
+        medico_nombre: 'Dr. Pedro Sánchez',
+        cie10_codigo: 'J45',
+        cie10_descripcion: 'Asma',
+        motivo_consulta: 'Crisis de sibilancia leve tras ejercicio.',
+        tratamiento: 'Salbutamol inhalador a demanda.',
+        recetas: [{ nombre: 'Salbutamol 100mcg', posologia: '2 inhalaciones a demanda.' }],
+      },
+    ],
+    citas: [
+      {
+        id: 'cita-demo-4',
+        codigo_confirmacion: 'MUJER-2026-9D2E',
+        centro_id: 3,
+        centro_salud: 'Clínica de la Mujer',
+        especialidad_id: 103,
+        especialidad: 'Ginecología',
+        fecha_cita: '2026-08-22',
+        hora_inicio: '09:00:00',
+        motivo: 'Control prenatal',
+        estado: 'confirmada',
+        origen: 'cita_web',
+        paciente_id: 'hc-ana-torres',
+        paciente_nombre: 'Ana Torres Díaz',
+      },
+    ],
+    ordenes: [
+      {
+        id: 'ord-demo-3',
+        comprobante_orden: 'ORD-2026-1003',
+        paciente_cedula: '24567890',
+        origen: 'consulta',
+        estado: 'con_resultados',
+        prioridad: 'normal',
+        medico_nombre: 'Dra. Luisa Pérez',
+        especialidad: 'Ginecología',
+        estudios: [
+          {
+            tipo: 'imagen',
+            nombre: 'Ecografía obstétrica',
+            parametros: [],
+            descripcion: 'Feto único en presentación cefálica, latidos presentes, placenta anterior.',
+            conclusion: 'Estudio dentro de parámetros normales para la edad gestacional.',
+            estado: 'completado',
+          },
+        ],
+      },
+    ],
+    medicoTratante: {
+      medico_id: 33333333,
+      nombre: 'Dra. Luisa Pérez',
+      especialidad: 'Ginecología',
+      tipo: 'principal',
+      estado: 'activo',
+    },
+  },
+  {
+    perfil: {
+      id: 'hc-rosa-martinez',
+      numero_historia: 'HIS-V16892345',
+      tipo_cedula: 'V',
+      cedula: '16892345',
+      nombre_completo: 'Rosa Martínez Soto',
+      fecha_nacimiento: '1981-09-17',
+      telefono: '0412-3344556',
+      email: 'rosa.martinez@correo.com',
+      tipo_sangre: 'O-',
+      alergias: ['Sulfamidas'],
+      antecedentes_medicos: ['Diabetes tipo 2'],
+    },
+    pin: PIN_POR_DEFECTO,
+    historial: [
+      {
+        consulta_id: 'r-001',
+        fecha: '2026-07-02T10:30:00',
+        especialidad: 'Medicina General',
+        medico_nombre: 'Dr. Pedro Sánchez',
+        cie10_codigo: 'E11',
+        cie10_descripcion: 'Diabetes mellitus tipo 2',
+        motivo_consulta: 'Control de glicemia y revisión de tratamiento.',
+        examen_fisico: 'Glicemia capilar 148 mg/dL. IMC 27.5.',
+        tratamiento: 'Metformina 850mg cada 12 horas.',
+        recetas: [{ nombre: 'Metformina 850mg', posologia: '1 tableta cada 12 horas con alimentos.' }],
+        recomendaciones: 'Chequeo de hemoglobina glicosilada en 3 meses.',
+      },
+      {
+        consulta_id: 'r-002',
+        fecha: '2026-02-18T09:00:00',
+        especialidad: 'Medicina General',
+        medico_nombre: 'Dr. Ramón Díaz',
+        cie10_codigo: 'M54',
+        cie10_descripcion: 'Dorsalgia',
+        motivo_consulta: 'Dolor lumbar de esfuerzo.',
+        tratamiento: 'Ibuprofeno 400mg cada 8 horas por 5 días.',
+        recetas: [{ nombre: 'Ibuprofeno 400mg', posologia: '1 tableta cada 8 horas en caso de dolor.' }],
+      },
+    ],
+    citas: [
+      {
+        id: 'cita-demo-5',
+        codigo_confirmacion: 'CITAB-2026-2A5B',
+        centro_id: 2,
+        centro_salud: 'Clínica de los Trabajadores (CITAB)',
+        especialidad_id: 101,
+        especialidad: 'Medicina General',
+        fecha_cita: '2026-08-25',
+        hora_inicio: '08:30:00',
+        motivo: 'Control de diabetes',
+        estado: 'pendiente',
+        origen: 'cita_web',
+        paciente_id: 'hc-rosa-martinez',
+        paciente_nombre: 'Rosa Martínez Soto',
+      },
+    ],
+    ordenes: [],
+    medicoTratante: {
+      medico_id: 55555555,
+      nombre: 'Dr. Pedro Sánchez',
+      especialidad: 'Medicina General',
+      tipo: 'principal',
+      estado: 'activo',
+    },
+  },
+];
+
+function pacientePorCedula(cedula) {
+  return PACIENTES_DEMO.find((p) => p.perfil.cedula === String(cedula || '').replace(/\D/g, ''));
+}
+
+function pacientePorId(id) {
+  return PACIENTES_DEMO.find((p) => p.perfil.id === id || p.perfil.cedula === id);
+}
+
+// ============================================================
+// Doctores de la semilla (credenciales + cola de pacientes)
+// Clave de acceso por defecto: 1234
+// ============================================================
+
+export const DOCTORES_DEMO = [
+  {
+    username: 'lfernandez',
+    password: PIN_POR_DEFECTO,
+    rol: 'medico',
+    nombre: 'Dra. Laura Fernández',
+    especialidad: 'Medicina General',
+    clinica_id: 2,
+    personal_id: 1043,
+    cola: {
+      espera: [
+        {
+          id: 'P-29384',
+          nombre: 'Jordi Puigventós',
+          prioridad: 'ALTA',
+          espera: 45,
+          perfil: {
+            cedula: '24398451',
+            edad: '62 años',
+            alergia: 'Penicilina',
+            antecedente: 'Hipertensión',
+            motivo: 'Dolor torácico intermitente de 3 días',
+          },
+        },
+        {
+          id: 'P-28417',
+          nombre: 'Marta Soler',
+          prioridad: 'NORMAL',
+          espera: 12,
+          perfil: {
+            cedula: '17234589',
+            edad: '38 años',
+            alergia: 'Sulfas',
+            antecedente: 'Diabetes tipo 2',
+            motivo: 'Control mensual de glicemia',
+          },
+        },
+        {
+          id: 'P-27692',
+          nombre: 'Carme Vidal',
+          prioridad: 'NORMAL',
+          espera: 5,
+          perfil: {
+            cedula: '10456223',
+            edad: '52 años',
+            alergia: null,
+            antecedente: 'Asma bronquial',
+            motivo: 'Sibilancia y tos matinal',
+          },
+        },
+      ],
+      consulta: [],
+      finalizado: [
+        { id: 'P-31001', nombre: 'María González Pérez', prioridad: 'NORMAL', cedula: '0912345678', hora: '08:12' },
+        { id: 'P-31002', nombre: 'Francisco García Martos', prioridad: 'ALTA', cedula: '14302771', hora: '08:47' },
+      ],
+    },
+  },
+  {
+    username: 'avalera',
+    password: PIN_POR_DEFECTO,
+    rol: 'medico',
+    nombre: 'Dr. Antonio Valera',
+    especialidad: 'Cardiología',
+    clinica_id: 2,
+    personal_id: 11111111,
+    cola: {
+      espera: [
+        {
+          id: 'P-31010',
+          nombre: 'José Ramos Luna',
+          prioridad: 'ALTA',
+          espera: 30,
+          perfil: {
+            cedula: '18765432',
+            edad: '68 años',
+            alergia: null,
+            antecedente: 'Cardiopatía isquémica',
+            motivo: 'Palpitaciones y disnea de esfuerzo',
+          },
+        },
+        {
+          id: 'P-31011',
+          nombre: 'Isabel Medina Ortiz',
+          prioridad: 'NORMAL',
+          espera: 8,
+          perfil: {
+            cedula: '20345678',
+            edad: '54 años',
+            alergia: 'Sulfas',
+            antecedente: 'Hipertensión',
+            motivo: 'Control de tensión arterial',
+          },
+        },
+      ],
+      consulta: [],
+      finalizado: [
+        { id: 'P-31002', nombre: 'Francisco García Martos', prioridad: 'ALTA', cedula: '14302771', hora: '08:47' },
+      ],
+    },
+  },
+  {
+    username: 'mgonzalez',
+    password: PIN_POR_DEFECTO,
+    rol: 'medico',
+    nombre: 'Dra. María González',
+    especialidad: 'Pediatría',
+    clinica_id: 1,
+    personal_id: 22222222,
+    cola: {
+      espera: [
+        {
+          id: 'P-31020',
+          nombre: 'Sofía Acosta Rivas',
+          prioridad: 'NORMAL',
+          espera: 15,
+          perfil: {
+            cedula: '25874100',
+            edad: '6 años',
+            alergia: null,
+            antecedente: 'Control de crecimiento',
+            motivo: 'Control pediátrico de rutina',
+          },
+        },
+      ],
+      consulta: [],
+      finalizado: [],
+    },
+  },
+  {
+    username: 'psanchez',
+    password: PIN_POR_DEFECTO,
+    rol: 'medico',
+    nombre: 'Dr. Pedro Sánchez',
+    especialidad: 'Medicina General',
+    clinica_id: 4,
+    personal_id: 55555555,
+    cola: {
+      espera: [
+        {
+          id: 'P-31030',
+          nombre: 'Rosa Martínez Soto',
+          prioridad: 'NORMAL',
+          espera: 20,
+          perfil: {
+            cedula: '16892345',
+            edad: '45 años',
+            alergia: 'Sulfamidas',
+            antecedente: 'Diabetes tipo 2',
+            motivo: 'Control de glicemia',
+          },
+        },
+      ],
+      consulta: [],
+      finalizado: [
+        { id: 'P-31031', nombre: 'Pedro García Cedeño', prioridad: 'NORMAL', cedula: '76543210', hora: '07:55' },
+      ],
+    },
+  },
+];
+
+export const COLA_DEMO = DOCTORES_DEMO[0].cola;
+
+// ============================================================
+// Otros catálogos demo (centros, inventario, exámenes, CIE-10)
+// ============================================================
 
 const RECETAS_DEMO = [
   {
@@ -68,7 +636,6 @@ export const INVENTARIO_DEMO = [
   { nombre: 'Enalapril 10mg', stock: 510, stock_minimo: 100, vencimiento: 'Jun 2027', estado: 'OK' },
 ];
 
-// Catálogo de centros de salud (respaldo cuando el backend no responde).
 export const CENTROS_DEMO = [
   {
     id: 1, nombre: 'Clínica del Niño', codigo: 'CLN-NINO', parroquia: 'El Carmen',
@@ -107,57 +674,101 @@ export const CENTROS_DEMO = [
   },
 ];
 
-export const COLA_DEMO = {
-  espera: [
-    {
-      id: 'P-29384',
-      nombre: 'Jordi Puigventós',
-      prioridad: 'ALTA',
-      espera: 45,
-      perfil: {
-        cedula: '24398451',
-        edad: '62 años',
-        alergia: 'Penicilina',
-        antecedente: 'Hipertensión',
-        motivo: 'Dolor torácico intermitente de 3 días',
-      },
-    },
-    {
-      id: 'P-28417',
-      nombre: 'Marta Soler',
-      prioridad: 'NORMAL',
-      espera: 12,
-      perfil: {
-        cedula: '17234589',
-        edad: '38 años',
-        alergia: 'Sulfas',
-        antecedente: 'Diabetes tipo 2',
-        motivo: 'Control mensual de glicemia',
-      },
-    },
-    {
-      id: 'P-27692',
-      nombre: 'Carme Vidal',
-      prioridad: 'NORMAL',
-      espera: 5,
-      perfil: {
-        cedula: '10456223',
-        edad: '52 años',
-        alergia: null,
-        antecedente: 'Asma bronquial',
-        motivo: 'Sibilancia y tos matinal',
-      },
-    },
-  ],
-  consulta: [],
-  finalizado: 12,
-};
-
 // ============================================================
 // Catálogo de exámenes y estudios para la orden médica.
-// Cada estudio pertenece a una categoría (laboratorio/imagen/
-// funcional) y a un grupo clínico para búsqueda y clasificación.
 // ============================================================
+
+// ============================================================
+// Identidad visual de las categorías y grupos de estudios.
+// ============================================================
+
+export const CATEGORIA_ESTILO = {
+  laboratorio: { etiqueta: 'Laboratorio', icono: 'science', color: '#0d5c47', soft: '#d9e9e0' },
+  imagen: { etiqueta: 'Imagen', icono: 'image_search', color: '#00677d', soft: '#d8ecf1' },
+  funcional: { etiqueta: 'Funcional', icono: 'monitor_heart', color: '#a8631b', soft: '#f4e3c3' },
+};
+
+export const GRUPOS_ESTILO = {
+  'Radiología (Rayos X)': {
+    sigla: 'RX',
+    icono: 'radiology',
+    color: '#a8631b',
+    soft: '#f4e3c3',
+    rayas: true,
+  },
+  'Tomografía computarizada (TAC)': {
+    sigla: 'TAC',
+    icono: 'view_in_ar',
+    color: '#6d28d9',
+    soft: '#ede9fe',
+  },
+  'Resonancia magnética (RM)': {
+    sigla: 'RM',
+    icono: 'magnetic_field',
+    color: '#0e7490',
+    soft: '#cffafe',
+  },
+  Ecografía: {
+    sigla: 'ECO',
+    icono: 'sensors',
+    color: '#0d5c47',
+    soft: '#d9e9e0',
+  },
+  Cardiovascular: {
+    sigla: 'CV',
+    icono: 'monitor_heart',
+    color: '#a52b1f',
+    soft: '#f6dcd5',
+  },
+  Respiratorio: {
+    sigla: 'RESP',
+    icono: 'air',
+    color: '#0e7490',
+    soft: '#cffafe',
+  },
+  Neurológico: {
+    sigla: 'NEU',
+    icono: 'psychiatry',
+    color: '#6d28d9',
+    soft: '#ede9fe',
+  },
+  Hematología: {
+    sigla: 'HEM',
+    icono: 'bloodtype',
+    color: '#a52b1f',
+    soft: '#f6dcd5',
+  },
+  'Química sanguínea': {
+    sigla: 'QUIM',
+    icono: 'science',
+    color: '#0d5c47',
+    soft: '#d9e9e0',
+  },
+  'Serología e inmunología': {
+    sigla: 'SER',
+    icono: 'shield',
+    color: '#6d28d9',
+    soft: '#ede9fe',
+  },
+  Microbiología: {
+    sigla: 'MICRO',
+    icono: 'coronavirus',
+    color: '#a8631b',
+    soft: '#f4e3c3',
+  },
+  Orina: {
+    sigla: 'URO',
+    icono: 'water_drop',
+    color: '#1d4ed8',
+    soft: '#dbeafe',
+  },
+  Heces: {
+    sigla: 'COPRO',
+    icono: 'egg_alt',
+    color: '#7c4a03',
+    soft: '#f7ecd0',
+  },
+};
 
 export const CATALOGO_EXAMENES = {
   laboratorio: [
@@ -291,113 +902,139 @@ export const CIE10_DEMO = [
   { codigo: 'M54', descripcion: 'Dorsalgia' },
 ];
 
-const HISTORIAL_DEMO = {
-  paciente: {
-    nombre_completo: 'María González Pérez',
-    cedula: CEDULA_ACTIVA,
-    numero_historia: 'HIS-V0912345678',
-    tipo_sangre: 'O+',
-    alergias: ['Penicilina'],
-    antecedentes_medicos: ['Hipertensión'],
-    telefono: '0414-1234567',
-  },
-  total_consultas: 3,
-  historial: [
-    {
-      consulta_id: 'c-001',
-      fecha: '2026-05-14T10:00:00',
-      especialidad: 'Medicina General',
-      medico_nombre: 'Dr. Carlos Ruiz',
-      cie10_codigo: 'J06',
-      cie10_descripcion: 'Infección aguda de vías respiratorias',
-      motivo_consulta: 'Odínofagia y fiebre de 38°C.',
-      tratamiento: 'Paracetamol 500mg cada 8 horas por 5 días.',
-      recetas: [{ nombre: 'Paracetamol 500mg', posologia: '1 tableta cada 8 horas por 5 días.' }],
-    },
-    {
-      consulta_id: 'c-002',
-      fecha: '2026-03-02T15:30:00',
-      especialidad: 'Medicina General',
-      medico_nombre: 'Dra. Laura Fernández',
-      cie10_codigo: 'I10',
-      cie10_descripcion: 'Hipertensión esencial',
-      motivo_consulta: 'Control de tensión arterial.',
-      tratamiento: 'Losartán 50mg cada 12 horas.',
-      recetas: [{ nombre: 'Losartán 50mg', posologia: '1 tableta cada 12 horas.' }],
-    },
-  ],
-};
+// ============================================================
+// Estado en memoria (sesión demo sin backend)
+// ============================================================
 
-// Recetas que "envían" los médicos del módulo de Doctores y que
-// el módulo de Farmacia recibe como pendientes de despacho.
+// Recetas que "envían" los médicos y que Farmacia recibe como pendientes.
 let pendientesStore = RECETAS_DEMO.map((r) => ({
   ...r,
   detalles: r.detalles.map((d) => ({ ...d })),
 }));
 
-// Órdenes de estudios emitidas por el módulo de Doctores.
-// Persisten en memoria durante la sesión (respaldo sin backend).
+// Órdenes de estudios emitidas (se sincronizan con PACIENTES_DEMO al consultar).
 let ordenesStore = [
-  {
-    id: 'ord-demo-1',
-    comprobante_orden: 'ORD-2026-1001',
-    paciente_cedula: CEDULA_ACTIVA,
-    origen: 'consulta',
-    estado: 'solicitada',
-    prioridad: 'normal',
-    medico_nombre: 'Dra. Laura Fernández',
-    especialidad: 'Medicina General',
-    estudios: [
-      { tipo: 'laboratorio', nombre: 'Hemograma completo', parametros: [], estado: 'solicitado' },
-      { tipo: 'laboratorio', nombre: 'Glucosa en ayunas', parametros: [], estado: 'solicitado' },
-    ],
-    created_at: new Date().toISOString(),
-  },
+  ...PACIENTES_DEMO.flatMap((p) =>
+    (p.ordenes || []).map((o) => ({ ...o, paciente_id: p.perfil.id }))
+  ),
 ];
-let ordenSeq = 1002;
+let ordenSeq = 1004;
 
-// Citas de la paciente demo para el portal del paciente.
-let citasStore = [
-  {
-    id: 'cita-demo-1',
-    codigo_confirmacion: 'CITAB-2026-8F1A',
-    centro_id: 2,
-    centro_salud: 'Clínica de los Trabajadores (CITAB)',
-    especialidad_id: 101,
-    especialidad: 'Medicina General',
-    fecha_cita: '2026-08-20',
-    hora_inicio: '09:30:00',
-    motivo: 'Control de rutina',
-    estado: 'confirmada',
-    origen: 'cita_web',
-    paciente_id: 'hc-maria-gonzalez',
-    paciente_nombre: 'María González Pérez',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'cita-demo-2',
-    codigo_confirmacion: 'CITAB-2026-4C92',
-    centro_id: 2,
-    centro_salud: 'Clínica de los Trabajadores (CITAB)',
-    especialidad_id: 101,
-    especialidad: 'Medicina General',
-    fecha_cita: '2026-08-12',
-    hora_inicio: '08:00:00',
-    motivo: 'Seguimiento de presión arterial',
-    estado: 'completada',
-    origen: 'cita_web',
-    paciente_id: 'hc-maria-gonzalez',
-    paciente_nombre: 'María González Pérez',
-    created_at: new Date().toISOString(),
-  },
-];
+// ============================================================
+// DEMO: API de respaldo (misma forma que la API real)
+// ============================================================
+
+function _perfil(paciente) {
+  return {
+    id: paciente.perfil.id,
+    ...paciente.perfil,
+    created_at: '2026-01-15T10:00:00',
+  };
+}
+
+function _clonar(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 export const DEMO = {
-  getCentros: async () => CENTROS_DEMO.map((c) => ({ ...c, servicios: [...c.servicios] })),
-  buscarPaciente: async (cedula) => {
-    if (cedula.replace(/\D/g, '') !== CEDULA_ACTIVA) throw new Error('Paciente no encontrado');
-    return { id: 'hc-maria-gonzalez', ...HISTORIAL_DEMO.paciente };
+  /* === Autenticación (modo demo) === */
+  login: async (credenciales) => {
+    const doctor = DOCTORES_DEMO.find(
+      (d) =>
+        d.username === String(credenciales.username || '').trim().toLowerCase() &&
+        d.password === String(credenciales.password || '')
+    );
+    if (!doctor) throw new Error('Usuario o contraseña incorrectos.');
+    return {
+      token: `demo-staff-${doctor.username}`,
+      usuario: {
+        username: doctor.username,
+        rol: doctor.rol,
+        nombre: doctor.nombre,
+        especialidad: doctor.especialidad,
+        clinica_id: doctor.clinica_id,
+        personal_id: doctor.personal_id,
+      },
+    };
   },
+  loginPaciente: async ({ cedula, pin }) => {
+    const paciente = pacientePorCedula(cedula);
+    if (!paciente) throw new Error('Paciente no encontrado. Verifique la cédula.');
+    if (String(pin || '') !== paciente.pin) throw new Error('PIN incorrecto. Verifique su cédula y su PIN.');
+    return { token: `demo-paciente-${paciente.perfil.cedula}`, paciente: _perfil(paciente) };
+  },
+  recuperarPin: async ({ cedula, email }) => {
+    const paciente = pacientePorCedula(cedula);
+    if (!paciente) throw new Error('Paciente no encontrado. Verifique la cédula.');
+    if (String(paciente.perfil.email || '').toLowerCase() !== String(email || '').trim().toLowerCase()) {
+      throw new Error('El correo no coincide con el registrado para esta cédula.');
+    }
+    return {
+      mensaje: 'Si el correo coincide con el registrado, recibirá un código de 6 dígitos válido por 15 minutos.',
+      expira_minutos: 15,
+      codigo_demo: '123456',
+    };
+  },
+  resetPin: async ({ cedula, codigo, pin_nuevo }) => {
+    const paciente = pacientePorCedula(cedula);
+    if (!paciente) throw new Error('Paciente no encontrado. Verifique la cédula.');
+    if (String(codigo || '') !== '123456') throw new Error('Código inválido o expirado. Solicite uno nuevo.');
+    if (!pin_nuevo || String(pin_nuevo).length < 4) throw new Error('El PIN nuevo debe tener al menos 4 dígitos.');
+    paciente.pin = String(pin_nuevo);
+    return _perfil(paciente);
+  },
+  colaDoctor: async (username) => {
+    const doctor = DOCTORES_DEMO.find((d) => d.username === username) || DOCTORES_DEMO[0];
+    return _clonar(doctor.cola);
+  },
+
+  /* === Datos generales === */
+  getCentros: async () => CENTROS_DEMO.map((c) => ({ ...c, servicios: [...c.servicios] })),
+
+  /* === Pacientes === */
+  buscarPaciente: async (cedula) => {
+    const paciente = pacientePorCedula(cedula);
+    if (!paciente) throw new Error('Paciente no encontrado');
+    return _perfil(paciente);
+  },
+  actualizarPaciente: async (cedula, payload) => {
+    const paciente = pacientePorCedula(cedula);
+    if (!paciente) throw new Error('Paciente no encontrado');
+    Object.keys(payload).forEach((k) => {
+      if (payload[k] !== undefined) paciente.perfil[k] = payload[k];
+    });
+    return _perfil(paciente);
+  },
+  historialPaciente: async (cedula) => {
+    const paciente = pacientePorCedula(cedula);
+    if (!paciente) throw new Error('Paciente no encontrado');
+    return {
+      paciente: _perfil(paciente),
+      total_consultas: paciente.historial.length,
+      historial: _clonar(paciente.historial),
+    };
+  },
+  medicoTratante: async (cedula) => {
+    const paciente = pacientePorCedula(cedula);
+    if (!paciente) throw new Error('Paciente no encontrado');
+    return { ...paciente.medicoTratante };
+  },
+  citasPaciente: async (cedula) => {
+    const paciente = pacientePorCedula(cedula);
+    if (!paciente) throw new Error('Paciente no encontrado');
+    return _clonar(paciente.citas);
+  },
+  ordenesPaciente: async (pacienteId) => {
+    const paciente = pacientePorId(pacienteId);
+    if (!paciente) return [];
+    const deRegistro = _clonar(paciente.ordenes || []);
+    return ordenesStore
+      .filter((o) => o.paciente_id === paciente.perfil.id)
+      .map((o) => ({ ...o, estudios: o.estudios.map((e) => ({ ...e })) }))
+      .concat(deRegistro.filter((d) => !ordenesStore.some((o) => o.id === d.id)));
+  },
+
+  /* === Farmacia === */
   buscarReceta: async (texto) => {
     const v = texto.trim().toLowerCase();
     if (!v) throw new Error('Ingrese un código o cédula.');
@@ -430,24 +1067,8 @@ export const DEMO = {
       vencimiento: m.vencimiento,
       presentacion: m.estado,
     })),
-  historialPaciente: async (cedula) => {
-    if (cedula.replace(/\D/g, '') !== CEDULA_ACTIVA) throw new Error('Paciente no encontrado');
-    return JSON.parse(JSON.stringify(HISTORIAL_DEMO));
-  },
-  actualizarPaciente: async (cedula, payload) => {
-    if (cedula.replace(/\D/g, '') !== CEDULA_ACTIVA) throw new Error('Paciente no encontrado');
-    const p = HISTORIAL_DEMO.paciente;
-    Object.keys(payload).forEach((k) => {
-      if (payload[k] !== undefined) p[k] = payload[k];
-    });
-    return { ...p };
-  },
-  citasPaciente: async (cedula) => {
-    if (cedula.replace(/\D/g, '') !== CEDULA_ACTIVA) throw new Error('Paciente no encontrado');
-    return citasStore
-      .filter((c) => c.paciente_id === 'hc-maria-gonzalez')
-      .map((c) => ({ ...c, estudios: (c.estudios || []).map((e) => ({ ...e })) }));
-  },
+
+  /* === Consultas / órdenes === */
   crearConsulta: async (payload) => {
     if (payload.recetas && payload.recetas.length > 0) {
       const nueva = {
@@ -524,12 +1145,6 @@ export const DEMO = {
     };
     ordenesStore = [orden, ...ordenesStore];
     return { ...orden };
-  },
-  ordenesPaciente: async (pacienteId) => {
-    const cedula = pacienteId === 'hc-maria-gonzalez' ? CEDULA_ACTIVA : (pacienteId || '');
-    return ordenesStore
-      .filter((o) => o.paciente_id === pacienteId || o.paciente_cedula === cedula)
-      .map((o) => ({ ...o, estudios: o.estudios.map((e) => ({ ...e })) }));
   },
   registrarResultadosOrden: async (ordenId, payload) => {
     const estudios = (payload.estudios || []).map((e) => ({ ...e, estado: 'completado' }));

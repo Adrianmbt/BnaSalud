@@ -10,10 +10,13 @@ Uso:
 El script es idempotente: puede re-ejecutarse (upserts).
 La alternativa 100% SQL es supabase/seed.sql (mismo conjunto de datos).
 Contraseña por defecto de los usuarios: BnaSalud2026!
+PIN por defecto de los pacientes: 1234 (se cambia por recuperación/correo)
 """
 from __future__ import annotations
 
 from typing import Any
+
+import bcrypt
 
 from app.core.database import supabase
 
@@ -247,7 +250,12 @@ def main() -> None:
     personal_por_cedula = {p["cedula"]: p["id"] for p in get_ids("personal", ["id", "cedula"])}
 
     print("[7/14] Pacientes (historias_clinicas)")
-    upsert("historias_clinicas", PACIENTES, "cedula")
+    pacientes: list[dict[str, Any]] = []
+    for p in PACIENTES:
+        fila = dict(p)
+        fila["pin_hash"] = bcrypt.hashpw(b"1234", bcrypt.gensalt()).decode()
+        pacientes.append(fila)
+    upsert("historias_clinicas", pacientes, "cedula")
     pacientes_por_cedula = {p["cedula"]: p["id"] for p in get_ids("historias_clinicas", ["id", "cedula"])}
 
     print("[8/14] Usuarios del sistema")
