@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     PIN_EXPIRACION_MINUTOS: int = 15   # códigos de recuperación de PIN
     PIN_EMITIR_DEMO: bool = True       # devuelve el código en la respuesta (sin SMTP)
 
+    # SMTP (Fase 3): tarjeta de bienvenida y recuperación de PIN por correo.
+    # Si SMTP_HOST está vacío, todo queda en modo demo (PIN en pantalla).
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_USE_TLS: bool = True
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",

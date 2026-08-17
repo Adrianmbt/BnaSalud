@@ -112,12 +112,37 @@ export default function Doctores() {
       }
     : MEDICO_DEFECTO;
 
+  const aItemCola = (x) => ({
+    id: x.token,
+    colaId: x.id,
+    nombre: x.paciente_nombre,
+    prioridad: x.prioridad <= 2 ? 'ALTA' : 'NORMAL',
+    espera: 0,
+    perfil: {
+      cedula: x.paciente_cedula,
+      edad: '—',
+      alergia: null,
+      antecedente: '—',
+      motivo: x.motivo || '',
+    },
+    hora: x.creado_en,
+  });
+
   const cargarCola = useCallback(async (username) => {
     try {
-      const colaDemo = await DEMO.colaDoctor(username);
-      setCola(colaDemo);
+      const res = await API.colaClinica();
+      setCola({
+        espera: (res.espera || []).map(aItemCola),
+        consulta: (res.consulta || []).map(aItemCola),
+        finalizado: (res.finalizado || []).map(aItemCola),
+      });
     } catch {
-      setCola({ espera: [], consulta: [], finalizado: [] });
+      try {
+        const colaDemo = await DEMO.colaDoctor(username);
+        setCola(colaDemo);
+      } catch {
+        setCola({ espera: [], consulta: [], finalizado: [] });
+      }
     }
   }, []);
 
@@ -668,6 +693,7 @@ export default function Doctores() {
   function seleccionarPaciente(p) {
     setTab('consulta');
     setActivoId(p.id);
+    if (p.colaId) API.asignarPaciente(p.colaId).catch(() => {});
     setCola((c) => {
       if (c.consulta.some((x) => x.id === p.id)) return c;
       const enEspera = c.espera.some((x) => x.id === p.id);
@@ -680,12 +706,26 @@ export default function Doctores() {
     });
   }
 
-  function agregarPaciente(e) {
+  async function agregarPaciente(e) {
     e.preventDefault();
     const datos = new FormData(e.target);
     const nombre = (datos.get('nombre') || '').trim();
     const cedula = (datos.get('cedula') || '').trim();
     if (!nombre || !cedula) return;
+    try {
+      const turno = await API.registrarTurno({
+        cedula,
+        nombre,
+        motivo: 'consulta',
+        prioridad: datos.get('prioridad') === 'ALTA' ? 1 : 3,
+      });
+      setCola((c) => ({ ...c, espera: [aItemCola(turno), ...c.espera] }));
+      setFormNuevo(false);
+      setActivoId(turno.token);
+      return;
+    } catch {
+      /* sin backend: registro local (demo) */
+    }
     const nuevo = {
       id: `P-${Math.floor(Math.random() * 90000) + 10000}`,
       nombre,
@@ -743,6 +783,7 @@ export default function Doctores() {
           ...c.finalizado,
         ],
       }));
+      if (activo.colaId) API.finalizarPaciente(activo.colaId).catch(() => {});
       return respuesta;
     } catch (e) {
       setError(e.message);
@@ -791,6 +832,7 @@ export default function Doctores() {
         setInformePaciente({
           paciente: { ...activo, perfil: { ...activo.perfil } },
           comprobante: respuesta.comprobante_ref || respuesta.id,
+          receta_codigo: respuesta.receta_codigo || null,
           fecha: new Date().toISOString(),
           registro: {
             motivo: form.motivo,
@@ -2685,6 +2727,11 @@ export default function Doctores() {
                   </div>
                   <div className="text-right space-y-1">
                     <p className="font-mono text-sm font-semibold text-secondary">{informePaciente.comprobante}</p>
+                    {informePaciente.receta_codigo && (
+                      <p className="font-mono text-[10px] font-bold text-fx">
+                        Receta en farmacia: {informePaciente.receta_codigo}
+                      </p>
+                    )}
                     <p className="font-mono text-[10px] text-on-surface-variant">
                       {formatoFecha(informePaciente.fecha)} ·{' '}
                       {new Date(informePaciente.fecha).toLocaleTimeString('es-VE', {

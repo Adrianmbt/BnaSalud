@@ -83,6 +83,12 @@ export const API = {
     apiFetch('/farmacia/despachar', { method: 'POST', body: payload }),
   recetasPendientes: () =>
     apiFetch('/farmacia/recetas/pendientes'),
+  recetasPaciente: (cedula) =>
+    apiFetch(`/farmacia/recetas/paciente/${encodeURIComponent(cedula)}`),
+  entregarReceta: (recetaId, payload) =>
+    apiFetch(`/farmacia/recetas/${recetaId}/entregar`, { method: 'POST', body: payload }),
+  recibirReceta: (recetaId) =>
+    apiFetch(`/farmacia/recetas/${recetaId}/recibir`, { method: 'POST' }),
   getInventario: () =>
     apiFetch('/farmacia/inventario'),
 
@@ -114,6 +120,24 @@ export const API = {
       method: 'POST',
       body: payload,
     }),
+
+  /* === Cola de pacientes (check-in / médico de turno) === */
+  colaClinica: (clinicaId) =>
+    apiFetch(clinicaId ? `/cola?clinica_id=${clinicaId}` : '/cola'),
+  registrarTurno: (payload) =>
+    apiFetch('/cola', { method: 'POST', body: payload }),
+  asignarPaciente: (colaId) =>
+    apiFetch(`/cola/${colaId}/asignar`, { method: 'POST' }),
+  finalizarPaciente: (colaId) =>
+    apiFetch(`/cola/${colaId}/finalizar`, { method: 'POST' }),
+  cancelarTurno: (colaId) =>
+    apiFetch(`/cola/${colaId}/cancelar`, { method: 'POST' }),
+
+  /* === Panel de administración (trazabilidad) === */
+  trazabilidadRecetas: () =>
+    apiFetch('/admin/trazabilidad'),
+  resumenAdmin: () =>
+    apiFetch('/admin/resumen'),
 
   /* === Autenticación === */
   login: (username, password) =>

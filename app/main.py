@@ -16,6 +16,8 @@ from app.api.v1.endpoints.emergencias import router as emergencias_router
 from app.api.v1.endpoints.estudios import router as estudios_router
 from app.api.v1.endpoints.rag import router as rag_router
 from app.api.v1.endpoints.auth import router as auth_router
+from app.api.v1.endpoints.cola import router as cola_router
+from app.api.v1.endpoints.admin import router as admin_router
 
 app = FastAPI(
     title="Sistema de Salud Barcelona - API Backend",
@@ -61,6 +63,8 @@ app.include_router(emergencias_router, prefix="/api/v1/emergencias", tags=["Emer
 app.include_router(estudios_router, prefix="/api/v1/estudios", tags=["Estudios / OCR"])
 app.include_router(rag_router, prefix="/api/v1/rag", tags=["RAG / Asistente"])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Autenticación"])
+app.include_router(cola_router, prefix="/api/v1/cola", tags=["Cola de Pacientes"])
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["Administración"])
 
 # Servir el frontend React (build de Vite en frontend/dist/) solo si existe
 DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"

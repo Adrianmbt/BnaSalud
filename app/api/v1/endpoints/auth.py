@@ -19,6 +19,7 @@ from app.api.v1.errors import db_fail, fail
 from app.api.v1.endpoints.pacientes import _a_historia, _buscar_paciente
 from app.core.config import settings
 from app.core.database import supabase
+from app.core.mail import enviar_codigo_recuperacion
 from app.core.security import (
     crear_token,
     generar_codigo,
@@ -157,13 +158,22 @@ def recuperar_pin(datos: RecuperarPinRequest) -> RecuperarPinResponse:
     except Exception:
         db_fail("generar el código de recuperación")
 
+    enviado = enviar_codigo_recuperacion(
+        fila.get("nombre_completo", "Paciente"),
+        codigo,
+        settings.PIN_EXPIRACION_MINUTOS,
+        fila["email"],
+    )
     return RecuperarPinResponse(
         mensaje=(
-            "Si el correo coincide con el registrado, recibirá un código "
+            "Hemos enviado un código de 6 dígitos a su correo. "
+            f"Válido por {settings.PIN_EXPIRACION_MINUTOS} minutos."
+            if enviado
+            else "Si el correo coincide con el registrado, recibirá un código "
             f"de 6 dígitos válido por {settings.PIN_EXPIRACION_MINUTOS} minutos."
         ),
         expira_minutos=settings.PIN_EXPIRACION_MINUTOS,
-        codigo_demo=codigo if settings.PIN_EMITIR_DEMO else None,
+        codigo_demo=codigo if (settings.PIN_EMITIR_DEMO and not enviado) else None,
     )
 
 

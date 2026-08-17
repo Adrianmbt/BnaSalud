@@ -25,6 +25,7 @@ export default function CitaModal({ centro, onClose }) {
   const [apiError, setApiError] = useState('');
   const [exitoCodigo, setExitoCodigo] = useState(null);
   const [exitoPin, setExitoPin] = useState('');
+  const [pinEnviadoCorreo, setPinEnviadoCorreo] = useState(false);
 
   const [form, setForm] = useState({ nombre: '', cedula: '', email: '' });
   const [errores, setErrores] = useState({});
@@ -164,6 +165,7 @@ export default function CitaModal({ centro, onClose }) {
       const cita = await API.crearCita(payload);
       setExitoCodigo(cita.codigo_confirmacion || 'CITAB-2026-OK');
       setExitoPin(cita.pin_inicial || '');
+      setPinEnviadoCorreo(!!cita.pin_enviado_correo);
     } catch (err) {
       setApiError(err.message);
     } finally {
@@ -278,7 +280,14 @@ export default function CitaModal({ centro, onClose }) {
                     <div className="mt-3 flex items-center justify-between gap-3 bg-white/70 rounded-xl px-3.5 py-2.5 border border-doc/30">
                       <div className="flex items-center gap-2">
                         <Icon name="pin" filled className="text-doc text-lg" />
-                        <p className="text-xs font-bold text-primary">Tu PIN de acceso</p>
+                        <p className="text-xs font-bold text-primary">
+                          Tu PIN de acceso
+                          {pinEnviadoCorreo && (
+                            <span className="block font-normal text-[10px] text-on-surface-variant">
+                              También te lo enviamos por correo
+                            </span>
+                          )}
+                        </p>
                       </div>
                       <span className="font-mono text-xl font-extrabold tracking-[0.3em] text-doc">{exitoPin}</span>
                     </div>

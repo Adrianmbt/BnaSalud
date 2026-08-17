@@ -5,6 +5,7 @@ import Home from './pages/Home';
 import Farmacia from './pages/Farmacia';
 import Doctores from './pages/Doctores';
 import Paciente from './pages/Paciente';
+import Admin from './pages/Admin';
 
 function Proximamente({ titulo }) {
   return (
@@ -36,7 +37,7 @@ export default function App() {
       <Route path="/paciente" element={<Paciente />} />
       <Route path="/farmacia" element={<Farmacia />} />
       <Route path="/doctores" element={<Doctores />} />
-      <Route path="/admin" element={<Proximamente titulo="Panel de Administración" />} />
+      <Route path="/admin" element={<Admin />} />
       <Route path="*" element={<Proximamente titulo="Página no encontrada" />} />
     </Routes>
   );

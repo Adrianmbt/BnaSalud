@@ -57,6 +57,18 @@ def exigir_roles(*roles: str):
     return validador
 
 
+def exigir_paciente(
+    usuario: Dict[str, Any] = Depends(usuario_actual),
+) -> Dict[str, Any]:
+    """Solo el propio paciente (con su token del portal)."""
+    if usuario.get("tipo") != "paciente":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta acción solo está disponible para el paciente.",
+        )
+    return usuario
+
+
 def exigir_paciente_o_staff(
     cedula: str,
     usuario: Dict[str, Any] = Depends(usuario_actual),

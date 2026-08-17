@@ -9,20 +9,6 @@ export default function Hero({ onSolicitarCita }) {
 
       <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
         <div data-aos="fade-right" data-aos-duration="800">
-          <div className="flex gap-3 mb-6">
-            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold bg-secondary/10 text-on-secondary-container border border-secondary/20">
-              <span className="w-2 h-2 bg-secondary rounded-full mr-2 animate-pulse"></span>
-              Citas Digitales
-            </span>
-            <span className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold bg-tertiary-fixed/20 text-tertiary border border-tertiary-fixed/30">
-              <Icon name="neurology" filled className="text-sm mr-1" />
-              Triaje IA
-            </span>
-          </div>
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-primary/5 text-primary border border-primary/10 mb-5">
-            <Icon name="flag" filled className="text-sm" />
-            Visión de Salud Municipal
-          </div>
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-primary leading-[1.1] tracking-tight mb-6">
             Un solo sistema de salud para todo el municipio: públicos, aliados y cerca de ti
           </h1>

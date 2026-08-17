@@ -1,5 +1,7 @@
+import re
 import secrets
-from typing import List
+from datetime import datetime
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, status
 
@@ -37,6 +39,113 @@ def _generar_comprobante() -> str:
     return f"ABH-{secrets.randbelow(90000) + 10000}"
 
 
+def _generar_codigo_receta() -> str:
+    """Código único RX-AAAA-NNNN (reintenta si colisiona)."""
+    for _ in range(5):
+        codigo = f"RX-{2026}-{secrets.randbelow(9000) + 1000}"
+        try:
+            existe = (
+                supabase.table("recetas")
+                .select("id")
+                .eq("codigo_receta", codigo)
+                .limit(1)
+                .execute()
+                .data
+            )
+        except Exception:
+            return codigo
+        if not existe:
+            return codigo
+    return f"RX-{2026}-{secrets.randbelow(9000) + 1000}"
+
+
+def _cantidad_desde_posologia(posologia: str) -> int:
+    """Cantidad prescrita: primer número de la posología, o 10 como respaldo."""
+    m = re.search(r"\d+", posologia or "")
+    return int(m.group()) if m else 10
+
+
+def _crear_receta_farmacia(
+    payload: ConsultaCargarRequest,
+    paciente: dict,
+    medico_nombre: str,
+    consulta_id: Optional[str] = None,
+) -> Optional[str]:
+    """Crea la receta en farmacia (tabla `recetas` + `receta_detalles`) cuando
+    la consulta trae medicamentos. Devuelve el código RX o None."""
+    recetas = payload.recetas
+    if not recetas:
+        return None
+
+    try:
+        inventario = (
+            supabase.table("inventario_medicamentos")
+            .select("id, nombre")
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        inventario = []
+    ids_por_nombre = {m.get("nombre", "").strip().lower(): m["id"] for m in inventario}
+
+    medico_id = payload.medico_id
+    clinica_id = None
+    if medico_id:
+        try:
+            doc = (
+                supabase.table("personal")
+                .select("clinica_id")
+                .eq("id", medico_id)
+                .limit(1)
+                .execute()
+                .data
+            )
+            if doc:
+                clinica_id = doc[0].get("clinica_id")
+        except Exception:
+            pass
+
+    codigo = _generar_codigo_receta()
+    tipo_cedula = (paciente.get("tipo_cedula") or "V").upper()
+    try:
+        receta_creada = supabase.table("recetas").insert(
+            {
+                "codigo_receta": codigo,
+                "consulta_id": consulta_id,
+                "paciente_cedula": f"{tipo_cedula}-{paciente.get('cedula', '')}",
+                "paciente_nombre": paciente.get("nombre_completo", "Paciente"),
+                "medico_id": medico_id,
+                "clinica_id": clinica_id,
+                "fecha_emision": datetime.now().isoformat(timespec="seconds"),
+                "estado": "PENDIENTE",
+                "medico": medico_nombre,
+            }
+        ).execute()
+    except Exception:
+        db_fail("registrar la receta en farmacia")
+
+    receta_id = receta_creada.data[0]["id"]
+    detalles = []
+    for m in recetas:
+        medicamento_id = ids_por_nombre.get((m.nombre or "").strip().lower())
+        detalles.append(
+            {
+                "receta_id": receta_id,
+                "medicamento_id": medicamento_id,
+                "cantidad_prescrita": _cantidad_desde_posologia(m.posologia),
+                "cantidad_despachada": 0,
+                "posologia": m.posologia,
+            }
+        )
+    try:
+        supabase.table("receta_detalles").insert(detalles).execute()
+    except Exception:
+        db_fail("registrar los medicamentos de la receta")
+
+    return codigo
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def crear_consulta(
@@ -47,7 +156,7 @@ def crear_consulta(
     try:
         paciente = (
             supabase.table("historias_clinicas")
-            .select("id")
+            .select("id, nombre_completo, cedula, tipo_cedula")
             .eq("id", payload.paciente_id)
             .execute()
             .data
@@ -56,6 +165,7 @@ def crear_consulta(
         db_fail("validar al paciente")
     if not paciente:
         not_found("Paciente")
+    paciente = paciente[0]
 
     especialidad = payload.especialidad
     medico_nombre = payload.medico_nombre
@@ -125,7 +235,13 @@ def crear_consulta(
             ).execute()
         except Exception:
             pass
-    return {"id": fila["id"], "comprobante_ref": fila["comprobante_ref"]}
+
+    codigo_receta = _crear_receta_farmacia(payload, paciente, medico_nombre, fila["id"])
+    return {
+        "id": fila["id"],
+        "comprobante_ref": fila["comprobante_ref"],
+        "receta_codigo": codigo_receta,
+    }
 
 
 @router.get("/{paciente_id}", response_model=List[ConsultaDetalleResponse])

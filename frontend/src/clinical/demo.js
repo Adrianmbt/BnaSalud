@@ -600,7 +600,7 @@ const RECETAS_DEMO = [
         cantidad_despachada: 0,
         posologia: '1 tableta cada 8 horas en caso de dolor.',
         categoria: 'Analgésico',
-        stock: 120,
+        stock: 18,
       },
     ],
   },
@@ -624,17 +624,79 @@ const RECETAS_DEMO = [
       },
     ],
   },
+  {
+    id: 3,
+    codigo_receta: 'RX-2026-0886',
+    paciente_cedula: CEDULA_ACTIVA,
+    paciente_nombre: 'María González Pérez',
+    medico: 'Dra. Laura Fernández',
+    estado: 'ENTREGADA',
+    fecha_emision: '05 Ago 2026 · 10:20',
+    entregada_por: 'QF. Carmen Uribe',
+    entregada_at: '06 Ago 2026 · 09:45',
+    detalles: [
+      {
+        medicamento_id: 101,
+        nombre_medicamento: 'Losartán 50mg',
+        cantidad_prescrita: 30,
+        cantidad_despachada: 30,
+        posologia: '1 tableta cada 12 horas.',
+        categoria: 'Antihipertensivo',
+        stock: 340,
+      },
+    ],
+  },
+  {
+    id: 4,
+    codigo_receta: 'RX-2026-0851',
+    paciente_cedula: CEDULA_ACTIVA,
+    paciente_nombre: 'María González Pérez',
+    medico: 'Dr. Carlos Ruiz',
+    estado: 'RECIBIDA',
+    fecha_emision: '02 Ago 2026 · 11:05',
+    entregada_por: 'QF. Carmen Uribe',
+    entregada_at: '03 Ago 2026 · 08:30',
+    recibida_at: '04 Ago 2026 · 09:12',
+    detalles: [
+      {
+        medicamento_id: 103,
+        nombre_medicamento: 'Paracetamol 500mg',
+        cantidad_prescrita: 20,
+        cantidad_despachada: 20,
+        posologia: '1 tableta cada 8 horas por 5 días.',
+        categoria: 'Analgésico',
+        stock: 1200,
+      },
+    ],
+  },
 ];
 
 export const INVENTARIO_DEMO = [
-  { nombre: 'Paracetamol 500mg', stock: 1200, stock_minimo: 150, vencimiento: 'Dic 2026', estado: 'OK' },
-  { nombre: 'Amoxicilina 500mg', stock: 450, stock_minimo: 100, vencimiento: 'Ago 2027', estado: 'OK' },
-  { nombre: 'Losartán 50mg', stock: 340, stock_minimo: 80, vencimiento: 'Mar 2027', estado: 'OK' },
-  { nombre: 'Insulina NPH 100UI', stock: 12, stock_minimo: 40, vencimiento: 'Ene 2026', estado: 'CRITICO' },
-  { nombre: 'Salbutamol 100mcg', stock: 26, stock_minimo: 30, vencimiento: 'Nov 2026', estado: 'BAJO' },
-  { nombre: 'Ibuprofeno 400mg', stock: 18, stock_minimo: 40, vencimiento: 'Feb 2027', estado: 'BAJO' },
-  { nombre: 'Enalapril 10mg', stock: 510, stock_minimo: 100, vencimiento: 'Jun 2027', estado: 'OK' },
+  { nombre: 'Paracetamol 500mg', presentacion: 'Tableta', concentracion: '500 mg', categoria: 'Analgésico', stock: 1200, stock_minimo: 150, unidad: 'unidad', vencimiento: 'Dic 2026' },
+  { nombre: 'Amoxicilina 500mg', presentacion: 'Cápsula', concentracion: '500 mg', categoria: 'Antibiótico', stock: 450, stock_minimo: 100, unidad: 'unidad', vencimiento: 'Ago 2027' },
+  { nombre: 'Amoxicilina + Ác. Clavulánico', presentacion: 'Tableta', concentracion: '875/125 mg', categoria: 'Antibiótico', stock: 0, stock_minimo: 40, unidad: 'unidad', vencimiento: 'Sep 2026' },
+  { nombre: 'Losartán 50mg', presentacion: 'Tableta', concentracion: '50 mg', categoria: 'Antihipertensivo', stock: 340, stock_minimo: 80, unidad: 'unidad', vencimiento: 'Mar 2027' },
+  { nombre: 'Enalapril 10mg', presentacion: 'Tableta', concentracion: '10 mg', categoria: 'Antihipertensivo', stock: 510, stock_minimo: 100, unidad: 'unidad', vencimiento: 'Jun 2027' },
+  { nombre: 'Metformina 850mg', presentacion: 'Tableta', concentracion: '850 mg', categoria: 'Antidiabético', stock: 230, stock_minimo: 60, unidad: 'unidad', vencimiento: 'Sep 2026' },
+  { nombre: 'Insulina NPH 100UI', presentacion: 'Frasco', concentracion: '100 UI/ml', categoria: 'Antidiabético', stock: 12, stock_minimo: 40, unidad: 'frasco', vencimiento: 'Ene 2026' },
+  { nombre: 'Salbutamol 100mcg', presentacion: 'Inhalador', concentracion: '100 mcg', categoria: 'Broncodilatador', stock: 26, stock_minimo: 30, unidad: 'inhalador', vencimiento: 'Nov 2026' },
+  { nombre: 'Ibuprofeno 400mg', presentacion: 'Tableta', concentracion: '400 mg', categoria: 'Antiinflamatorio', stock: 18, stock_minimo: 40, unidad: 'unidad', vencimiento: 'Feb 2027' },
+  { nombre: 'Dipirona 1g', presentacion: 'Ampolleta', concentracion: '1 g', categoria: 'Analgésico', stock: 14, stock_minimo: 25, unidad: 'ampolleta', vencimiento: 'Mar 2027' },
+  { nombre: 'Omeprazol 20mg', presentacion: 'Cápsula', concentracion: '20 mg', categoria: 'Gastroprotector', stock: 95, stock_minimo: 30, unidad: 'unidad', vencimiento: 'Dic 2027' },
+  { nombre: 'Loratadina 10mg', presentacion: 'Tableta', concentracion: '10 mg', categoria: 'Antihistamínico', stock: 88, stock_minimo: 25, unidad: 'unidad', vencimiento: 'Ene 2028' },
+  { nombre: 'Vitamina C 500mg', presentacion: 'Tableta', concentracion: '500 mg', categoria: 'Suplemento', stock: 620, stock_minimo: 80, unidad: 'unidad', vencimiento: 'May 2027' },
+  { nombre: 'Cloruro de Sodio 0.9%', presentacion: 'Solución', concentracion: '500 ml', categoria: 'Suero', stock: 4, stock_minimo: 20, unidad: 'frasco', vencimiento: 'Oct 2026' },
 ];
+
+/* Nivel de existencias calculado a partir de las cifras del inventario.
+   Es la fuente única de verdad para todos los módulos (farmacia y doctores). */
+export function nivelStock(stock, stockMinimo) {
+  const actual = Number(stock) || 0;
+  const minimo = stockMinimo == null ? 0 : Number(stockMinimo);
+  if (actual <= 0) return 'SIN_STOCK';
+  if (minimo > 0 && actual <= minimo) return 'BAJO';
+  return 'OK';
+}
 
 export const CENTROS_DEMO = [
   {
@@ -1047,7 +1109,9 @@ export const DEMO = {
     return { ...hit, detalles: hit.detalles.map((d) => ({ ...d })) };
   },
   despacharReceta: async (payload) => {
-    pendientesStore = pendientesStore.filter((r) => r.id !== payload.receta_id);
+    pendientesStore = pendientesStore.map((r) =>
+      r.id === payload.receta_id ? { ...r, estado: 'DESPACHADA' } : r
+    );
     return {
       status: 'success',
       message: 'Despacho procesado e inventario actualizado con éxito',
@@ -1055,18 +1119,96 @@ export const DEMO = {
       medicamentos_despachados: payload.items.reduce((a, i) => a + i.cantidad_despachada, 0),
     };
   },
+  entregarReceta: async (recetaId, payload = {}, usuario = {}) => {
+    const receta = pendientesStore.find((r) => r.id === recetaId);
+    if (!receta) throw new Error('Receta no encontrada en el registro de demostración.');
+    if (receta.estado !== 'PENDIENTE' && receta.estado !== 'DESPACHADA') {
+      throw new Error(`La receta está en estado ${receta.estado} y ya no puede entregarse.`);
+    }
+    pendientesStore = pendientesStore.map((r) =>
+      r.id === recetaId
+        ? {
+            ...r,
+            estado: 'ENTREGADA',
+            entregada_por: usuario.nombre || 'QF. Farmacia',
+            entregada_at: new Date().toLocaleString('es-VE', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          }
+        : r
+    );
+    return {
+      status: 'success',
+      message: 'Entrega registrada. El paciente debe confirmar la recepción en su portal.',
+      receta_id: recetaId,
+    };
+  },
+  recibirReceta: async (recetaId, cedula = '') => {
+    const receta = pendientesStore.find((r) => r.id === recetaId);
+    if (!receta) throw new Error('Receta no encontrada en el registro de demostración.');
+    if (String(receta.paciente_cedula).replace(/\D/g, '') !== String(cedula).replace(/\D/g, '')) {
+      throw new Error('Solo puede confirmar sus propias recetas.');
+    }
+    if (receta.estado !== 'ENTREGADA') {
+      throw new Error(
+        `La receta está en estado ${receta.estado}. Espere a que la farmacia la entregue.`
+      );
+    }
+    pendientesStore = pendientesStore.map((r) =>
+      r.id === recetaId
+        ? {
+            ...r,
+            estado: 'RECIBIDA',
+            recibida_at: new Date().toLocaleString('es-VE', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+          }
+        : r
+    );
+    return {
+      status: 'success',
+      message: 'Recepcion confirmada. Su receta queda cerrada en la farmacia.',
+      receta_id: recetaId,
+    };
+  },
+  recetasPaciente: async (cedula) =>
+    pendientesStore
+      .filter(
+        (r) =>
+          String(r.paciente_cedula).replace(/\D/g, '') === String(cedula || '').replace(/\D/g, '')
+      )
+      .map((r) => ({ ...r, detalles: r.detalles.map((d) => ({ ...d })) })),
   recetasPendientes: async () =>
-    pendientesStore.map((r) => ({ ...r, detalles: r.detalles.map((d) => ({ ...d })) })),
-  getInventario: async () =>
-    INVENTARIO_DEMO.map((m, i) => ({
+    pendientesStore
+      .filter((r) => r.estado === 'PENDIENTE')
+      .map((r) => ({ ...r, detalles: r.detalles.map((d) => ({ ...d })) })),
+  getInventario: async (params = {}) => {
+    const q = String((params && params.q) || '').trim().toLowerCase();
+    const todos = INVENTARIO_DEMO.map((m, i) => ({
       id: 200 + i,
       nombre: m.nombre,
+      presentacion: m.presentacion || null,
+      concentracion: m.concentracion || null,
+      categoria: m.categoria || null,
       stock_actual: m.stock,
       stock_minimo: m.stock_minimo,
-      unidad: 'caja',
+      unidad: m.unidad || 'unidad',
       vencimiento: m.vencimiento,
-      presentacion: m.estado,
-    })),
+    }));
+    let items = todos.filter((m) => !q || m.nombre.toLowerCase().includes(q));
+    if (params && params.solo_alertas) {
+      items = items.filter((m) => nivelStock(m.stock_actual, m.stock_minimo) !== 'OK');
+    }
+    return items;
+  },
 
   /* === Consultas / órdenes === */
   crearConsulta: async (payload) => {

@@ -183,6 +183,10 @@ class CitaResponse(CitaBase):
         default=None,
         description="PIN de acceso generado al registrar al paciente por primera vez (solo primera cita)",
     )
+    pin_enviado_correo: bool = Field(
+        default=False,
+        description="True si el PIN se envió por correo (tarjeta de bienvenida)",
+    )
     created_at: datetime
 
     class Config:
@@ -379,7 +383,7 @@ class DespacharRecetaRequestSchema(BaseModel):
     items: List[ItemDespachoSchema]
 
 class RecetaDetalleItemSchema(BaseModel):
-    medicamento_id: int
+    medicamento_id: Optional[int] = None
     nombre_medicamento: str
     cantidad_prescrita: int
     cantidad_despachada: int
@@ -393,7 +397,18 @@ class RecetaResponseSchema(BaseModel):
     medico: str
     estado: str
     fecha_emision: Optional[str] = None
+    entregada_por_id: Optional[int] = None
+    entregada_por: Optional[str] = None
+    entregada_at: Optional[str] = None
+    recibida_at: Optional[str] = None
+    recibida_paciente_id: Optional[str] = None
     detalles: List[RecetaDetalleItemSchema]
+
+class RecetaEntregarRequestSchema(BaseModel):
+    """Conformidad de entrega registrada por el farmacéutico."""
+    cedula_paciente: str = Field(
+        ..., min_length=4, json_schema_extra={"example": "0912345678"}
+    )
 
 class InventarioItemSchema(BaseModel):
     id: int
@@ -455,3 +470,38 @@ class ResetPinRequest(BaseModel):
     cedula: str = Field(..., json_schema_extra={"example": "12345678"})
     codigo: str = Field(..., min_length=6, max_length=6, json_schema_extra={"example": "482913"})
     pin_nuevo: str = Field(..., min_length=4, max_length=8, json_schema_extra={"example": "9876"})
+
+
+# ==========================================
+# ESQUEMAS: COLA DE PACIENTES (FASE 2)
+# ==========================================
+
+class CheckInRequest(BaseModel):
+    """Check-in del paciente en la cola de consulta de la clínica."""
+    cedula: str = Field(..., json_schema_extra={"example": "18234567"})
+    nombre: Optional[str] = Field(
+        None, description="Obligatorio solo si la cédula no está registrada"
+    )
+    motivo: Optional[str] = Field(None, description="consulta | emergencia | control ...")
+    prioridad: int = Field(3, ge=1, le=5, description="Triaje: 1 = crítico, 5 = leve")
+    clinica_id: Optional[int] = None
+
+class ColaItemSchema(BaseModel):
+    id: int
+    token: str
+    paciente_cedula: str
+    paciente_nombre: str
+    especialidad: Optional[str] = None
+    motivo: Optional[str] = None
+    prioridad: int = 3
+    estado: str = "EN_ESPERA"
+    medico_id: Optional[int] = None
+    medico_nombre: str = ""
+    creado_en: str = ""
+    iniciado_en: Optional[str] = None
+    atendido_en: Optional[str] = None
+
+class ColaListaResponse(BaseModel):
+    espera: List[ColaItemSchema]
+    consulta: List[ColaItemSchema]
+    finalizado: List[ColaItemSchema]

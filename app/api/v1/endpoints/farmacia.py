@@ -1,30 +1,53 @@
-from typing import List, Optional
+from datetime import datetime, timezone
+import re
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
+from app.api.v1.deps import exigir_paciente, exigir_paciente_o_staff, exigir_roles
 from app.api.v1.errors import db_fail, fail, not_found
 from app.core.database import supabase
 from app.schemas.schemas import (
     DespacharRecetaRequestSchema,
     InventarioItemSchema,
     RecetaDetalleItemSchema,
+    RecetaEntregarRequestSchema,
     RecetaResponseSchema,
 )
 
 router = APIRouter(tags=["Farmacia"])
 
+# Ciclo de entrega: PENDIENTE → DESPACHADA → ENTREGADA → RECIBIDA
+ROLES_FARMACIA = ("farmaceutico", "superusuario")
 
-def _a_receta(fila: dict) -> RecetaResponseSchema:
-    return RecetaResponseSchema(
-        id=fila["id"],
-        codigo_receta=fila.get("codigo_receta", ""),
-        paciente_cedula=fila.get("paciente_cedula", ""),
-        paciente_nombre=fila.get("paciente_nombre", ""),
-        medico=fila.get("medico", ""),
-        estado=fila.get("estado", "PENDIENTE"),
-        fecha_emision=str(fila.get("created_at") or "")[:16],
-        detalles=_detalles_receta(fila["id"]),
-    )
+
+def _formato_fecha(valor) -> Optional[str]:
+    """ISO corto (YYYY-MM-DD HH:MM) para los timestamps de entrega."""
+    return str(valor)[:16] if valor else None
+
+
+def _solo_digitos(valor) -> str:
+    """Normaliza cédulas: 'V-18234567' y '18234567' comparan igual."""
+    return re.sub(r"\D", "", str(valor or ""))
+
+
+def _nombres_personal(ids: List[Optional[int]]) -> Dict[int, str]:
+    """Mapa id → nombre del personal (para el registro de quién entregó)."""
+    limpios = [i for i in ids if i]
+    if not limpios:
+        return {}
+    try:
+        filas = (
+            supabase.table("personal")
+            .select("id, nombre")
+            .in_("id", limpios)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return {}
+    return {f["id"]: f.get("nombre", "") for f in filas}
 
 
 def _detalles_receta(receta_id: int) -> List[RecetaDetalleItemSchema]:
@@ -41,29 +64,113 @@ def _detalles_receta(receta_id: int) -> List[RecetaDetalleItemSchema]:
         db_fail("consultar los detalles de la receta")
     if not detalles:
         return []
-    try:
-        inventario = (
-            supabase.table("inventario_medicamentos")
-            .select("id, nombre")
-            .in_("id", [d["medicamento_id"] for d in detalles])
-            .execute()
-            .data
-            or []
-        )
-    except Exception:
-        db_fail("consultar el inventario de medicamentos")
-    nombres = {m["id"]: m.get("nombre", "") for m in inventario}
+    ids_validos = [d["medicamento_id"] for d in detalles if d.get("medicamento_id")]
+    nombres = {}
+    if ids_validos:
+        try:
+            inventario = (
+                supabase.table("inventario_medicamentos")
+                .select("id, nombre")
+                .in_("id", ids_validos)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:
+            db_fail("consultar el inventario de medicamentos")
+        nombres = {m["id"]: m.get("nombre", "") for m in inventario}
 
     return [
         RecetaDetalleItemSchema(
             medicamento_id=d["medicamento_id"],
-            nombre_medicamento=nombres.get(d["medicamento_id"], "Desconocido"),
+            nombre_medicamento=(
+                nombres.get(d["medicamento_id"], "Desconocido")
+                if d.get("medicamento_id")
+                else "Sin registro en inventario"
+            ),
             cantidad_prescrita=d.get("cantidad_prescrita", 0),
             cantidad_despachada=d.get("cantidad_despachada", 0),
             posologia=d.get("posologia", ""),
         )
         for d in detalles
     ]
+
+
+def _a_receta(
+    fila: dict, nombres_personal: Optional[Dict[int, str]] = None
+) -> RecetaResponseSchema:
+    entregada_por_id = fila.get("entregada_por_id")
+    entregada_por = None
+    if entregada_por_id:
+        entregada_por = (
+            (nombres_personal or {}).get(entregada_por_id)
+            if nombres_personal is not None
+            else _nombres_personal([entregada_por_id]).get(entregada_por_id)
+        )
+    return RecetaResponseSchema(
+        id=fila["id"],
+        codigo_receta=fila.get("codigo_receta", ""),
+        paciente_cedula=fila.get("paciente_cedula", ""),
+        paciente_nombre=fila.get("paciente_nombre", ""),
+        medico=fila.get("medico", ""),
+        estado=fila.get("estado", "PENDIENTE"),
+        fecha_emision=_formato_fecha(
+            fila.get("fecha_emision") or fila.get("created_at")
+        ),
+        entregada_por_id=entregada_por_id,
+        entregada_por=entregada_por,
+        entregada_at=_formato_fecha(fila.get("entregada_at")),
+        recibida_at=_formato_fecha(fila.get("recibida_at")),
+        recibida_paciente_id=fila.get("recibida_paciente_id"),
+        detalles=_detalles_receta(fila["id"]),
+    )
+
+
+@router.get("/recetas/pendientes", response_model=List[RecetaResponseSchema])
+def listar_recetas_pendientes(
+    limite: int = Query(default=20, ge=1, le=50),
+    centro_id: Optional[int] = None,
+) -> List[RecetaResponseSchema]:
+    """Recetas emitidas por los médicos pendientes de despacho en la farmacia."""
+    try:
+        query = (
+            supabase.table("recetas")
+            .select("*")
+            .eq("estado", "PENDIENTE")
+            .order("id", desc=True)
+            .limit(limite)
+        )
+        if centro_id:
+            query = query.eq("clinica_id", centro_id)
+        filas = query.execute().data or []
+    except Exception:
+        db_fail("consultar las recetas pendientes")
+
+    return [_a_receta(f) for f in filas]
+
+
+@router.get("/recetas/paciente/{cedula}", response_model=List[RecetaResponseSchema])
+def listar_recetas_paciente(
+    cedula: str,
+    usuario: Dict[str, Any] = Depends(exigir_paciente_o_staff),
+) -> List[RecetaResponseSchema]:
+    """Recetas del paciente con su estado de despacho/entrega (portal del paciente)."""
+    try:
+        filas = (
+            supabase.table("recetas")
+            .select("*")
+            .ilike("paciente_cedula", f"%{_solo_digitos(cedula)}")
+            .order("id", desc=True)
+            .limit(30)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("consultar las recetas del paciente")
+
+    nombres = _nombres_personal([f.get("entregada_por_id") for f in filas])
+    return [_a_receta(f, nombres) for f in filas]
 
 
 @router.get("/recetas/{codigo_o_cedula}", response_model=RecetaResponseSchema)
@@ -102,25 +209,101 @@ def buscar_receta(codigo_o_cedula: str) -> RecetaResponseSchema:
     return _a_receta(fila)
 
 
-@router.get("/recetas/pendientes", response_model=List[RecetaResponseSchema])
-def listar_recetas_pendientes(
-    limite: int = Query(default=20, ge=1, le=50),
-    centro_id: Optional[int] = None,
-) -> List[RecetaResponseSchema]:
-    """Recetas emitidas por los médicos pendientes de despacho en la farmacia."""
+@router.post("/recetas/{receta_id}/entregar", status_code=status.HTTP_200_OK)
+def entregar_receta(
+    receta_id: int,
+    payload: RecetaEntregarRequestSchema,
+    usuario: Dict[str, Any] = Depends(exigir_roles(*ROLES_FARMACIA)),
+) -> dict:
+    """El farmacéutico entrega los medicamentos y registra la cédula de quien recibe
+    (primera confirmación de la entrega)."""
     try:
-        query = (
+        filas = (
             supabase.table("recetas")
-            .select("*")
-            .neq("estado", "DESPACHADA")
-            .order("id", desc=True)
-            .limit(limite)
+            .select("id, estado")
+            .eq("id", receta_id)
+            .execute()
+            .data
         )
-        filas = query.execute().data or []
     except Exception:
-        db_fail("consultar las recetas pendientes")
+        db_fail("validar la receta")
+    if not filas:
+        not_found("Receta")
 
-    return [_a_receta(f) for f in filas]
+    estado = filas[0].get("estado", "PENDIENTE")
+    if estado not in ("PENDIENTE", "DESPACHADA"):
+        fail(
+            f"La receta está en estado {estado} y ya no puede entregarse.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    try:
+        supabase.table("recetas").update(
+            {
+                "estado": "ENTREGADA",
+                "entregada_por_id": usuario.get("personal_id"),
+                "entregada_at": datetime.now(timezone.utc).isoformat(),
+            }
+        ).eq("id", receta_id).execute()
+    except Exception:
+        db_fail("registrar la entrega")
+
+    return {
+        "status": "success",
+        "message": "Entrega registrada. El paciente debe confirmar la recepción en su portal.",
+        "receta_id": receta_id,
+    }
+
+
+@router.post("/recetas/{receta_id}/recibir", status_code=status.HTTP_200_OK)
+def recibir_receta(
+    receta_id: int,
+    usuario: Dict[str, Any] = Depends(exigir_paciente),
+) -> dict:
+    """El paciente confirma en su portal que recibió los medicamentos
+    (segunda confirmación: cierra el ciclo de la entrega)."""
+    try:
+        filas = (
+            supabase.table("recetas")
+            .select("id, estado, paciente_cedula")
+            .eq("id", receta_id)
+            .execute()
+            .data
+        )
+    except Exception:
+        db_fail("validar la receta")
+    if not filas:
+        not_found("Receta")
+
+    fila = filas[0]
+    if _solo_digitos(fila.get("paciente_cedula")) != _solo_digitos(
+        usuario.get("cedula")
+    ):
+        fail("Solo puede confirmar sus propias recetas.", status.HTTP_403_FORBIDDEN)
+
+    estado = fila.get("estado", "PENDIENTE")
+    if estado != "ENTREGADA":
+        fail(
+            f"La receta está en estado {estado}. Espere a que la farmacia la entregue.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    try:
+        supabase.table("recetas").update(
+            {
+                "estado": "RECIBIDA",
+                "recibida_at": datetime.now(timezone.utc).isoformat(),
+                "recibida_paciente_id": usuario.get("paciente_id"),
+            }
+        ).eq("id", receta_id).execute()
+    except Exception:
+        db_fail("registrar la recepción")
+
+    return {
+        "status": "success",
+        "message": "Recepcion confirmada. Su receta queda cerrada en la farmacia.",
+        "receta_id": receta_id,
+    }
 
 
 @router.get("/inventario", response_model=List[InventarioItemSchema])

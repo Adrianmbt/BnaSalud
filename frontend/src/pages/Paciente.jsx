@@ -26,6 +26,7 @@ const SECCIONES = [
   { id: 'citas', etiqueta: 'Citas', detalle: 'Agenda y confirmación', icono: 'calendar_month' },
   { id: 'historial', etiqueta: 'Historial', detalle: 'Consultas y evolución', icono: 'timeline' },
   { id: 'estudios', etiqueta: 'Estudios', detalle: 'Órdenes y resultados', icono: 'monitor_heart' },
+  { id: 'medicamentos', etiqueta: 'Mis Medicamentos', detalle: 'Recetas y farmacia', icono: 'medication' },
   { id: 'misalud', etiqueta: 'Mi Salud', detalle: 'Perfil y datos clínicos', icono: 'favorite' },
 ];
 
@@ -115,6 +116,13 @@ const ESTADOS_ORDEN = {
   en_proceso: { tono: 'info', etiqueta: 'En proceso' },
 };
 
+const ESTADOS_RECETA = {
+  PENDIENTE: { tono: 'amber', etiqueta: 'Pendiente en farmacia' },
+  DESPACHADA: { tono: 'info', etiqueta: 'Despachada · lista para retirar' },
+  ENTREGADA: { tono: 'secondary', etiqueta: 'Entregada · confirma tu recepción' },
+  RECIBIDA: { tono: 'success', etiqueta: 'Recibida · cerrada' },
+};
+
 function EtiquetaEstado({ estado, mapa }) {
   const conf = (mapa || ESTADOS_CITA)[estado] || { tono: 'info', etiqueta: estado || '—' };
   const colorMap = {
@@ -150,8 +158,11 @@ export default function Paciente() {
   const [historial, setHistorial] = useState(null);
   const [citas, setCitas] = useState([]);
   const [ordenes, setOrdenes] = useState([]);
+  const [recetas, setRecetas] = useState([]);
   const [medico, setMedico] = useState(null);
   const [cargando, setCargando] = useState(false);
+  const [confirmandoReceta, setConfirmandoReceta] = useState(null);
+  const [avisoError, setAvisoError] = useState('');
 
   const [seccion, setSeccion] = useState('dashboard');
   const [historialVista, setHistorialVista] = useState('general');
@@ -375,18 +386,21 @@ export default function Paciente() {
       API.medicoTratante(cedula)
         .catch(async () => DEMO.medicoTratante(cedula))
         .catch(() => null),
+      API.recetasPaciente(cedula).catch(async () => DEMO.recetasPaciente(cedula)),
     ];
     try {
-      const [h, c, o, m] = await Promise.all(promesas);
+      const [h, c, o, m, r] = await Promise.all(promesas);
       setHistorial(h && h.historial ? h : null);
       setCitas(Array.isArray(c) ? c : []);
       setOrdenes(Array.isArray(o) ? o : []);
       setMedico(m && m.nombre ? m : null);
+      setRecetas(Array.isArray(r) ? r : []);
     } catch {
       setHistorial(null);
       setCitas([]);
       setOrdenes([]);
       setMedico(null);
+      setRecetas([]);
     } finally {
       setCargando(false);
     }
@@ -477,6 +491,30 @@ export default function Paciente() {
       })
       .catch((err) => setPerfilError(err.message || 'No se pudo actualizar el perfil.'))
       .finally(() => setPerfilGuardando(false));
+  }
+
+  async function confirmarRecepcion(rx) {
+    if (!rx) return;
+    setConfirmandoReceta(rx.id);
+    try {
+      try {
+        await API.recibirReceta(rx.id);
+      } catch {
+        await DEMO.recibirReceta(rx.id, String(paciente.cedula || '').replace(/\D/g, ''));
+      }
+      setRecetas((prev) =>
+        prev.map((r) =>
+          r.id === rx.id
+            ? { ...r, estado: 'RECIBIDA', recibida_at: new Date().toISOString() }
+            : r
+        )
+      );
+      setAviso('¡Gracias! Confirmamos que recibiste tus medicamentos.');
+    } catch (err) {
+      setAvisoError(err.message || 'No se pudo confirmar la recepción.');
+    } finally {
+      setConfirmandoReceta(null);
+    }
   }
 
   const centroCITAB = CENTROS_DEMO.find((c) => c.id === 2) || CENTROS_DEMO[0];
@@ -1082,6 +1120,27 @@ export default function Paciente() {
                         </span>
                         <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
                       </button>
+
+                      <button
+                        onClick={() => setSeccion('medicamentos')}
+                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
+                      >
+                        <span className="w-11 h-11 rounded-xl bg-fx-soft text-fx flex items-center justify-center group-hover:bg-fx group-hover:text-paper transition-colors">
+                          <Icon name="medication" filled className="text-xl" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-bold text-primary">Mis Medicamentos</span>
+                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
+                            {recetas.some((r) => r.estado === 'ENTREGADA')
+                              ? 'Tienes una receta por confirmar'
+                              : 'Recetas y estado en farmacia'}
+                          </span>
+                        </span>
+                        {recetas.some((r) => r.estado === 'ENTREGADA') && (
+                          <Badge color="error" variant="dot" sx={{ mr: 1 }} />
+                        )}
+                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
+                      </button>
                     </section>
 
                     {/* Historial de consultas */}
@@ -1431,6 +1490,126 @@ export default function Paciente() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ====== MIS MEDICAMENTOS ====== */}
+              {seccion === 'medicamentos' && (
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                  <div>
+                    <h2 className="font-display text-2xl font-bold text-primary">Mis Medicamentos</h2>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
+                      Recetas emitidas y su estado en la farmacia
+                    </p>
+                  </div>
+
+                  {cargando ? (
+                    <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">
+                      Cargando recetas...
+                    </div>
+                  ) : recetas.length === 0 ? (
+                    <div className="py-16 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
+                      <Icon name="medication" className="text-6xl opacity-40" />
+                      <p className="text-sm font-medium">No tienes recetas registradas.</p>
+                      <p className="text-xs">Cuando tu médico emita una receta, aparecerá aquí con su estado.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {recetas.map((rx) => {
+                        const estado = rx.estado || 'PENDIENTE';
+                        const porConfirmar = estado === 'ENTREGADA';
+                        return (
+                          <div key={rx.id} className="bg-surface-container-low border border-outline-variant rounded-2xl p-5">
+                            <div className="flex flex-wrap items-center gap-3 justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-fx-soft text-fx flex items-center justify-center">
+                                  <Icon name="prescriptions" filled className="text-xl" />
+                                </div>
+                                <div>
+                                  <p className="font-mono text-xs font-bold text-primary tracking-wide">
+                                    {rx.codigo_receta}
+                                  </p>
+                                  <p className="text-[11px] text-on-surface-variant">
+                                    {rx.medico} · {formatoFecha(rx.fecha_emision)}
+                                  </p>
+                                </div>
+                              </div>
+                              <EtiquetaEstado estado={estado} mapa={ESTADOS_RECETA} />
+                            </div>
+
+                            <div className="space-y-2">
+                              {(rx.detalles || []).map((d, i) => (
+                                <div
+                                  key={i}
+                                  className="flex items-start gap-2.5 bg-surface rounded-xl border border-outline-variant/40 p-3"
+                                >
+                                  <Icon name="medication" className="text-base text-fx mt-0.5" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-primary">{d.nombre_medicamento}</p>
+                                    {d.posologia && <p className="text-xs text-on-surface-variant">{d.posologia}</p>}
+                                  </div>
+                                  <span className="font-mono text-[10px] text-on-surface-variant shrink-0">
+                                    {d.cantidad_despachada > 0
+                                      ? `${d.cantidad_despachada} entregadas`
+                                      : `${d.cantidad_prescrita} prescritas`}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {porConfirmar && (
+                              <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between bg-doc-soft border border-doc/25 rounded-xl px-4 py-3">
+                                <p className="text-xs font-semibold text-doc-deep flex items-center gap-1.5">
+                                  <Icon name="handshake" className="text-base" />
+                                  La farmacia ya te entregó estos medicamentos. Confirma la recepción
+                                  para cerrar la receta.
+                                </p>
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  disabled={confirmandoReceta === rx.id}
+                                  startIcon={
+                                    confirmandoReceta === rx.id ? (
+                                      <Icon name="sync" className="text-base animate-spin" />
+                                    ) : (
+                                      <Icon name="verified" className="text-base" />
+                                    )
+                                  }
+                                  onClick={() => confirmarRecepcion(rx)}
+                                  sx={{
+                                    background: 'var(--color-doc)',
+                                    borderRadius: 2,
+                                    fontWeight: 700,
+                                    textTransform: 'none',
+                                    '&:hover': { backgroundColor: 'var(--color-doc-deep)' },
+                                  }}
+                                >
+                                  {confirmandoReceta === rx.id
+                                    ? 'Confirmando...'
+                                    : 'Confirmo que recibí los medicamentos'}
+                                </Button>
+                              </div>
+                            )}
+
+                            {(estado === 'ENTREGADA' || estado === 'RECIBIDA') && rx.entregada_at && (
+                              <p className="mt-3 font-mono text-[10px] text-on-surface-variant flex items-center gap-1.5 flex-wrap">
+                                <Icon name="local_shipping" className="text-sm text-doc" />
+                                Entregada por {rx.entregada_por || 'farmacia'} ·{' '}
+                                {formatoFecha(rx.entregada_at)}
+                                {estado === 'RECIBIDA' && rx.recibida_at && (
+                                  <>
+                                    <span className="mx-1">·</span>
+                                    <Icon name="verified" className="text-sm text-success" />
+                                    Confirmada · {formatoFecha(rx.recibida_at)}
+                                  </>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2045,6 +2224,17 @@ export default function Paciente() {
       >
         <Alert onClose={() => setAviso('')} severity="success" variant="filled">
           {aviso}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={!!avisoError}
+        autoHideDuration={5000}
+        onClose={() => setAvisoError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setAvisoError('')} severity="error" variant="filled">
+          {avisoError}
         </Alert>
       </Snackbar>
 

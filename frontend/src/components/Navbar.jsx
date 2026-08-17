@@ -41,12 +41,6 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center bg-surface-container-low p-1 rounded-full border border-outline-variant/30">
-            <Link to="/paciente" className="px-4 py-1.5 rounded-full text-xs font-semibold bg-primary text-white shadow-sm">Pacientes</Link>
-            <Link to="/farmacia" className="px-4 py-1.5 rounded-full text-xs font-semibold text-on-surface-variant hover:bg-surface-dim/50 transition-all">Farmacia</Link>
-            <Link to="/doctores" className="px-4 py-1.5 rounded-full text-xs font-semibold text-on-surface-variant hover:bg-surface-dim/50 transition-all">Doctores</Link>
-            <Link to="/admin" className="px-4 py-1.5 rounded-full text-xs font-semibold text-on-surface-variant hover:bg-surface-dim/50 transition-all">Admin</Link>
-          </div>
           <div className="hidden sm:flex bg-error/10 text-error px-4 py-2 rounded-lg items-center gap-2 animate-pulse-slow">
             <Icon name="emergency" filled className="text-lg" />
             <span className="text-xs font-bold whitespace-nowrap">24/7 Emergencias</span>
@@ -83,10 +77,6 @@ export default function Navbar() {
               </a>
             ))}
             <div className="h-px bg-outline-variant/30 my-2"></div>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <Link to="/paciente" onClick={() => setMenuAbierto(false)} className="text-center py-2.5 rounded-xl text-sm font-semibold bg-primary text-white">Pacientes</Link>
-              <Link to="/admin" onClick={() => setMenuAbierto(false)} className="text-center py-2.5 rounded-xl text-sm font-semibold text-on-surface-variant border border-outline-variant/40">Admin</Link>
-            </div>
             <div className="flex items-center gap-2 bg-error/10 text-error px-4 py-3 rounded-xl mt-2">
               <Icon name="emergency" filled className="text-lg" />
               <span className="text-xs font-bold">24/7 Emergencias</span>

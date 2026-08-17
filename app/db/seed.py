@@ -1,7 +1,7 @@
 """Semilla de datos inicial para BnaSalud (Supabase).
 
 Requisitos:
-  1. Ejecutar antes las migraciones supabase/migrations/0001 → 0011 (SQL Editor).
+  1. Ejecutar antes las migraciones supabase/migrations/0001 → 0016 (SQL Editor).
   2. Tener las credenciales en el .env (SUPABASE_URL, SUPABASE_KEY).
 
 Uso:
@@ -11,9 +11,17 @@ El script es idempotente: puede re-ejecutarse (upserts).
 La alternativa 100% SQL es supabase/seed.sql (mismo conjunto de datos).
 Contraseña por defecto de los usuarios: BnaSalud2026!
 PIN por defecto de los pacientes: 1234 (se cambia por recuperación/correo)
+
+La semilla cubre los ciclos de las fases recientes:
+  • Fase 0: recetas en PENDIENTE / DESPACHADA / ENTREGADA / RECIBIDA
+    (con entregada_por_id y recibida_paciente_id donde corresponde).
+  • Fase 1 y 4: cada receta enlaza su consulta (recetas.consulta_id) y los
+    despachos registran al farmacéutico (despacho_registros.despachado_por).
+  • Fase 2: cola de pacientes con turnos en espera y en consulta (triaje).
 """
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import bcrypt
@@ -23,10 +31,10 @@ from app.core.database import supabase
 PASSWORD_HASH = "$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO"
 
 CARGOS: list[dict[str, Any]] = [
-    {"id": 1, "nombre": "Superusuario", "departamento": "Administración", "descripcion": "Administración global del sistema"},
-    {"id": 2, "nombre": "Médico", "departamento": "Asistencial", "descripcion": "Atención y consultas médicas"},
-    {"id": 3, "nombre": "Farmacéutico", "departamento": "Farmacia", "descripcion": "Despacho y control de inventario"},
-    {"id": 4, "nombre": "Enfermero", "departamento": "Asistencial", "descripcion": "Apoyo asistencial y triaje"},
+    {"id": 1, "nombre": "Superusuario", "departamento": "Administración"},
+    {"id": 2, "nombre": "Médico", "departamento": "Asistencial"},
+    {"id": 3, "nombre": "Farmacéutico", "departamento": "Farmacia"},
+    {"id": 4, "nombre": "Enfermero", "departamento": "Asistencial"},
 ]
 
 CLINICAS: list[dict[str, Any]] = [
@@ -128,8 +136,33 @@ CITAS: list[dict[str, Any]] = [
 ]
 
 RECETAS: list[dict[str, Any]] = [
-    {"codigo_receta": "RX-2026-0892", "paciente_cedula": "V-18234567", "paciente_nombre": "Carlos Mendoza", "medico": "Antonio Valera", "estado": "PENDIENTE", "clinica_id": 2},
-    {"codigo_receta": "RX-2026-0893", "paciente_cedula": "V-98765432", "paciente_nombre": "Juan Pérez", "medico": "María González", "estado": "DESPACHADA", "clinica_id": 1},
+    {
+        "codigo_receta": "RX-2026-0892", "paciente_cedula": "V-18234567",
+        "paciente_nombre": "Carlos Mendoza", "medico": "Antonio Valera",
+        "estado": "PENDIENTE", "clinica_id": 2, "cita_id": "CITAB-2026-89A1",
+        "fecha_emision": "2026-08-15 09:05:00",
+    },
+    {
+        "codigo_receta": "RX-2026-0893", "paciente_cedula": "V-98765432",
+        "paciente_nombre": "Juan Pérez", "medico": "María González",
+        "estado": "DESPACHADA", "clinica_id": 1,
+        "fecha_emision": "2026-08-16 10:20:00",
+    },
+    {
+        "codigo_receta": "RX-2026-0894", "paciente_cedula": "V-12345678",
+        "paciente_nombre": "María Rodríguez", "medico": "María González",
+        "estado": "ENTREGADA", "clinica_id": 1, "cita_id": "NINO-2026-3C4D",
+        "fecha_emision": "2026-08-16 11:00:00",
+        "entregada_por": "Carlos Pereira", "entregada_at": "2026-08-16 11:40:00",
+    },
+    {
+        "codigo_receta": "RX-2026-0895", "paciente_cedula": "V-87654321",
+        "paciente_nombre": "Ana Rodríguez", "medico": "Luisa Pérez",
+        "estado": "RECIBIDA", "clinica_id": 3, "cita_id": "MUJER-2026-4D5E",
+        "fecha_emision": "2026-08-16 13:15:00",
+        "entregada_por": "Luis Hernández", "entregada_at": "2026-08-16 13:50:00",
+        "recibida_por_cedula": "87654321", "recibida_at": "2026-08-16 14:05:00",
+    },
 ]
 
 USUARIOS: list[dict[str, Any]] = [
@@ -208,34 +241,38 @@ def get_ids(tabla: str, cols: list[str]) -> list[dict[str, Any]]:
 def main() -> None:
     print("Semilla BnaSalud\n")
 
-    print("[1/14] Cargos (RRHH)")
+    print("[1/15] Cargos (RRHH)")
     upsert("cargos", CARGOS, "id")
 
-    print("[2/14] Clínicas (centros de salud)")
+    print("[2/15] Clínicas (centros de salud)")
     upsert("clinicas", CLINICAS, "codigo")
     clinicas_por_codigo = {c["codigo"]: c["id"] for c in get_ids("clinicas", ["id", "codigo"])}
 
-    print("[3/14] Turnos (RRHH)")
+    print("[3/15] Turnos (RRHH)")
     try:
-        existentes = supabase.table("turnos").select("id").limit(1).execute().data
-        if not existentes:
-            supabase.table("turnos").insert(TURNOS).execute()
-            print(f"  turnos             {len(TURNOS)} filas")
+        nombres_existentes = {t["nombre"] for t in get_ids("turnos", ["id", "nombre"])}
+        faltantes = [
+            {"id": i + 1, **t}
+            for i, t in enumerate(TURNOS)
+            if t["nombre"] not in nombres_existentes
+        ]
+        if faltantes:
+            upsert("turnos", faltantes, "id")
         else:
             print("  turnos             ya existentes")
     except Exception as e:
         print("  turnos             ERROR:", e)
 
-    print("[4/14] Especialidades")
+    print("[4/15] Especialidades")
     upsert("especialidades", ESPECIALIDADES, "id")
 
-    print("[5/14] Medicamentos (inventario_medicamentos)")
-    upsert("inventario_medicamentos", MEDICAMENTOS, "nombre")
+    print("[5/15] Medicamentos (inventario_medicamentos)")
+    upsert("inventario_medicamentos", MEDICAMENTOS, "id")
     medicamentos_por_nombre = {
         m["nombre"]: m["id"] for m in get_ids("inventario_medicamentos", ["id", "nombre"])
     }
 
-    print("[6/14] Personal (RRHH / médicos)")
+    print("[6/15] Personal (RRHH / médicos)")
     cargos_por_nombre = {c["nombre"]: c["id"] for c in get_ids("cargos", ["id", "nombre"])}
     personal: list[dict[str, Any]] = []
     for p in PERSONAL:
@@ -249,7 +286,7 @@ def main() -> None:
     }
     personal_por_cedula = {p["cedula"]: p["id"] for p in get_ids("personal", ["id", "cedula"])}
 
-    print("[7/14] Pacientes (historias_clinicas)")
+    print("[7/15] Pacientes (historias_clinicas)")
     pacientes: list[dict[str, Any]] = []
     for p in PACIENTES:
         fila = dict(p)
@@ -258,7 +295,7 @@ def main() -> None:
     upsert("historias_clinicas", pacientes, "cedula")
     pacientes_por_cedula = {p["cedula"]: p["id"] for p in get_ids("historias_clinicas", ["id", "cedula"])}
 
-    print("[8/14] Usuarios del sistema")
+    print("[8/15] Usuarios del sistema")
     usuarios: list[dict[str, Any]] = []
     for u in USUARIOS:
         fila = {
@@ -274,7 +311,7 @@ def main() -> None:
         usuarios.append(fila)
     upsert("usuarios", usuarios, "username")
 
-    print("[9/14] Stock por clínica")
+    print("[9/15] Stock por clínica")
     stock: list[dict[str, Any]] = []
     for clinica in CLINICAS:
         for m in MEDICAMENTOS:
@@ -285,10 +322,10 @@ def main() -> None:
                 "cantidad_actual": cantidad,
                 "lote": f"LOTE-{clinica['codigo']}-{m['id']}",
             })
-    supabase.table("stock_clinica").upsert(stock, on_conflict="clinica_id,medicamento_id").execute()
+    supabase.table("stock_clinica").upsert(stock, on_conflict="clinica_id,medicamento_id,lote").execute()
     print(f"  stock_clinica      {len(stock)} filas")
 
-    print("[10/14] Citas")
+    print("[10/15] Citas")
     paciente_por_cita = {
         "CITAB-2026-89A1": "18234567",
         "CITAB-2026-8B2C": "98765432",
@@ -296,33 +333,20 @@ def main() -> None:
         "MUJER-2026-4D5E": "87654321",
     }
     citas: list[dict[str, Any]] = []
+    id_por_codigo = {
+        c["codigo_confirmacion"]: c["id"] for c in get_ids("citas", ["id", "codigo_confirmacion"])
+    }
     for cita in CITAS:
         fila = dict(cita)
         fila["paciente_id"] = pacientes_por_cedula[paciente_por_cita[cita["codigo_confirmacion"]]]
+        if cita["codigo_confirmacion"] in id_por_codigo:
+            fila["id"] = id_por_codigo[cita["codigo_confirmacion"]]
+        else:
+            fila["id"] = str(uuid.uuid4())
         citas.append(fila)
-    upsert("citas", citas, "codigo_confirmacion")
+    upsert("citas", citas, "id")
 
-    print("[11/14] Recetas")
-    recetas: list[dict[str, Any]] = []
-    for receta in RECETAS:
-        fila = dict(receta)
-        fila["medico_id"] = personal_por_nombre[receta["medico"]]
-        recetas.append(fila)
-    upsert("recetas", recetas, "codigo_receta")
-    recetas_por_codigo = {r["codigo_receta"]: r["id"] for r in get_ids("recetas", ["id", "codigo_receta"])}
-
-    print("[12/14] Detalles de recetas")
-    detalles = [
-        {"id": 901, "receta_id": recetas_por_codigo["RX-2026-0892"], "medicamento_id": medicamentos_por_nombre["Amoxicilina 500mg"],
-         "cantidad_prescrita": 21, "cantidad_despachada": 0,
-         "posologia": "1 cápsula cada 8 horas por 7 días"},
-        {"id": 902, "receta_id": recetas_por_codigo["RX-2026-0893"], "medicamento_id": medicamentos_por_nombre["Paracetamol 500mg"],
-         "cantidad_prescrita": 20, "cantidad_despachada": 20,
-         "posologia": "1 tableta cada 6 horas por 5 días"},
-    ]
-    upsert("receta_detalles", detalles, "id")
-
-    print("[13/14] Consultas (historial clínico)")
+    print("[11/15] Consultas (historial clínico)")
     paciente_por_consulta = {
         "CITAB-2026-89A1": "18234567",
         "NINO-2026-3C4D": "12345678",
@@ -334,8 +358,44 @@ def main() -> None:
         fila["medico_id"] = personal_por_nombre[consulta["medico_nombre"]]
         consultas.append(fila)
     upsert("consultas", consultas, "id")
+    consultas_por_cita = {c["cita_id"]: c["id"] for c in consultas}
 
-    print("[14/14] Órdenes de estudios + despacho registrado")
+    print("[12/15] Recetas")
+    recetas: list[dict[str, Any]] = []
+    for receta in RECETAS:
+        fila = dict(receta)
+        fila["medico_id"] = personal_por_nombre[receta["medico"]]
+        if receta.get("cita_id"):
+            fila["consulta_id"] = consultas_por_cita.get(receta["cita_id"])
+        fila.pop("cita_id", None)
+        if receta.get("entregada_por"):
+            fila["entregada_por_id"] = personal_por_nombre[receta["entregada_por"]]
+        fila.pop("entregada_por", None)
+        if receta.get("recibida_por_cedula"):
+            fila["recibida_paciente_id"] = pacientes_por_cedula[receta["recibida_por_cedula"]]
+        fila.pop("recibida_por_cedula", None)
+        recetas.append(fila)
+    upsert("recetas", recetas, "codigo_receta")
+    recetas_por_codigo = {r["codigo_receta"]: r["id"] for r in get_ids("recetas", ["id", "codigo_receta"])}
+
+    print("[13/15] Detalles de recetas")
+    detalles = [
+        {"id": 901, "receta_id": recetas_por_codigo["RX-2026-0892"], "medicamento_id": medicamentos_por_nombre["Amoxicilina 500mg"],
+         "cantidad_prescrita": 21, "cantidad_despachada": 0,
+         "posologia": "1 cápsula cada 8 horas por 7 días"},
+        {"id": 902, "receta_id": recetas_por_codigo["RX-2026-0893"], "medicamento_id": medicamentos_por_nombre["Paracetamol 500mg"],
+         "cantidad_prescrita": 20, "cantidad_despachada": 20,
+         "posologia": "1 tableta cada 6 horas por 5 días"},
+        {"id": 903, "receta_id": recetas_por_codigo["RX-2026-0894"], "medicamento_id": medicamentos_por_nombre["Amoxicilina 500mg"],
+         "cantidad_prescrita": 14, "cantidad_despachada": 14,
+         "posologia": "1 cápsula cada 12 horas por 7 días"},
+        {"id": 904, "receta_id": recetas_por_codigo["RX-2026-0895"], "medicamento_id": medicamentos_por_nombre["Enalapril 10mg"],
+         "cantidad_prescrita": 30, "cantidad_despachada": 30,
+         "posologia": "1 tableta cada 12 horas por 30 días"},
+    ]
+    upsert("receta_detalles", detalles, "id")
+
+    print("[14/15] Órdenes de estudios + despachos registrados")
     try:
         ordenes = [{
             "id": "33333333-4444-5555-6666-777777777777",
@@ -352,15 +412,44 @@ def main() -> None:
             "comprobante_orden": "OE-2026-0001",
         }]
         upsert("ordenes_estudios", ordenes, "id")
-        despachos = [{
-            "id": 1,
-            "receta_id": recetas_por_codigo["RX-2026-0893"],
-            "observaciones": "Despacho completo de paracetamol (20 unidades)",
-            "fecha_despacho": "2026-08-16 12:10:00",
-        }]
+        despachos = [
+            {"id": 1, "receta_id": recetas_por_codigo["RX-2026-0893"],
+             "despachado_por": personal_por_nombre["Carlos Pereira"],
+             "observaciones": "Despacho completo de paracetamol (20 unidades)",
+             "fecha_despacho": "2026-08-16 12:10:00"},
+            {"id": 2, "receta_id": recetas_por_codigo["RX-2026-0894"],
+             "despachado_por": personal_por_nombre["Carlos Pereira"],
+             "observaciones": "Despacho de amoxicilina (14 unidades)",
+             "fecha_despacho": "2026-08-16 11:15:00"},
+            {"id": 3, "receta_id": recetas_por_codigo["RX-2026-0895"],
+             "despachado_por": personal_por_nombre["Luis Hernández"],
+             "observaciones": "Despacho de enalapril (30 unidades)",
+             "fecha_despacho": "2026-08-16 13:30:00"},
+        ]
         upsert("despacho_registros", despachos, "id")
     except Exception as e:
         print("  ordenes/despacho   ERROR:", e)
+
+    print("[15/15] Cola de pacientes (triaje)")
+    try:
+        cola = [
+            {"token": "C-10001", "paciente_id": pacientes_por_cedula["18234567"],
+             "paciente_cedula": "V-18234567", "paciente_nombre": "Carlos Mendoza",
+             "clinica_id": 2, "motivo": "consulta", "prioridad": 3,
+             "estado": "EN_CONSULTA", "medico_id": personal_por_nombre["Antonio Valera"],
+             "creado_en": "2026-08-17 08:10:00+00", "iniciado_en": "2026-08-17 08:15:00+00"},
+            {"token": "C-10002", "paciente_id": pacientes_por_cedula["12345678"],
+             "paciente_cedula": "V-12345678", "paciente_nombre": "María Rodríguez",
+             "clinica_id": 2, "motivo": "consulta", "prioridad": 2,
+             "estado": "EN_ESPERA", "creado_en": "2026-08-17 08:20:00+00"},
+            {"token": "C-10003", "paciente_id": pacientes_por_cedula["87654321"],
+             "paciente_cedula": "V-87654321", "paciente_nombre": "Ana Rodríguez",
+             "clinica_id": 2, "motivo": "emergencia", "prioridad": 1,
+             "estado": "EN_ESPERA", "creado_en": "2026-08-17 08:25:00+00"},
+        ]
+        upsert("cola_pacientes", cola, "token")
+    except Exception as e:
+        print("  cola_pacientes     ERROR:", e)
 
     print("\nSemilla completada.")
 
