@@ -3,6 +3,7 @@
 -- Cuentas con rol para acceder a los módulos de la plataforma:
 --   superusuario  → administración global
 --   medico        → módulo de consultas (Doctores)
+--   jefe_farmacia → encargado del stock de farmacia
 --   farmaceutico  → módulo de despacho (Farmacia)
 --   enfermero     → apoyo asistencial
 --   paciente      → portal del paciente
@@ -14,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.usuarios (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  rol TEXT NOT NULL CHECK (rol IN ('superusuario','medico','farmaceutico','enfermero','paciente')),
+  rol TEXT NOT NULL CHECK (rol IN ('superusuario','medico','jefe_farmacia','farmaceutico','enfermero','paciente')),
   personal_id INTEGER REFERENCES public.personal(id),
   paciente_id UUID REFERENCES public.historias_clinicas(id),
   activo BOOLEAN DEFAULT TRUE,

@@ -109,9 +109,8 @@ def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str],
 
     registro = dict(datos)
     registro["numero_historia"] = f"HIS-{paciente.tipo_cedula.value}{cedula}"
-    registro["antecedentes_medicos"] = registro.get("antecedentes_medicos") or []
-    registro["alergias"] = registro.get("alergias") or []
-    pin_inicial = f"{secrets.randbelow(10000):04d}"
+    # Generación de PIN Secreto de 6 dígitos para acceso del paciente al portal
+    pin_inicial = f"{secrets.randbelow(900000) + 100000:06d}"
     registro["pin_hash"] = hash_secreto(pin_inicial)
     try:
         creado = supabase.table("historias_clinicas").insert(registro).execute()

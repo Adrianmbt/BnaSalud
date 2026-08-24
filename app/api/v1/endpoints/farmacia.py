@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.v1.deps import exigir_paciente, exigir_paciente_o_staff, exigir_roles
 from app.api.v1.errors import db_fail, fail, not_found
+from app.core.bitacora import registrar_accion
 from app.core.database import supabase
+from app.core.notificaciones import notificar_receta_entregada
 from app.schemas.schemas import (
     DespacharRecetaRequestSchema,
     InventarioItemSchema,
@@ -18,7 +20,10 @@ from app.schemas.schemas import (
 router = APIRouter(tags=["Farmacia"])
 
 # Ciclo de entrega: PENDIENTE → DESPACHADA → ENTREGADA → RECIBIDA
-ROLES_FARMACIA = ("farmaceutico", "superusuario")
+# jefe_farmacia: encargado del módulo (despacho + gestión del stock).
+ROLES_FARMACIA = ("jefe_farmacia", "farmaceutico", "superusuario")
+# Gestión de existencias (inventario/alertas): exclusiva de la jefatura.
+ROLES_STOCK_FARMACIA = ("jefe_farmacia", "superusuario")
 
 
 def _formato_fecha(valor) -> Optional[str]:
@@ -130,6 +135,7 @@ def _a_receta(
 def listar_recetas_pendientes(
     limite: int = Query(default=20, ge=1, le=50),
     centro_id: Optional[int] = None,
+    _: Dict[str, Any] = Depends(exigir_roles(*ROLES_FARMACIA)),
 ) -> List[RecetaResponseSchema]:
     """Recetas emitidas por los médicos pendientes de despacho en la farmacia."""
     try:
@@ -174,7 +180,10 @@ def listar_recetas_paciente(
 
 
 @router.get("/recetas/{codigo_o_cedula}", response_model=RecetaResponseSchema)
-def buscar_receta(codigo_o_cedula: str) -> RecetaResponseSchema:
+def buscar_receta(
+    codigo_o_cedula: str,
+    _: Dict[str, Any] = Depends(exigir_roles(*ROLES_FARMACIA)),
+) -> RecetaResponseSchema:
     """Busca una receta por código (RX-2026-XXXX) o por cédula del paciente."""
     texto = codigo_o_cedula.strip().replace("#", "").upper()
     if not texto:
@@ -220,7 +229,7 @@ def entregar_receta(
     try:
         filas = (
             supabase.table("recetas")
-            .select("id, estado")
+            .select("id, estado, codigo_receta, paciente_cedula, paciente_nombre")
             .eq("id", receta_id)
             .execute()
             .data
@@ -248,6 +257,20 @@ def entregar_receta(
     except Exception:
         db_fail("registrar la entrega")
 
+    # Fase 5: aviso automático al paciente ("tu receta está lista").
+    # Un fallo del correo nunca debe interrumpir la entrega.
+    try:
+        notificar_receta_entregada(filas[0])
+    except Exception:
+        pass
+
+    registrar_accion(
+        usuario,
+        "entrega_receta",
+        "recetas",
+        receta_id,
+        detalle=f"Recibida por cédula {payload.cedula_paciente}",
+    )
     return {
         "status": "success",
         "message": "Entrega registrada. El paciente debe confirmar la recepción en su portal.",
@@ -299,6 +322,13 @@ def recibir_receta(
     except Exception:
         db_fail("registrar la recepción")
 
+    registrar_accion(
+        usuario,
+        "recepcion_receta",
+        "recetas",
+        receta_id,
+        detalle="Confirmación del paciente en su portal",
+    )
     return {
         "status": "success",
         "message": "Recepcion confirmada. Su receta queda cerrada en la farmacia.",
@@ -310,6 +340,7 @@ def recibir_receta(
 def listar_inventario(
     q: str = Query(default="", description="Filtra por nombre del medicamento"),
     solo_alertas: bool = Query(default=False, description="Solo medicamentos bajo o sin stock"),
+    _: Dict[str, Any] = Depends(exigir_roles(*ROLES_STOCK_FARMACIA)),
 ) -> List[InventarioItemSchema]:
     """Inventario de la farmacia para verificar disponibilidad de lo recetado."""
     try:
@@ -343,7 +374,10 @@ def listar_inventario(
 
 
 @router.post("/despachar", status_code=status.HTTP_200_OK)
-def despachar_receta(payload: DespacharRecetaRequestSchema) -> dict:
+def despachar_receta(
+    payload: DespacharRecetaRequestSchema,
+    usuario: Dict[str, Any] = Depends(exigir_roles(*ROLES_FARMACIA)),
+) -> dict:
     """Despacha una receta: valida existencias, descuenta inventario y actualiza estados."""
     try:
         receta = (
@@ -428,6 +462,13 @@ def despachar_receta(payload: DespacharRecetaRequestSchema) -> dict:
         db_fail("procesar el despacho")
 
     total_despachado = sum(i.cantidad_despachada for i in payload.items)
+    registrar_accion(
+        usuario,
+        "despacho_receta",
+        "recetas",
+        payload.receta_id,
+        detalle=f"{total_despachado} unidad(es) despachadas",
+    )
     return {
         "status": "success",
         "message": "Despacho procesado e inventario actualizado con éxito",

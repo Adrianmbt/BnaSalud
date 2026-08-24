@@ -17,6 +17,7 @@ from fastapi import APIRouter
 
 from app.api.v1.errors import db_fail, fail
 from app.api.v1.endpoints.pacientes import _a_historia, _buscar_paciente
+from app.core.bitacora import registrar_accion
 from app.core.config import settings
 from app.core.database import supabase
 from app.core.mail import enviar_codigo_recuperacion
@@ -99,6 +100,13 @@ def login(credenciales: LoginRequest) -> LoginResponse:
             "cedula": "",
         }
     )
+    registrar_accion(
+        {"rol": cuenta["rol"], "username": cuenta["username"], "personal_id": personal_id},
+        "login_staff",
+        "usuarios",
+        cuenta.get("id"),
+        detalle=f"Rol {cuenta['rol']}",
+    )
     return LoginResponse(
         token=token,
         usuario=LoginUsuarioResponse(
@@ -129,6 +137,12 @@ def login_paciente(datos: PacienteLoginRequest) -> PacienteLoginResponse:
             "paciente_id": fila["id"],
             "cedula": cedula,
         }
+    )
+    registrar_accion(
+        {"rol": "paciente", "username": cedula, "personal_id": None},
+        "login_paciente",
+        "historias_clinicas",
+        fila["id"],
     )
     return PacienteLoginResponse(token=token, paciente=_a_historia(fila))
 

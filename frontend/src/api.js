@@ -106,6 +106,15 @@ export const API = {
   citasPaciente: (cedula) =>
     apiFetch(`/citas?cedula=${encodeURIComponent(cedula)}`),
 
+  /* === Notificaciones al paciente (Fase 5) === */
+  notificacionesPaciente: (cedula) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}/notificaciones`),
+  notificarPaciente: (cedula, payload) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}/notificar`, {
+      method: 'POST',
+      body: payload,
+    }),
+
   /* === Estudios médicos / OCR === */
   procesarEstudio: (payload) =>
     apiFetch('/estudios/procesar', { method: 'POST', body: payload }),
@@ -115,6 +124,8 @@ export const API = {
     apiFetch('/estudios/ordenes', { method: 'POST', body: payload }),
   ordenesPaciente: (pacienteId) =>
     apiFetch(`/estudios/ordenes/paciente/${encodeURIComponent(pacienteId)}`),
+  ordenesTodas: (estado) =>
+    apiFetch(estado ? `/estudios/ordenes?estado=${encodeURIComponent(estado)}` : '/estudios/ordenes'),
   registrarResultadosOrden: (ordenId, payload) =>
     apiFetch(`/estudios/ordenes/${encodeURIComponent(ordenId)}/resultados`, {
       method: 'POST',
@@ -138,6 +149,12 @@ export const API = {
     apiFetch('/admin/trazabilidad'),
   resumenAdmin: () =>
     apiFetch('/admin/resumen'),
+  bitacoraAcciones: (filtros = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(filtros).filter(([, v]) => v !== '' && v != null),
+    ).toString();
+    return apiFetch(qs ? `/admin/bitacora?${qs}` : '/admin/bitacora');
+  },
 
   /* === Autenticación === */
   login: (username, password) =>

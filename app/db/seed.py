@@ -106,6 +106,8 @@ PERSONAL: list[dict[str, Any]] = [
     {"cedula": "77777777", "nombre": "Ramón", "apellido": "Díaz", "especialidad": "Medicina General", "telefono": "+58 414 777 8899", "email": "ramon.diaz@bnasalud.gob.ve", "cargo": "Médico", "status": "DISPONIBLE", "estado": "ACTIVO", "clinica_id": 5},
     {"cedula": "88888888", "nombre": "Jorge", "apellido": "Blanco", "especialidad": "Medicina General", "telefono": "+58 414 333 4455", "email": "jorge.blanco@bnasalud.gob.ve", "cargo": "Médico", "status": "DISPONIBLE", "estado": "ACTIVO", "clinica_id": 1},
     {"cedula": "88888889", "nombre": "Sonia", "apellido": "Ramos", "especialidad": "Pediatría", "telefono": "+58 414 666 7788", "email": "sonia.ramos@bnasalud.gob.ve", "cargo": "Médico", "status": "DISPONIBLE", "estado": "ACTIVO", "clinica_id": 5},
+    # Jefatura de farmacia (encargada del inventario y las alertas)
+    {"cedula": "99990006", "nombre": "Yolanda", "apellido": "Contreras", "especialidad": "Farmacia", "telefono": "+58 412 200 0006", "email": "yolanda.contreras@bnasalud.gob.ve", "cargo": "Jefa de Farmacia", "status": "DISPONIBLE", "estado": "ACTIVO", "clinica_id": 2},
     # Farmacéuticos (1 por centro de salud)
     {"cedula": "99990001", "nombre": "Carlos", "apellido": "Pereira", "especialidad": "Farmacia", "telefono": "+58 412 200 0001", "email": "carlos.pereira@bnasalud.gob.ve", "cargo": "Farmacéutico", "status": "DISPONIBLE", "estado": "ACTIVO", "clinica_id": 1},
     {"cedula": "99990002", "nombre": "María", "apellido": "Torres", "especialidad": "Farmacia", "telefono": "+58 412 200 0002", "email": "maria.torres@bnasalud.gob.ve", "cargo": "Farmacéutico", "status": "DISPONIBLE", "estado": "ACTIVO", "clinica_id": 2},
@@ -177,6 +179,8 @@ USUARIOS: list[dict[str, Any]] = [
     {"username": "rdiaz", "rol": "medico", "personal_cedula": "77777777"},
     {"username": "jblanco", "rol": "medico", "personal_cedula": "88888888"},
     {"username": "sramos", "rol": "medico", "personal_cedula": "88888889"},
+    # Jefatura de farmacia (encargada del stock)
+    {"username": "ycontreras", "rol": "jefe_farmacia", "personal_cedula": "99990006"},
     # Farmacéuticos (1 por centro)
     {"username": "cpereira", "rol": "farmaceutico", "personal_cedula": "99990001"},
     {"username": "mtorres", "rol": "farmaceutico", "personal_cedula": "99990002"},

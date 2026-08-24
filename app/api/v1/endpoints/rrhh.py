@@ -1,8 +1,9 @@
 from datetime import date
 from typing import Dict, List, Tuple
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
+from app.api.v1.deps import exigir_roles
 from app.api.v1.errors import db_fail, fail, not_found
 from app.core.database import supabase
 from app.schemas.schemas import (
@@ -36,6 +37,7 @@ def _a_personal(fila: dict) -> PersonalDetalleSchema:
 def obtener_disponibilidad_personal(
     clinica_id: int = Query(..., description="ID del centro de salud"),
     fecha: date = Query(default=date.today(), description="Fecha de consulta"),
+    _: dict = Depends(exigir_roles("superusuario")),
 ) -> DisponibilidadResponseSchema:
     """Disponibilidad de personal de una clínica, agrupada por turno."""
     try:
@@ -88,7 +90,10 @@ def obtener_disponibilidad_personal(
 
 
 @router.post("/asignar-turno", status_code=status.HTTP_201_CREATED)
-def asignar_turno_personal(payload: AsignarTurnoSchema) -> dict:
+def asignar_turno_personal(
+    payload: AsignarTurnoSchema,
+    _: dict = Depends(exigir_roles("superusuario")),
+) -> dict:
     """Asigna un turno a un miembro del personal y lo marca en guardia."""
     try:
         persona = (

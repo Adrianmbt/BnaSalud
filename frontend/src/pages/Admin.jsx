@@ -43,6 +43,10 @@ export default function Admin() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
 
+  /* === Bitácora de auditoría (Fase 7) === */
+  const [bitacora, setBitacora] = useState([]);
+  const [filtrosBitacora, setFiltrosBitacora] = useState({ accion: '', username: '' });
+
   const cargar = useCallback(async () => {
     setCargando(true);
     setError('');
@@ -61,6 +65,20 @@ export default function Admin() {
       setCargando(false);
     }
   }, []);
+
+  const cargarBitacora = useCallback(async (filtros) => {
+    try {
+      const datos = await API.bitacoraAcciones(filtros);
+      setBitacora(datos.registros || []);
+    } catch {
+      setBitacora([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (sesion) cargarBitacora(filtrosBitacora);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion]);
 
   useEffect(() => {
     if (sesion) cargar();
@@ -135,50 +153,52 @@ export default function Admin() {
           </div>
         </header>
 
-        <main className="max-w-md mx-auto px-5 pt-16">
-          <LedgerCard tick className="p-7">
-            <SectionLabel index="ACCESO">Trazabilidad clínica</SectionLabel>
-            <p className="text-xs text-ink-faint mt-3 leading-relaxed">
-              Consolida citas, consultas, cola, despacho, entrega y confirmación de recetas
-              para supervisión administrativa.
-            </p>
-            <form onSubmit={iniciarSesion} className="mt-6 space-y-4">
-              <label className="block">
-                <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint mb-1.5">
-                  Usuario
-                </span>
-                <input
-                  value={loginForm.username}
-                  onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-md bg-paper border border-ink-line text-sm text-ink focus:outline-none focus:ring-2 focus:ring-fx/40"
-                  placeholder="usuario_admin"
-                  autoComplete="username"
-                />
-              </label>
-              <label className="block">
-                <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint mb-1.5">
-                  Contraseña
-                </span>
-                <input
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-md bg-paper border border-ink-line text-sm text-ink focus:outline-none focus:ring-2 focus:ring-fx/40"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                />
-              </label>
-              {loginError && (
-                <p className="text-xs font-semibold text-blood bg-blood-soft rounded-lg px-3 py-2">
-                  {loginError}
-                </p>
-              )}
-              <ToneButton type="submit" loading={loginEntrando} className="w-full justify-center">
-                <Icon name="admin_panel_settings" className="text-base" />
-                Entrar al panel
-              </ToneButton>
-            </form>
-          </LedgerCard>
+        <main className="h-full overflow-y-auto ledger-scroll">
+          <div className="max-w-md mx-auto px-5 pt-14 pb-20">
+            <LedgerCard tick className="p-7">
+              <SectionLabel index="ACCESO">Trazabilidad clínica</SectionLabel>
+              <p className="text-xs text-ink-faint mt-3 leading-relaxed">
+                Consolida citas, consultas, cola, despacho, entrega y confirmación de recetas
+                para supervisión administrativa.
+              </p>
+              <form onSubmit={iniciarSesion} className="mt-6 space-y-4">
+                <label className="block">
+                  <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint mb-1.5">
+                    Usuario
+                  </span>
+                  <input
+                    value={loginForm.username}
+                    onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-md bg-paper border border-ink-line text-sm text-ink focus:outline-none focus:ring-2 focus:ring-fx/40"
+                    placeholder="usuario_admin"
+                    autoComplete="username"
+                  />
+                </label>
+                <label className="block">
+                  <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint mb-1.5">
+                    Contraseña
+                  </span>
+                  <input
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-md bg-paper border border-ink-line text-sm text-ink focus:outline-none focus:ring-2 focus:ring-fx/40"
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                  />
+                </label>
+                {loginError && (
+                  <p className="text-xs font-semibold text-blood bg-blood-soft rounded-lg px-3 py-2">
+                    {loginError}
+                  </p>
+                )}
+                <ToneButton type="submit" loading={loginEntrando} className="w-full justify-center">
+                  <Icon name="admin_panel_settings" className="text-base" />
+                  Entrar al panel
+                </ToneButton>
+              </form>
+            </LedgerCard>
+          </div>
         </main>
       </div>
     );
@@ -251,7 +271,7 @@ export default function Admin() {
             ))}
           </div>
 
-          <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
             {Object.keys(ETIQUETAS_ESTADO).map((estado) => (
               <LedgerCard key={estado} className="p-3.5 flex items-center justify-between">
                 <EstadoPunto tone={TONOS_ESTADO[estado] || 'ink'}>{ETIQUETAS_ESTADO[estado]}</EstadoPunto>
@@ -261,7 +281,7 @@ export default function Admin() {
           </div>
 
           {resumen?.top_medicamentos?.length > 0 && (
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-1 gap-3">
               <LedgerCard className="p-4">
                 <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint mb-3">
                   Top medicamentos despachados
@@ -365,6 +385,102 @@ export default function Admin() {
                           {ETIQUETAS_ESTADO[r.estado] || r.estado}
                         </EstadoPunto>
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </LedgerCard>
+        </section>
+
+        {/* Auditoría */}
+        <section>
+          <SectionLabel index="III">Bitácora de auditoría</SectionLabel>
+          <div className="mt-4 flex items-end gap-3 flex-wrap">
+            <label className="block">
+              <span className="block font-mono text-[9px] uppercase tracking-[0.2em] text-ink-faint mb-1">
+                Acción
+              </span>
+              <select
+                value={filtrosBitacora.accion}
+                onChange={(e) => setFiltrosBitacora({ ...filtrosBitacora, accion: e.target.value })}
+                className="px-3 py-2 rounded-md bg-paper border border-ink-line text-xs text-ink focus:outline-none focus:ring-2 focus:ring-fx/40"
+              >
+                <option value="">Todas</option>
+                {[
+                  'login_staff',
+                  'login_paciente',
+                  'despacho_receta',
+                  'entrega_receta',
+                  'recepcion_receta',
+                  'checkin_cola',
+                  'cola_asignar',
+                  'cola_finalizar',
+                  'cola_cancelar',
+                  'resultados_orden',
+                  'notificacion_manual',
+                ].map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="block font-mono text-[9px] uppercase tracking-[0.2em] text-ink-faint mb-1">
+                Usuario
+              </span>
+              <input
+                value={filtrosBitacora.username}
+                onChange={(e) => setFiltrosBitacora({ ...filtrosBitacora, username: e.target.value })}
+                className="px-3 py-2 rounded-md bg-paper border border-ink-line text-xs text-ink w-44 focus:outline-none focus:ring-2 focus:ring-fx/40"
+                placeholder="usuario o cédula"
+              />
+            </label>
+            <button
+              onClick={() => cargarBitacora(filtrosBitacora)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-xs font-semibold bg-fx text-paper shadow-md hover:brightness-110 transition-all"
+            >
+              <Icon name="search" className="text-base" />
+              Consultar
+            </button>
+          </div>
+
+          <LedgerCard tick className="mt-4 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm min-w-[780px]">
+                <thead>
+                  <tr className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-faint border-b border-ink-line">
+                    <th className="px-4 py-3 font-medium">Fecha</th>
+                    <th className="px-4 py-3 font-medium">Usuario</th>
+                    <th className="px-4 py-3 font-medium">Rol</th>
+                    <th className="px-4 py-3 font-medium">Acción</th>
+                    <th className="px-4 py-3 font-medium">Entidad</th>
+                    <th className="px-4 py-3 font-medium">Detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bitacora.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-ink-faint text-xs">
+                        Sin registros de auditoría con estos filtros.
+                      </td>
+                    </tr>
+                  )}
+                  {bitacora.map((r) => (
+                    <tr key={r.id} className="border-b border-ink-line/60 hover:bg-paper-2/50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-[10px] text-ink-faint whitespace-nowrap">
+                        {formatoFecha(r.creado_en)}
+                      </td>
+                      <td className="px-4 py-3 font-semibold">{r.username || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-ink-faint">{r.rol || '—'}</td>
+                      <td className="px-4 py-3">
+                        <Code className="text-fx font-bold">{r.accion}</Code>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-ink-soft">
+                        {r.entidad ? `${r.entidad} #${r.entidad_id}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-ink-faint">{r.detalle || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

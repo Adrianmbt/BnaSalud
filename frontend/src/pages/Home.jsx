@@ -6,7 +6,6 @@ import ComoFunciona from '../components/ComoFunciona';
 import Specialties from '../components/Specialties';
 import Centros from '../components/Centros';
 import Testimonials from '../components/Testimonials';
-import CtaBanner from '../components/CtaBanner';
 import Footer from '../components/Footer';
 import CitaModal from '../components/CitaModal';
 import Chatbot from '../components/Chatbot';
@@ -20,11 +19,10 @@ export default function Home() {
       <Navbar />
       <Hero onSolicitarCita={() => window.location.hash = '#sedes'} />
       <Metrics />
-      <ComoFunciona onSolicitarCita={() => window.location.hash = '#sedes'} />
+      <ComoFunciona />
       <Specialties />
       <Centros onPedirCita={setCentroModal} />
       <Testimonials />
-      <CtaBanner onAgendar={() => (window.location.hash = '#sedes')} />
       <Footer />
       <Chatbot />
 

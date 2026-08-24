@@ -100,6 +100,8 @@ class OrdenEstudiosResponse(BaseModel):
     id: str
     comprobante_orden: str = Field(..., json_schema_extra={"example": "ORD-2026-4821"})
     paciente_id: str
+    paciente_cedula: Optional[str] = None
+    paciente_nombre: Optional[str] = None
     consulta_id: Optional[str] = None
     cita_id: Optional[str] = None
     origen: str = "consulta"
@@ -420,6 +422,28 @@ class InventarioItemSchema(BaseModel):
     unidad: str = "unidad"
     categoria: Optional[str] = None
     vencimiento: Optional[str] = None
+
+
+# ==========================================
+# ESQUEMAS: NOTIFICACIONES AL PACIENTE (Fase 5)
+# ==========================================
+
+class NotificacionItem(BaseModel):
+    id: int
+    tipo: str
+    canal: str = "correo"
+    asunto: str
+    destinatario: Optional[str] = None
+    estado: str = "pendiente"
+    detalle: Optional[str] = None
+    referencia: Optional[str] = None
+    enviado_en: Optional[str] = None
+    creado_en: Optional[str] = None
+
+class NotificarPacienteRequest(BaseModel):
+    """Aviso manual enviado por el personal autorizado (superusuario)."""
+    asunto: str = Field(min_length=3, max_length=150)
+    mensaje: str = Field(min_length=3, max_length=4000)
 
 
 # ==========================================

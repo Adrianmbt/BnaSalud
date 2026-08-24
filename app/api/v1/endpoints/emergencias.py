@@ -1,7 +1,8 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
+from app.api.v1.deps import exigir_staff
 from app.api.v1.errors import db_fail
 from app.core.database import supabase
 from app.schemas.schemas import EmergenciaCreate, EmergenciaResponse
@@ -23,7 +24,10 @@ def _a_emergencia(fila: dict) -> EmergenciaResponse:
 
 @router.post("", response_model=EmergenciaResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=EmergenciaResponse, status_code=status.HTTP_201_CREATED)
-def registrar_emergencia(payload: EmergenciaCreate) -> EmergenciaResponse:
+def registrar_emergencia(
+    payload: EmergenciaCreate,
+    _: dict = Depends(exigir_staff),
+) -> EmergenciaResponse:
     """Registra una emergencia en la cola de triaje."""
     if payload.paciente_id:
         try:
@@ -60,6 +64,7 @@ def registrar_emergencia(payload: EmergenciaCreate) -> EmergenciaResponse:
 def cola_emergencias(
     centro_salud: Optional[str] = Query(default=None, description="Filtrar por centro"),
     estado: Optional[str] = Query(default=None, description="Filtrar por estado (en_atencion, finalizada...)"),
+    _: dict = Depends(exigir_staff),
 ) -> List[EmergenciaResponse]:
     """Cola de emergencias ordenada por gravedad (triaje 1 = crítico primero)."""
     try:

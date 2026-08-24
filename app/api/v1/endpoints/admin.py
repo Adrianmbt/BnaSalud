@@ -38,6 +38,55 @@ def _nombres_personal(ids: List[int]) -> Dict[int, str]:
     }
 
 
+@router.get("/bitacora")
+def consultar_bitacora(
+    accion: Optional[str] = None,
+    username: Optional[str] = None,
+    desde: Optional[date] = None,
+    hasta: Optional[date] = None,
+    limite: int = 100,
+    _: dict = Depends(exigir_roles("superusuario")),
+) -> dict:
+    """Bitácora de acciones sensibles con filtros opcionales (Fase 7)."""
+    limite = max(1, min(limite, 300))
+    try:
+        query = supabase.table("bitacora_acciones").select("*")
+        if accion:
+            query = query.eq("accion", accion)
+        if username:
+            query = query.ilike("username", f"%{username}%")
+        if desde:
+            query = query.gte("creado_en", f"{desde.isoformat()}T00:00:00")
+        if hasta:
+            query = query.lte("creado_en", f"{hasta.isoformat()}T23:59:59")
+        filas = (
+            query.order("creado_en", desc=True)
+            .limit(limite)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("consultar la bitácora")
+
+    return {
+        "registros": [
+            {
+                "id": r["id"],
+                "username": r.get("username") or "",
+                "rol": r.get("rol") or "",
+                "usuario_id": r.get("usuario_id"),
+                "accion": r.get("accion", ""),
+                "entidad": r.get("entidad") or "",
+                "entidad_id": r.get("entidad_id") or "",
+                "detalle": r.get("detalle") or "",
+                "creado_en": str(r.get("creado_en") or "")[:19],
+            }
+            for r in filas
+        ]
+    }
+
+
 @router.get("/trazabilidad")
 def trazabilidad_recetas(
     _: dict = Depends(exigir_roles("superusuario")),

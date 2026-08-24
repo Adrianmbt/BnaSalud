@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -5,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.database import supabase
+from app.core.scheduler import detener_programador, iniciar_programador
 from app.api.v1.endpoints.citas import router as citas_router
 from app.api.v1.endpoints.rrhh import router as rrhh_router
 from app.api.v1.endpoints.farmacia import router as farmacia_router
@@ -19,10 +21,19 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.cola import router as cola_router
 from app.api.v1.endpoints.admin import router as admin_router
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Fase 5: tarea programada de recordatorios de cita (cada hora).
+    iniciar_programador()
+    yield
+    detener_programador()
+
+
 app = FastAPI(
     title="Sistema de Salud Barcelona - API Backend",
     description="Backend para la gestión de citas, historias clínicas, emergencias, farmacia, talento humano y motor RAG",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Configuración de CORS

@@ -27,6 +27,7 @@ const SECCIONES = [
   { id: 'historial', etiqueta: 'Historial', detalle: 'Consultas y evolución', icono: 'timeline' },
   { id: 'estudios', etiqueta: 'Estudios', detalle: 'Órdenes y resultados', icono: 'monitor_heart' },
   { id: 'medicamentos', etiqueta: 'Mis Medicamentos', detalle: 'Recetas y farmacia', icono: 'medication' },
+  { id: 'notificaciones', etiqueta: 'Notificaciones', detalle: 'Correos del sistema', icono: 'notifications' },
   { id: 'misalud', etiqueta: 'Mi Salud', detalle: 'Perfil y datos clínicos', icono: 'favorite' },
 ];
 
@@ -123,6 +124,20 @@ const ESTADOS_RECETA = {
   RECIBIDA: { tono: 'success', etiqueta: 'Recibida · cerrada' },
 };
 
+const ESTADOS_NOTIFICACION = {
+  enviado: { tono: 'success', etiqueta: 'Enviado' },
+  demo: { tono: 'info', etiqueta: 'Modo demo' },
+  error: { tono: 'error', etiqueta: 'Error de envío' },
+  pendiente: { tono: 'amber', etiqueta: 'Pendiente' },
+};
+
+const TIPOS_NOTIFICACION = {
+  bienvenida: { icono: 'waving_hand', etiqueta: 'Bienvenida' },
+  receta_entregada: { icono: 'local_shipping', etiqueta: 'Receta entregada' },
+  recordatorio_cita: { icono: 'event_available', etiqueta: 'Recordatorio de cita' },
+  aviso_personal: { icono: 'campaign', etiqueta: 'Aviso del personal' },
+};
+
 function EtiquetaEstado({ estado, mapa }) {
   const conf = (mapa || ESTADOS_CITA)[estado] || { tono: 'info', etiqueta: estado || '—' };
   const colorMap = {
@@ -159,6 +174,7 @@ export default function Paciente() {
   const [citas, setCitas] = useState([]);
   const [ordenes, setOrdenes] = useState([]);
   const [recetas, setRecetas] = useState([]);
+  const [notificaciones, setNotificaciones] = useState([]);
   const [medico, setMedico] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [confirmandoReceta, setConfirmandoReceta] = useState(null);
@@ -387,20 +403,25 @@ export default function Paciente() {
         .catch(async () => DEMO.medicoTratante(cedula))
         .catch(() => null),
       API.recetasPaciente(cedula).catch(async () => DEMO.recetasPaciente(cedula)),
+      API.notificacionesPaciente(cedula).catch(async () =>
+        DEMO.notificacionesPaciente(cedula)
+      ),
     ];
     try {
-      const [h, c, o, m, r] = await Promise.all(promesas);
+      const [h, c, o, m, r, n] = await Promise.all(promesas);
       setHistorial(h && h.historial ? h : null);
       setCitas(Array.isArray(c) ? c : []);
       setOrdenes(Array.isArray(o) ? o : []);
       setMedico(m && m.nombre ? m : null);
       setRecetas(Array.isArray(r) ? r : []);
+      setNotificaciones(Array.isArray(n) ? n : []);
     } catch {
       setHistorial(null);
       setCitas([]);
       setOrdenes([]);
       setMedico(null);
       setRecetas([]);
+      setNotificaciones([]);
     } finally {
       setCargando(false);
     }
@@ -612,9 +633,9 @@ export default function Paciente() {
   );
 
   return (
-    <div className="min-h-screen bg-surface text-primary font-ui" style={varsCentro}>
-      <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-outline-variant">
-        <div className="flex items-center gap-4 px-4 md:px-6 h-16">
+    <div className="h-dvh overflow-hidden flex flex-col bg-surface text-primary font-ui" style={varsCentro}>
+      <header className="relative z-40 shrink-0 bg-surface/90 backdrop-blur-md">
+        <div className="flex items-center gap-4 px-4 md:px-6 h-16 border-b border-outline-variant">
           <button
             onClick={() => setNavAbierta((v) => !v)}
             className="p-2 -ml-2 rounded-full text-on-surface-variant hover:bg-surface-container lg:ring-1 lg:ring-outline-variant transition-colors"
@@ -673,7 +694,7 @@ export default function Paciente() {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <aside
           className={`shrink-0 w-[min(320px,85vw)] bg-surface border-r border-outline-variant flex flex-col transition-all duration-300 ease-out ${
             navAbierta ? 'ml-0' : '-ml-[min(320px,85vw)]'
@@ -1615,6 +1636,75 @@ export default function Paciente() {
                 </div>
               )}
 
+              {/* ====== NOTIFICACIONES (Fase 5) ====== */}
+              {seccion === 'notificaciones' && (
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                  <div>
+                    <h2 className="font-display text-2xl font-bold text-primary">Notificaciones</h2>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
+                      Historial de correos enviados a tu correo registrado
+                    </p>
+                  </div>
+
+                  {cargando ? (
+                    <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">
+                      Cargando notificaciones...
+                    </div>
+                  ) : notificaciones.length === 0 ? (
+                    <div className="py-16 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
+                      <Icon name="notifications_off" className="text-6xl opacity-40" />
+                      <p className="text-sm font-medium">No tienes notificaciones todavía.</p>
+                      <p className="text-xs">
+                        Los avisos de recetas y recordatorios de citas aparecerán aquí.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {notificaciones.map((n) => {
+                        const conf = TIPOS_NOTIFICACION[n.tipo] || {
+                          icono: 'notifications',
+                          etiqueta: n.tipo,
+                        };
+                        return (
+                          <div
+                            key={n.id}
+                            className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 flex items-start gap-4"
+                          >
+                            <div className="w-10 h-10 rounded-xl bg-doc-soft text-doc flex items-center justify-center shrink-0">
+                              <Icon name={conf.icono} className="text-xl" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 justify-between mb-1">
+                                <p className="text-sm font-bold text-primary leading-snug">{n.asunto}</p>
+                                <EtiquetaEstado estado={n.estado} mapa={ESTADOS_NOTIFICACION} />
+                              </div>
+                              <p className="text-[11px] text-on-surface-variant flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="font-semibold uppercase tracking-wide">{conf.etiqueta}</span>
+                                <span>·</span>
+                                <span className="font-mono">{n.destinatario || 'sin correo'}</span>
+                                {n.enviado_en && (
+                                  <>
+                                    <span>·</span>
+                                    <span className="font-mono">
+                                      {formatoFecha(n.enviado_en)} {String(n.enviado_en).slice(11, 16)}
+                                    </span>
+                                  </>
+                                )}
+                              </p>
+                              {n.detalle && (
+                                <p className="mt-1.5 text-xs text-on-surface-variant bg-surface rounded-lg border border-outline-variant/40 px-3 py-2">
+                                  {n.detalle}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ====== HISTORIAL MÉDICO ====== */}
               {seccion === 'historial' && (
                 <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
@@ -1622,7 +1712,7 @@ export default function Paciente() {
                     <div>
                       <h2 className="font-display text-2xl font-bold text-primary">Historial Médico</h2>
                       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
-                        {historial ? `${historial.total_consultas} consultas · expediente ${paciente.numero_historia}` : 'Expediente clínico'}
+                        {historial ? `${historial.total_consultas} consultas registradas · Cédula ${paciente.tipo_cedula || 'V'}-${paciente.cedula}` : 'Consultas y atenciones'}
                       </p>
                     </div>
                     <div className="flex bg-surface-container rounded-full p-1" role="tablist" aria-label="Vista del historial">
@@ -1946,8 +2036,7 @@ export default function Paciente() {
                       <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
                         {[
                           ['Nombre completo', paciente.nombre_completo],
-                          ['Cédula', `${paciente.tipo_cedula || 'V'}-${paciente.cedula}`],
-                          ['N° Historia', paciente.numero_historia],
+                          ['Cédula de Identidad', `${paciente.tipo_cedula || 'V'}-${paciente.cedula}`],
                           ['Fecha de nacimiento', formatoFecha(paciente.fecha_nacimiento)],
                           ['Edad', calcularEdad(paciente.fecha_nacimiento)],
                           ['Teléfono', paciente.telefono || '—'],

@@ -2,7 +2,9 @@
 @import "aos/dist/aos.css";
 
 @theme {
-  --font-sans: 'Inter', sans-serif;
+  /* Outfit unifica la voz tipográfica del portal público con los
+     módulos internos (que ya usan Outfit como fuente de UI). */
+  --font-sans: 'Outfit', 'Inter', sans-serif;
 
   --color-primary: #0f2537;
   --color-primary-light: #1a3a52;

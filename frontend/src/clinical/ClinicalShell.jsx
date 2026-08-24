@@ -19,22 +19,44 @@ const MODULOS = [
     icono: 'stethoscope',
     to: '/doctores',
   },
+  {
+    id: 'laboratorio',
+    index: '03',
+    etiqueta: 'Laboratorio y Estudios',
+    detalle: 'Órdenes · resultados',
+    icono: 'science',
+    to: '/laboratorio',
+  },
 ];
 
-// Paleta predominante de la interfaz del paciente (portal CITAB).
-// Los módulos sin barra lateral se tiñen con estos tonos azules para
-// mantener la identidad visual del paciente y de la red de salud.
-const TEMA_PACIENTE = {
-  '--color-fx': '#1d4ed8',
-  '--color-fx-deep': '#1e3a8a',
-  '--color-fx-soft': '#dbeafe',
-  '--color-fx-ink': '#172e6e',
-  '--color-doc': '#1d4ed8',
-  '--color-doc-deep': '#1e3a8a',
-  '--color-doc-soft': '#dbeafe',
+// Acento distintivo por módulo dentro de la misma familia "Libro de
+// Guardia": Farmacia conserva el verde botánico del libro; Laboratorio
+// viste teal clínico. Sin overrides, la paleta nativa de index.css manda.
+const ACENTO_MODULO = {
+  laboratorio: {
+    '--color-fx': '#00677d',
+    '--color-fx-deep': '#004e5f',
+    '--color-fx-soft': '#d8ecf1',
+    '--color-fx-ink': '#004e5f',
+  },
 };
 
-export default function ClinicalShell({ module, children, sinSidebar = false }) {
+const ROL_ETIQUETA = {
+  superusuario: 'Administración',
+  jefe_farmacia: 'Jefe de Farmacia',
+  farmaceutico: 'Farmacéutico',
+  medico: 'Médico',
+  enfermero: 'Enfermería',
+};
+
+export default function ClinicalShell({
+  module,
+  children,
+  sinSidebar = false,
+  usuario = null,
+  onSalir = null,
+  navbarMinimo = false,
+}) {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const fecha = new Date().toLocaleDateString('es-VE', {
     weekday: 'long',
@@ -46,13 +68,39 @@ export default function ClinicalShell({ module, children, sinSidebar = false }) 
   const activo = MODULOS.find((m) => m.id === module) || MODULOS[0];
   const esFarmacia = module === 'farmacia';
 
+  /* Identidad real de la sesión (con respaldo decorativo si no hay datos) */
+  const nombreUsuario =
+    usuario?.nombre || (esFarmacia ? 'Lic. Y. Contreras' : 'Dra. Laura Fernández');
+  const iniciales = (() => {
+    if (usuario?.nombre) {
+      return usuario.nombre
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((p) => p[0])
+        .join('')
+        .toUpperCase();
+    }
+    return esFarmacia ? 'QF' : 'LF';
+  })();
+  const detalleUsuario = usuario
+    ? [ROL_ETIQUETA[usuario.rol] || usuario.rol, `ID ${usuario.personal_id ?? '—'}`]
+        .filter(Boolean)
+        .join(' · ')
+    : esFarmacia
+      ? 'ID 2071 · Regente'
+      : 'Med. General · ID 1043';
+
   /* ============================================================
      Variante sin barra lateral: logo en la navbar + selector de
      módulos en línea (escritorio) o menú desplegable (móvil).
   ============================================================ */
   if (sinSidebar) {
     return (
-      <div className="min-h-screen bg-paper paper-noise text-ink font-ui" style={TEMA_PACIENTE}>
+      <div
+        className="h-dvh overflow-hidden flex flex-col bg-paper paper-noise text-ink font-ui"
+        style={ACENTO_MODULO[module]}
+      >
         {menuAbierto && (
           <div
             className="lg:hidden fixed inset-0 z-30 bg-black/25"
@@ -61,8 +109,8 @@ export default function ClinicalShell({ module, children, sinSidebar = false }) 
           />
         )}
 
-        <header className="sticky top-0 z-40 bg-paper/90 backdrop-blur-md border-b border-ink-line">
-          <div className="flex items-center justify-between gap-3 px-4 md:px-6 h-16 relative">
+        <header className="relative z-40 shrink-0 bg-paper/90 backdrop-blur-md">
+          <div className="flex items-center justify-between gap-3 px-4 md:px-6 h-16 relative border-b border-ink-line">
             {/* Logo + identidad */}
             <div className="flex items-center gap-3 min-w-0">
               <Link
@@ -87,44 +135,50 @@ export default function ClinicalShell({ module, children, sinSidebar = false }) 
                 </div>
               </Link>
 
-              {/* Módulos en línea (escritorio) */}
-              <nav
-                className="hidden lg:flex items-center gap-1 ml-2 bg-paper-2/70 border border-ink-line rounded-lg p-1"
-                aria-label="Módulos internos"
-              >
-                {MODULOS.map((m) => {
-                  const activado = m.id === module;
-                  return (
-                    <Link
-                      key={m.id}
-                      to={m.to}
-                      aria-current={activado ? 'page' : undefined}
-                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md transition-all ${
-                        activado
-                          ? 'bg-fx text-paper shadow-md'
-                          : 'text-ink-soft hover:text-ink hover:bg-card'
-                      }`}
-                    >
-                      <Icon name={m.icono} filled={activado} className="text-base" />
-                      <span className="text-xs font-semibold whitespace-nowrap">{m.etiqueta}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
+              {/* Módulos en línea (escritorio) · ocultos en la navbar mínima */}
+              {!navbarMinimo && (
+                <nav
+                  className="hidden lg:flex items-center gap-1 ml-2 bg-paper-2/70 border border-ink-line rounded-lg p-1"
+                  aria-label="Módulos internos"
+                >
+                  {MODULOS.map((m) => {
+                    const activado = m.id === module;
+                    return (
+                      <Link
+                        key={m.id}
+                        to={m.to}
+                        aria-current={activado ? 'page' : undefined}
+                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md transition-all ${
+                          activado
+                            ? 'bg-fx text-paper shadow-md'
+                            : 'text-ink-soft hover:text-ink hover:bg-card'
+                        }`}
+                      >
+                        <Icon name={m.icono} filled={activado} className="text-base" />
+                        <span className="text-xs font-semibold whitespace-nowrap">{m.etiqueta}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              )}
             </div>
 
-            {/* Acciones */}
+            {/* Acciones: en la navbar mínima solo notificaciones, usuario y salir */}
             <div className="flex items-center gap-1 md:gap-2 shrink-0">
-              <p className="hidden xl:block font-mono text-[10px] uppercase tracking-widest text-ink-faint capitalize mr-1">
-                {fecha}
-              </p>
-              <Link
-                to="/"
-                className="hidden md:inline-flex p-2.5 rounded-lg text-ink-soft hover:bg-paper-2 transition-colors"
-                aria-label="Portal de la comunidad"
-              >
-                <Icon name="home" />
-              </Link>
+              {!navbarMinimo && (
+                <p className="hidden xl:block font-mono text-[10px] uppercase tracking-widest text-ink-faint capitalize mr-1">
+                  {fecha}
+                </p>
+              )}
+              {!navbarMinimo && (
+                <Link
+                  to="/"
+                  className="hidden md:inline-flex p-2.5 rounded-lg text-ink-soft hover:bg-paper-2 transition-colors"
+                  aria-label="Portal de la comunidad"
+                >
+                  <Icon name="home" />
+                </Link>
+              )}
               <button
                 className="relative p-2.5 rounded-full text-ink-soft hover:bg-paper-2 transition-colors"
                 aria-label="Notificaciones"
@@ -132,42 +186,56 @@ export default function ClinicalShell({ module, children, sinSidebar = false }) 
                 <Icon name="notifications" />
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber" />
               </button>
-              <Link
-                to="/"
-                className="hidden md:inline-flex p-2.5 rounded-lg text-ink-soft hover:bg-paper-2 transition-colors"
-                aria-label="Cerrar sesión"
-              >
-                <Icon name="logout" />
-              </Link>
-              <div className="hidden sm:flex items-center gap-2.5 pl-1 md:pl-2">
-                <div
-                  className={`w-9 h-9 rounded-full flex items-center justify-center text-paper font-display font-semibold text-sm shadow-sm ${esFarmacia ? 'bg-fx' : 'bg-doc'}`}
+              {navbarMinimo && onSalir ? (
+                <button
+                  onClick={onSalir}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-ink-soft border border-ink-line hover:bg-paper-2 hover:text-blood transition-colors"
+                  aria-label="Cerrar sesión"
                 >
-                  {esFarmacia ? 'QF' : 'LF'}
+                  <Icon name="logout" className="text-base" />
+                  <span className="hidden sm:inline">Salir</span>
+                </button>
+              ) : !navbarMinimo ? (
+                <Link
+                  to="/"
+                  className="hidden md:inline-flex p-2.5 rounded-lg text-ink-soft hover:bg-paper-2 transition-colors"
+                  aria-label="Cerrar sesión"
+                >
+                  <Icon name="logout" />
+                </Link>
+              ) : null}
+              {/* Identidad: real si hay sesión; oculta en accesos (navbar mínima sin usuario) */}
+              {(!navbarMinimo || usuario) && (
+                <div className="hidden sm:flex items-center gap-2.5 pl-1 md:pl-2">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-paper font-display font-semibold text-sm shadow-sm ${esFarmacia ? 'bg-fx' : 'bg-doc'}`}
+                  >
+                    {iniciales}
+                  </div>
+                  <div className="hidden md:block">
+                    <p className="text-sm font-semibold text-ink leading-tight">{nombreUsuario}</p>
+                    <p className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                      {detalleUsuario}
+                    </p>
+                  </div>
                 </div>
-                <div className="hidden md:block">
-                  <p className="text-sm font-semibold text-ink leading-tight">
-                    {esFarmacia ? 'Lic. Y. Contreras' : 'Dra. Laura Fernández'}
-                  </p>
-                  <p className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
-                    {esFarmacia ? 'ID 2071 · Regente' : 'Med. General · ID 1043'}
-                  </p>
-                </div>
-              </div>
-              <button
-                className="lg:hidden p-2 -mr-1 rounded-lg text-ink-soft hover:bg-paper-2 transition-colors"
-                onClick={() => setMenuAbierto((v) => !v)}
-                aria-expanded={menuAbierto}
-                aria-controls="menu-modulos-movil"
-                aria-label="Abrir menú de módulos"
-              >
-                <Icon name="menu" />
-              </button>
+              )}
+              {!navbarMinimo && (
+                <button
+                  className="lg:hidden p-2 -mr-1 rounded-lg text-ink-soft hover:bg-paper-2 transition-colors"
+                  onClick={() => setMenuAbierto((v) => !v)}
+                  aria-expanded={menuAbierto}
+                  aria-controls="menu-modulos-movil"
+                  aria-label="Abrir menú de módulos"
+                >
+                  <Icon name="menu" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Menú de módulos (móvil) */}
-          {menuAbierto && (
+          {/* Menú de módulos (móvil) · no aplica en la navbar mínima */}
+          {menuAbierto && !navbarMinimo && (
             <div
               id="menu-modulos-movil"
               className="lg:hidden absolute inset-x-0 top-full border-b border-ink-line bg-card shadow-xl tab-fade"
@@ -243,7 +311,7 @@ export default function ClinicalShell({ module, children, sinSidebar = false }) 
           )}
         </header>
 
-        <div className="h-[calc(100vh-4rem)] overflow-hidden">{children}</div>
+        <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
       </div>
     );
   }
@@ -323,7 +391,7 @@ export default function ClinicalShell({ module, children, sinSidebar = false }) 
   );
 
   return (
-    <div className="min-h-screen bg-paper paper-noise text-ink font-ui">
+    <div className="h-dvh overflow-hidden flex flex-col bg-paper paper-noise text-ink font-ui">
       {/* Sidebar escritorio */}
       <aside className="hidden lg:flex fixed inset-y-0 left-0 w-[280px] bg-ink flex-col z-40">
         {contenidoNav}
@@ -350,8 +418,8 @@ export default function ClinicalShell({ module, children, sinSidebar = false }) 
       </aside>
 
       {/* Barra superior */}
-      <header className="lg:pl-[280px] sticky top-0 z-30 bg-paper/90 backdrop-blur-md border-b border-ink-line">
-        <div className="flex items-center justify-between gap-4 px-5 md:px-8 h-16">
+      <header className="lg:pl-[280px] relative z-30 shrink-0 bg-paper/90 backdrop-blur-md">
+        <div className="flex items-center justify-between gap-4 px-5 md:px-8 h-16 border-b border-ink-line">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setMenuAbierto(true)}
@@ -398,7 +466,7 @@ export default function ClinicalShell({ module, children, sinSidebar = false }) 
         </div>
       </header>
 
-      <div className="lg:pl-[280px] h-[calc(100vh-4rem)] overflow-hidden">{children}</div>
+      <div className="lg:pl-[280px] flex-1 min-h-0 overflow-hidden">{children}</div>
     </div>
   );
 }

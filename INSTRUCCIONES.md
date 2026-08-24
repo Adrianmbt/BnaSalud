@@ -25,6 +25,11 @@ La base de datos remota **todavía no tiene las migraciones 0010-0013 aplicadas*
    - `supabase/migrations/0011_optimizar_vinculos.sql`
    - `supabase/migrations/0012_vincular_medicos_pacientes.sql`
    - `supabase/migrations/0013_acceso_pacientes.sql`
+   - `supabase/migrations/0014_entrega_recetas.sql`
+   - `supabase/migrations/0015_cola_pacientes.sql`
+   - `supabase/migrations/0016_trazabilidad_recetas.sql`
+   - `supabase/migrations/0017_notificaciones.sql`
+   - `supabase/migrations/0018_bitacora_acciones.sql`
 2. **Sembrar datos** (idempotente):
    ```powershell
    venv\Scripts\python.exe -m app.db.seed
@@ -58,12 +63,12 @@ cd frontend
 npm run dev        # http://localhost:5173
 ```
 
-Rutas: `/` (home público), `/paciente` (portal paciente), `/doctores` (módulo médico), `/farmacia`, `/admin` (pendiente).
+Rutas: `/` (home público), `/paciente` (portal paciente), `/doctores` (módulo médico), `/laboratorio` (resultados de estudios), `/farmacia` (login farmacéutico), `/admin` (supervisión + auditoría).
 
 ## 5. Pendientes / sugerencias para la próxima jornada
 
-- Proteger también los endpoints de **farmacia** (`/farmacia/*`) con rol `farmaceutico`/`superusuario` (aún abiertos) y añadir pantalla de login al módulo Farmacia.
-- Revisar roles: `/rrhh/*` y `/emergencias` GET siguen públicos.
+- Aplicar en Supabase SQL Editor las migraciones **0017 (notificaciones)** y **0018 (bitácora de auditoría)** — sin ellas la bitácora responde 500 y no hay historial de correos.
+- Fases 8-10 del plan: reportes exportables, inventario multi-clínica con `movimientos_stock` (migración 0019) y despliegue.
 - Configurar **SMTP real** para el envío del código de recuperación y poner `PIN_EMITIR_DEMO=false`.
 - Cambiar `JWT_SECRET` por defecto en `.env` (valor seguro ≥ 32 bytes).
 - Probar el flujo completo con backend real: reservar cita → PIN inicial → portal → historial → médico tratante.

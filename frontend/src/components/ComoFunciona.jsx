@@ -31,7 +31,7 @@ const PASOS = [
   },
 ];
 
-export default function ComoFunciona({ onSolicitarCita }) {
+export default function ComoFunciona() {
   return (
     <section
       id="como-funciona"
@@ -101,20 +101,6 @@ export default function ComoFunciona({ onSolicitarCita }) {
                 </li>
               ))}
             </ol>
-
-            <div data-aos="fade-up" data-aos-delay="450" className="mt-10 flex flex-wrap items-center gap-4">
-              <button
-                onClick={onSolicitarCita}
-                className="inline-flex items-center gap-2.5 text-white px-7 py-4 rounded-xl font-bold text-sm shadow-xl active:scale-95 transition-all bg-doc hover:bg-doc-deep"
-              >
-                <Icon name="assignment_add" filled className="text-lg" />
-                Solicitar cita y abrir mi historia
-              </button>
-              <span className="font-mono text-[11px] uppercase tracking-widest text-ink-faint flex items-center gap-2">
-                <Icon name="lock" className="text-sm" />
-                Datos protegidos · Gratis
-              </span>
-            </div>
           </div>
 
           {/* Expediente clínico visual */}

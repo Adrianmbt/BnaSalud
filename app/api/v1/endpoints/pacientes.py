@@ -1,12 +1,15 @@
 from datetime import datetime
-from typing import Dict, List
+import html
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 
-from app.api.v1.deps import exigir_paciente_o_staff
+from app.api.v1.deps import exigir_paciente_o_staff, exigir_roles
 from app.api.v1.errors import db_fail, fail, not_found
 from app.api.v1.utils import parse_json_list, parse_list
 from app.core.database import supabase
+from app.core.mail import enviar_aviso_personal, smtp_habilitado
+from app.core.notificaciones import registrar as registrar_notificacion
 from app.schemas.schemas import (
     ConsultaDetalleResponse,
     HistoriaClinicaResponse,
@@ -14,6 +17,8 @@ from app.schemas.schemas import (
     MedicamentoItem,
     LaboratorioResultado,
     MedicoPacienteResponse,
+    NotificacionItem,
+    NotificarPacienteRequest,
     ProgresoPacienteResponse,
 )
 
@@ -205,6 +210,94 @@ def medico_tratante(
             estado="activo",
         )
     return MedicoPacienteResponse()
+
+
+@router.get("/{cedula}/notificaciones", response_model=List[NotificacionItem])
+def listar_notificaciones(
+    cedula: str,
+    _: dict = Depends(exigir_paciente_o_staff),
+) -> List[NotificacionItem]:
+    """Historial de notificaciones enviadas al paciente (portal del paciente)."""
+    fila = _buscar_paciente(cedula.strip())
+    try:
+        filas = (
+            supabase.table("notificaciones")
+            .select("*")
+            .eq("paciente_id", fila["id"])
+            .order("creado_en", desc=True)
+            .limit(50)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("consultar las notificaciones")
+    return [
+        NotificacionItem(
+            id=n["id"],
+            tipo=n.get("tipo", ""),
+            canal=n.get("canal", "correo"),
+            asunto=n.get("asunto", ""),
+            destinatario=n.get("destinatario"),
+            estado=n.get("estado", "pendiente"),
+            detalle=n.get("detalle"),
+            referencia=n.get("referencia"),
+            enviado_en=str(n.get("enviado_en"))[:16] if n.get("enviado_en") else None,
+            creado_en=str(n.get("creado_en"))[:16] if n.get("creado_en") else None,
+        )
+        for n in filas
+    ]
+
+
+@router.post("/{cedula}/notificar", status_code=status.HTTP_200_OK)
+def notificar_paciente(
+    cedula: str,
+    payload: NotificarPacienteRequest,
+    usuario: Dict[str, Any] = Depends(exigir_roles("superusuario")),
+) -> dict:
+    """Envía un aviso por correo al paciente y lo registra en su historial.
+
+    Uso manual del personal (rol superusuario); los avisos automáticos
+    (receta entregada, recordatorio de cita) se disparan por evento.
+    """
+    fila = _buscar_paciente(cedula.strip())
+    email = (fila.get("email") or "").strip()
+    nombre = (fila.get("nombre_completo") or "").strip()
+    if not email:
+        fail("El paciente no tiene un correo registrado.", status.HTTP_409_CONFLICT)
+
+    cuerpo_html = html.escape(payload.mensaje).replace("\n", "<br>")
+    enviado = enviar_aviso_personal(nombre.split(" ")[0], payload.asunto, cuerpo_html, email)
+    registrar_notificacion(
+        fila["id"],
+        "aviso_personal",
+        payload.asunto,
+        destinatario=email,
+        enviado=enviado,
+        detalle=f"Enviado por {usuario.get('username') or 'staff'}",
+    )
+
+    from app.core.bitacora import registrar_accion
+
+    registrar_accion(
+        usuario,
+        "notificacion_manual",
+        "historias_clinicas",
+        fila["id"],
+        detalle=f"Aviso a {email}",
+    )
+    return {
+        "status": "success",
+        "message": (
+            "Correo enviado al paciente."
+            if enviado
+            else "Notificación registrada en modo demo (SMTP no configurado)."
+            if not smtp_habilitado()
+            else "No se pudo enviar el correo; quedó registrado con estado 'error'."
+        ),
+        "correo_enviado": enviado,
+        "paciente_id": str(fila["id"]),
+    }
 
 
 @router.get("/{cedula}/historial", response_model=ProgresoPacienteResponse)

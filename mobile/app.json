@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Salud Barcelona",
+    "slug": "salud-barcelona-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0f2537"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ve.gob.bna.salud"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f2537"
+      },
+      "package": "ve.gob.bna.salud"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

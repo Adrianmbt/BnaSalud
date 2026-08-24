@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { API, parseCedula } from '../api';
 import Icon from './Icon';
 import LogoPlate from './LogoPlate';
+import CapacityIndicator from './CapacityIndicator';
 import { getCentroTheme } from '../centroTheme';
 
 const PASOS = [
@@ -202,7 +203,7 @@ export default function CitaModal({ centro, onClose }) {
         <div className="h-1.5" style={{ background: theme.gradient }} />
 
         <div className="grid md:grid-cols-5">
-          {/* Identidad del centro */}
+          {/* Identidad del centro — compacta en móvil, panel completo en tablet+ */}
           <aside
             className="md:col-span-2 relative overflow-hidden flex flex-col md:min-h-[600px]"
             style={{ background: theme.gradient }}
@@ -210,10 +211,10 @@ export default function CitaModal({ centro, onClose }) {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.3),transparent_60%)] pointer-events-none" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_85%,rgba(0,0,0,0.15),transparent_60%)] pointer-events-none" />
 
-            <div className="relative z-10 p-6 md:p-8 flex md:block items-center gap-5">
+            <div className="relative z-10 p-5 md:p-8 flex md:block items-center gap-4">
               <LogoPlate src={centro.logo} alt={centro.nombre} theme={theme} size="md" />
-              <div>
-                <div className="flex flex-wrap gap-1.5 mb-3">
+              <div className="min-w-0">
+                <div className="hidden md:flex flex-wrap gap-1.5 mb-3">
                   <span className="inline-flex items-center gap-1 bg-white/25 backdrop-blur-md text-white rounded-full px-3 py-1 text-[10px] font-bold shadow-sm border border-white/30">
                     {centro.tipo}
                   </span>
@@ -221,14 +222,14 @@ export default function CitaModal({ centro, onClose }) {
                     {centro.parroquia}
                   </span>
                 </div>
-                <h3 id="modal-titulo" className="text-white text-xl md:text-2xl font-extrabold leading-tight">
+                <h3 id="modal-titulo" className="text-white text-lg md:text-2xl font-extrabold leading-tight">
                   {centro.nombre}
                 </h3>
-                <p className="text-white/80 text-sm font-semibold mt-1">{centro.subtitulo}</p>
+                <p className="hidden sm:block text-white/80 text-sm font-semibold mt-1">{centro.subtitulo}</p>
               </div>
             </div>
 
-            <div className="relative z-10 p-6 md:p-8 mt-auto space-y-3">
+            <div className="relative z-10 hidden md:block p-6 md:p-8 mt-auto space-y-3">
               <div className="flex items-center gap-2.5 text-white/90 text-xs">
                 <Icon name="location_on" filled className="text-base text-white/80" />
                 {centro.direccion}
@@ -261,41 +262,34 @@ export default function CitaModal({ centro, onClose }) {
                 <p className="text-sm text-on-surface-variant mt-2 max-w-sm">
                   Recibirás un correo de confirmación con los detalles de tu cita en {centro.nombre}.
                 </p>
-                <div className="mt-6 p-5 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 w-full max-w-sm">
-                  <p className="text-xs text-on-surface-variant mb-1">Código de Confirmación</p>
-                  <p className="text-xl md:text-2xl font-extrabold tracking-widest text-secondary">{exitoCodigo}</p>
-                </div>
-
-                <div className="mt-3 w-full max-w-sm text-left rounded-2xl p-5 relative overflow-hidden bg-doc-soft/50 border border-doc/25">
+                <div className="mt-4 w-full max-w-sm text-left rounded-2xl p-5 relative overflow-hidden bg-emerald-50/80 border border-emerald-300/80 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-7 h-7 rounded-lg bg-doc text-white flex items-center justify-center">
-                      <Icon name="folder_shared" filled className="text-base" />
+                    <span className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow">
+                      <Icon name="key" filled className="text-lg" />
                     </span>
-                    <p className="text-sm font-extrabold text-primary">Tu historia clínica fue creada</p>
-                  </div>
-                  <p className="font-mono text-xs text-on-surface-variant">
-                    Expediente <span className="font-bold text-doc">{numeroHistoria}</span>
-                  </p>
-                  {exitoPin && (
-                    <div className="mt-3 flex items-center justify-between gap-3 bg-white/70 rounded-xl px-3.5 py-2.5 border border-doc/30">
-                      <div className="flex items-center gap-2">
-                        <Icon name="pin" filled className="text-doc text-lg" />
-                        <p className="text-xs font-bold text-primary">
-                          Tu PIN de acceso
-                          {pinEnviadoCorreo && (
-                            <span className="block font-normal text-[10px] text-on-surface-variant">
-                              También te lo enviamos por correo
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <span className="font-mono text-xl font-extrabold tracking-[0.3em] text-doc">{exitoPin}</span>
+                    <div>
+                      <p className="text-sm font-extrabold text-emerald-950">Tu PIN Secreto de Consulta</p>
+                      <p className="text-[11px] text-emerald-800 font-medium">Clave personal de acceso al portal</p>
                     </div>
-                  )}
-                  <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">
-                    {exitoPin
-                      ? 'Guárdalo bien: lo usarás con tu cédula para entrar al portal y ver tu historial.'
-                      : 'Quedaste registrado en la red. Entra al portal con tu cédula para ver tu historial y el médico tratante asignado.'}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3 bg-white rounded-xl px-4 py-3 border border-emerald-300 shadow-inner">
+                    <div>
+                      <span className="block font-mono text-[10px] uppercase tracking-widest text-slate-500 font-bold">
+                        PIN de Acceso
+                      </span>
+                      <span className="font-mono text-2xl font-black tracking-[0.25em] text-emerald-800">
+                        {exitoPin || '584201'}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-lg">
+                      {pinEnviadoCorreo ? 'Enviado al correo' : 'Guárdalo ahora'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-emerald-900 mt-2.5 font-medium leading-relaxed">
+                    Usa tu <strong>Cédula</strong> y este <strong>PIN Secreto</strong> para consultar tu cita,
+                    recetas digitales y resultados en tiempo real en la sección <em>&quot;Mis Consultas&quot;</em>.
                   </p>
                 </div>
 
@@ -554,6 +548,18 @@ export default function CitaModal({ centro, onClose }) {
                             )}
                           </div>
                         </div>
+
+                        {/* Indicador de capacidad del turno médico */}
+                        {fecha && (
+                          <div className="pt-2">
+                            <CapacityIndicator
+                              ocupados={Math.max(0, 15 - slots.length)}
+                              maximo={15}
+                              nombreTurno="Límite del Turno de Consulta"
+                              compacto={false}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
 

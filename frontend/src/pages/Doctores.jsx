@@ -18,6 +18,8 @@ import Divider from '@mui/material/Divider';
 import Icon from '../components/Icon';
 import HistorialLinea from '../components/HistorialLinea';
 import DemoSwitcher from '../components/DemoSwitcher';
+import CapacityIndicator from '../components/CapacityIndicator';
+import PrescripcionInput from '../components/PrescripcionInput';
 import { API, cerrarSesion } from '../api';
 import { DEMO, CIE10_DEMO, CATALOGO_EXAMENES, CATEGORIA_ESTILO, GRUPOS_ESTILO, CENTROS_DEMO, getPersonaDemo, PIN_POR_DEFECTO } from '../clinical/demo';
 import { getCentroTheme } from '../centroTheme';
@@ -54,10 +56,10 @@ function gradientesTema(t) {
 
 const fieldSx = {
   '& .MuiOutlinedInput-root': {
-    backgroundColor: '#fbfbfd',
+    backgroundColor: 'var(--color-card)',
     borderRadius: 2,
     fontSize: '0.9rem',
-    '& fieldset': { borderColor: 'var(--color-outline-variant)' },
+    '& fieldset': { borderColor: 'var(--color-ink-line)' },
     '&:hover fieldset': { borderColor: 'var(--color-secondary)' },
     '&.Mui-focused fieldset': { borderColor: 'var(--color-secondary)', borderWidth: 2 },
   },
@@ -934,6 +936,16 @@ export default function Doctores() {
           </button>
         </div>
 
+        {/* Indicador de capacidad del turno del médico */}
+        <div className="mb-4">
+          <CapacityIndicator
+            ocupados={(cola.espera || []).length + (cola.consulta || []).length + atendidosHoy}
+            maximo={15}
+            nombreTurno="Límite del Turno Médico"
+            compacto={false}
+          />
+        </div>
+
         {/* Control segmentado */}
         <div className="flex bg-surface-container rounded-full p-1" role="tablist" aria-label="Filtro de cola">
           {TABS.map((t) => {
@@ -1156,24 +1168,24 @@ export default function Doctores() {
 
   if (!sesion) {
     return (
-      <div className="min-h-screen bg-surface text-primary font-ui" style={varsCentro}>
+      <div className="min-h-screen bg-paper paper-noise text-ink font-ui" style={varsCentro}>
         <div className="min-h-screen flex items-center justify-center p-6">
           <div className="w-full max-w-md">
-            <div className="bg-surface-container-low border border-outline-variant rounded-3xl p-8 relative overflow-hidden">
+            <div className="bg-card border border-ink-line rounded-lg corner-tick shadow-[0_1px_2px_rgba(20,35,47,0.05)] p-8 relative overflow-hidden">
               <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
               <div className="relative">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg mb-5" style={{ background: temaCentro.gradient }}>
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center text-white shadow-lg mb-5" style={{ background: temaCentro.gradient }}>
                   <Icon name="stethoscope" filled className="text-2xl" />
                 </div>
-                <h2 className="font-display text-2xl font-bold text-primary">Acceso del personal de salud</h2>
-                <p className="text-sm text-on-surface-variant mt-1">
+                <h2 className="font-display text-2xl font-bold text-ink">Acceso del personal de salud</h2>
+                <p className="text-sm text-ink-soft mt-1">
                   Ingresa con tu usuario y contraseña institucional para atender la cola y registrar consultas.
                 </p>
 
                 {loginError && (
-                  <div className="mt-5 p-3 bg-error-container rounded-xl border border-error/20 flex items-center gap-2" role="alert">
-                    <Icon name="error" className="text-error text-lg" />
-                    <p className="text-xs font-semibold text-error">{loginError}</p>
+                  <div className="mt-5 p-3 bg-blood-soft rounded-md border border-blood/30 flex items-center gap-2" role="alert">
+                    <Icon name="error" className="text-blood text-lg" />
+                    <p className="text-xs font-semibold text-blood">{loginError}</p>
                   </div>
                 )}
 
@@ -1221,10 +1233,10 @@ export default function Doctores() {
                   </Button>
                 </form>
 
-                <div className="mt-5 pt-4 border-t border-outline-variant/40">
-                  <p className="text-[11px] text-on-surface-variant text-center">
+                <div className="mt-5 pt-4 border-t border-ink-line">
+                  <p className="text-[11px] text-ink-faint text-center">
                     Modo demostración: use cualquier usuario de la semilla con clave{' '}
-                    <span className="font-mono font-bold text-secondary">1234</span>
+                    <span className="font-mono font-bold text-doc">1234</span>
                     <br />
                     (ej. <span className="font-mono">lfernandez</span> ·{' '}
                     <span className="font-mono">avalera</span> ·{' '}
@@ -1237,7 +1249,7 @@ export default function Doctores() {
             <p className="text-center mt-4">
               <Link
                 to="/"
-                className="text-xs font-bold text-on-surface-variant hover:text-secondary transition-colors"
+                className="text-xs font-bold text-ink-faint hover:text-doc transition-colors"
               >
                 ← Volver al sitio público
               </Link>
@@ -1250,14 +1262,14 @@ export default function Doctores() {
   }
 
   return (
-    <div className="min-h-screen bg-surface text-primary font-ui" style={varsCentro}>
+    <div className="h-dvh overflow-hidden flex flex-col bg-paper paper-noise text-ink font-ui" style={varsCentro}>
       {/* ===== Barra superior ===== */}
-      <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-outline-variant">
-        <div className="flex items-center gap-4 px-4 md:px-6 h-16">
+      <header className="relative z-40 shrink-0 bg-paper/90 backdrop-blur-md">
+        <div className="flex items-center gap-3 md:gap-4 px-4 md:px-6 h-16 border-b border-ink-line">
           {/* Menú: abre/cierra la cola de turnos */}
           <button
             onClick={() => setQueueAbierta((v) => !v)}
-            className="p-2 -ml-2 rounded-full text-on-surface-variant hover:bg-surface-container lg:ring-1 lg:ring-outline-variant transition-colors"
+            className="p-2 -ml-2 rounded-full text-ink-soft hover:bg-paper-2 lg:ring-1 lg:ring-ink-line transition-colors"
             aria-label={queueAbierta ? 'Cerrar cola de turnos' : 'Abrir cola de turnos'}
             aria-expanded={queueAbierta}
           >
@@ -1268,7 +1280,7 @@ export default function Doctores() {
 
           <IconButton
             aria-label="Notificaciones"
-            sx={{ color: 'var(--color-on-surface-variant)' }}
+            sx={{ color: 'var(--color-ink-soft)' }}
           >
             <Badge badgeContent={notificaciones} color="error">
               <Icon name="notifications" className="text-xl" />
@@ -1280,19 +1292,19 @@ export default function Doctores() {
               {iniciales(MEDICO.nombre)}
             </Avatar>
             <div className="hidden xl:block">
-              <p className="text-sm font-bold text-primary leading-tight">{MEDICO.nombre}</p>
-              <p className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant">
+              <p className="text-sm font-bold text-ink leading-tight">{MEDICO.nombre}</p>
+              <p className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
                 {MEDICO.especialidad} · ID {MEDICO.id}
               </p>
             </div>
           </div>
 
-          <div className="w-px h-8 bg-outline-variant/70 hidden sm:block" aria-hidden="true" />
+          <div className="w-px h-8 bg-ink-line hidden sm:block" aria-hidden="true" />
 
           <Link
             to="/"
             onClick={cerrarSesionDoctor}
-            className="flex items-center justify-center w-10 h-10 rounded-full text-on-surface-variant hover:text-error hover:bg-error/5 transition-colors"
+            className="flex items-center justify-center w-10 h-10 rounded-full text-ink-soft hover:text-blood hover:bg-blood-soft/60 transition-colors"
             aria-label="Cerrar sesión y volver al portal"
             title="Cerrar sesión"
           >
@@ -1301,24 +1313,35 @@ export default function Doctores() {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
-        {/* ===== Cola de turnos (encoge la vista al abrirse) ===== */}
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
+        {/* ===== Fondo de la cola en móvil (overlay) ===== */}
+        {queueAbierta && (
+          <div
+            className="fixed inset-0 z-30 bg-black/25 lg:hidden"
+            onClick={() => setQueueAbierta(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* ===== Cola de turnos (overlay en móvil, empuja el contenido en escritorio) ===== */}
         <aside
-          className={`shrink-0 w-[min(320px,85vw)] bg-surface border-r border-outline-variant flex flex-col transition-all duration-300 ease-out ${
-            queueAbierta ? 'ml-0' : '-ml-[min(320px,85vw)]'
+          className={`fixed lg:relative z-40 inset-y-0 left-0 shrink-0 w-[min(320px,85vw)] bg-card border-r border-ink-line flex flex-col transition-all duration-300 ease-out ${
+            queueAbierta
+              ? 'translate-x-0 lg:translate-x-0 ml-0'
+              : '-translate-x-full lg:translate-x-0 -ml-[min(320px,85vw)]'
           }`}
           aria-label="Cola de pacientes"
         >
           {contenidoCola}
         </aside>
 
-        {/* ===== Área de consulta (se encoge y se expande junto al drawer) ===== */}
-        <main className="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden">
+        {/* ===== Área de consulta ===== */}
+        <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {activo ? (
             <>
               <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
                 {/* Cabecera paciente */}
-                <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6 relative overflow-hidden">
+                <section className="bg-card border border-ink-line rounded-lg corner-tick p-5 md:p-6 relative overflow-hidden">
                   <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
                   <div className="relative flex flex-col md:flex-row gap-5 md:items-center">
                     <div className="relative shrink-0 self-start">
@@ -1400,15 +1423,16 @@ export default function Doctores() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2 shrink-0">
+                    <div className="flex gap-2 w-full sm:w-auto shrink-0">
                       <Button
                         variant="outlined"
                         size="small"
+                        fullWidth
                         startIcon={<Icon name="history" className="text-lg" />}
                         onClick={() => setHistorialAbierto(true)}
                         sx={{
-                          borderColor: 'var(--color-outline-variant)',
-                          color: 'var(--color-on-surface-variant)',
+                          borderColor: 'var(--color-ink-line)',
+                          color: 'var(--color-ink-soft)',
                           textTransform: 'none',
                           borderRadius: 3,
                           fontWeight: 600,
@@ -1419,11 +1443,12 @@ export default function Doctores() {
                       <Button
                         variant="outlined"
                         size="small"
+                        fullWidth
                         startIcon={<Icon name="print" className="text-lg" />}
                         onClick={() => setRecetaAbierto(true)}
                         sx={{
-                          borderColor: 'var(--color-outline-variant)',
-                          color: 'var(--color-on-surface-variant)',
+                          borderColor: 'var(--color-ink-line)',
+                          color: 'var(--color-ink-soft)',
                           textTransform: 'none',
                           borderRadius: 3,
                           fontWeight: 600,
@@ -1647,91 +1672,14 @@ export default function Doctores() {
                           </p>
                         </div>
                       </div>
-                      {recetasContables.length > 0 && (
-                        <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-surface border border-outline-variant text-on-surface-variant">
-                          {disponibles}/{recetasContables.length} disponibles{sinStock > 0 && ` · ${sinStock} sin stock`}
-                        </span>
-                      )}
                     </div>
-                    <div className="space-y-3 mt-4">
-                      {recetas.length === 0 && (
-                        <p className="text-sm text-on-surface-variant italic">Sin medicamentos recetados.</p>
-                      )}
-                      {recetas.map((r, i) => {
-                        const disp = disponibilidad(r.nombre);
-                        return (
-                          <div key={i} className="flex items-start gap-3">
-                            <span className="font-mono text-xs pt-3 w-6 text-on-surface-variant">
-                              {(i + 1).toString().padStart(2, '0')}
-                            </span>
-                            <div className="flex-1 min-w-0 space-y-1.5">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <TextField
-                                  size="small"
-                                  value={r.nombre}
-                                  onChange={(e) => cambiarReceta(i, 'nombre', e.target.value)}
-                                  placeholder="Medicamento y concentración (ej. Amoxicilina 500mg)"
-                                  sx={fieldSx}
-                                />
-                                <TextField
-                                  size="small"
-                                  value={r.posologia}
-                                  onChange={(e) => cambiarReceta(i, 'posologia', e.target.value)}
-                                  placeholder="Posología (ej. 1 cáp. c/8 h por 7 días)"
-                                  sx={fieldSx}
-                                />
-                              </div>
-                              {r.nombre.trim() && (
-                                <div className="flex items-center gap-2 pl-0">
-                                  {disp.estado === 'ok' && (
-                                    <Chip
-                                      size="small"
-                                      icon={<Icon name="check_circle" className="text-sm !text-success" />}
-                                      label={`Disponible · ${disp.stock} en farmacia`}
-                                      sx={{ bgcolor: 'var(--color-success)', color: '#fff', fontWeight: 600, fontSize: '0.68rem' }}
-                                    />
-                                  )}
-                                  {disp.estado === 'bajo' && (
-                                    <Chip
-                                      size="small"
-                                      icon={<Icon name="warning" className="text-sm" />}
-                                      label={`Stock bajo · ${disp.stock} en farmacia`}
-                                      sx={{ bgcolor: 'var(--color-amber)', color: '#fff', fontWeight: 600, fontSize: '0.68rem' }}
-                                    />
-                                  )}
-                                  {disp.estado === 'no' && (
-                                    <Chip
-                                      size="small"
-                                      icon={<Icon name="error" className="text-sm !text-on-error-container" />}
-                                      label="No disponible"
-                                      sx={{ bgcolor: 'var(--color-error-container)', color: 'var(--color-on-error-container)', fontWeight: 700, fontSize: '0.68rem' }}
-                                    />
-                                  )}
-                                  {disp.estado === 'none' && (
-                                    <span className="font-mono text-[10px] text-on-surface-variant">
-                                      Escriba el medicamento para verificar disponibilidad
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            <IconButton
-                              onClick={() => quitarReceta(i)}
-                              sx={{ color: 'var(--color-error)', mt: 0.5 }}
-                              aria-label={`Quitar receta ${i + 1}`}
-                            >
-                              <Icon name="delete" className="text-lg" />
-                            </IconButton>
-                          </div>
-                        );
-                      })}
-                      <button
-                        onClick={agregarReceta}
-                        className="inline-flex items-center gap-2 text-sm font-semibold text-secondary hover:underline underline-offset-4"
-                      >
-                        <Icon name="add" className="text-lg" />
-                        Agregar medicamento
-                      </button>
+                    <div className="mt-4">
+                      <PrescripcionInput
+                        recetas={recetas}
+                        onChange={cambiarReceta}
+                        onAdd={agregarReceta}
+                        onRemove={quitarReceta}
+                      />
                     </div>
                   </section>
                   </div>
@@ -2177,15 +2125,16 @@ export default function Doctores() {
                 )}
               </div>
 
-              {/* Barra de acciones inferior */}
-              <div className="shrink-0 border-t border-outline-variant bg-surface/95 backdrop-blur-md px-4 md:px-6 py-3">
-                <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+              {/* Barra de acciones inferior (desplazable en móvil, sin apilarse) */}
+              <div className="shrink-0 border-t border-ink-line bg-paper/95 backdrop-blur-md px-4 md:px-6 py-3">
+                <div className="flex items-center gap-2 md:gap-3 flex-nowrap overflow-x-auto ledger-scroll">
                   <Button
                     variant="outlined"
                     size="small"
                     startIcon={<Icon name="science" className="text-base !text-fx" />}
                     onClick={() => abrirOrden('laboratorio')}
-                    sx={{ borderColor: 'var(--color-outline-variant)', color: 'var(--color-on-surface-variant)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600 }}
+                    className="shrink-0"
+                    sx={{ borderColor: 'var(--color-ink-line)', color: 'var(--color-ink-soft)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600, whiteSpace: 'nowrap' }}
                   >
                     Orden de Laboratorio
                   </Button>
@@ -2194,7 +2143,8 @@ export default function Doctores() {
                     size="small"
                     startIcon={<Icon name="image_search" className="text-base !text-doc" />}
                     onClick={() => abrirOrden('imagen')}
-                    sx={{ borderColor: 'var(--color-outline-variant)', color: 'var(--color-on-surface-variant)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600 }}
+                    className="shrink-0"
+                    sx={{ borderColor: 'var(--color-ink-line)', color: 'var(--color-ink-soft)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600, whiteSpace: 'nowrap' }}
                   >
                     Orden de Imagen
                   </Button>
@@ -2204,7 +2154,8 @@ export default function Doctores() {
                     color="error"
                     startIcon={<Icon name="emergency" className="text-base" />}
                     onClick={() => setAviso('Alerta de urgencia notificada al equipo de emergencias.')}
-                    sx={{ borderColor: 'var(--color-error)', color: 'var(--color-error)', textTransform: 'none', borderRadius: 2.5, fontWeight: 700 }}
+                    className="shrink-0"
+                    sx={{ borderColor: 'var(--color-error)', color: 'var(--color-error)', textTransform: 'none', borderRadius: 2.5, fontWeight: 700, whiteSpace: 'nowrap' }}
                   >
                     Urgencia
                   </Button>
@@ -2213,8 +2164,8 @@ export default function Doctores() {
                     size="small"
                     startIcon={<Icon name="print" className="text-base" />}
                     onClick={() => setRecetaAbierto(true)}
-                    className="order-last md:order-none flex-1 md:flex-none"
-                    sx={{ borderColor: 'var(--color-outline-variant)', color: 'var(--color-on-surface-variant)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600 }}
+                    className="order-last md:order-none flex-1 md:flex-none shrink-0 whitespace-nowrap"
+                    sx={{ borderColor: 'var(--color-ink-line)', color: 'var(--color-ink-soft)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600 }}
                   >
                     Imprimir Receta
                   </Button>

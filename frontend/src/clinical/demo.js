@@ -8,6 +8,9 @@
 //     citas, órdenes y médico tratante. PIN por defecto: 1234.
 //   • DOCTORES_DEMO  → 4 doctores con credenciales de acceso
 //     (usuario + clave 1234) y su cola de pacientes.
+//   • FARMACIA_DEMO  → personal de farmacia con credenciales
+//     (clave 1234): jefe_farmacia gestiona el stock; el
+//     farmaceutico solo despacha y entrega recetas.
 //   • La "persona activa" se alterna con el panel Modo Demo
 //     (componente DemoSwitcher) y se persiste en localStorage.
 // ============================================================
@@ -571,6 +574,31 @@ export const DOCTORES_DEMO = [
 export const COLA_DEMO = DOCTORES_DEMO[0].cola;
 
 // ============================================================
+// Personal de farmacia de la semilla (credenciales demo)
+// jefe_farmacia → administra inventario, alertas y reposiciones
+// farmaceutico  → solo despacho y entrega según receta
+// ============================================================
+
+export const FARMACIA_DEMO = [
+  {
+    username: 'ycontreras',
+    password: PIN_POR_DEFECTO,
+    rol: 'jefe_farmacia',
+    nombre: 'Lic. Yolanda Contreras',
+    clinica_id: 2,
+    personal_id: 2071,
+  },
+  {
+    username: 'cpereira',
+    password: PIN_POR_DEFECTO,
+    rol: 'farmaceutico',
+    nombre: 'QF. Carlos Pereira',
+    clinica_id: 2,
+    personal_id: 2072,
+  },
+];
+
+// ============================================================
 // Otros catálogos demo (centros, inventario, exámenes, CIE-10)
 // ============================================================
 
@@ -1001,21 +1029,21 @@ function _clonar(obj) {
 export const DEMO = {
   /* === Autenticación (modo demo) === */
   login: async (credenciales) => {
-    const doctor = DOCTORES_DEMO.find(
-      (d) =>
-        d.username === String(credenciales.username || '').trim().toLowerCase() &&
-        d.password === String(credenciales.password || '')
-    );
-    if (!doctor) throw new Error('Usuario o contraseña incorrectos.');
+    const u = String(credenciales.username || '').trim().toLowerCase();
+    const p = String(credenciales.password || '');
+    const doctor = DOCTORES_DEMO.find((d) => d.username === u && d.password === p);
+    const farmacia = FARMACIA_DEMO.find((f) => f.username === u && f.password === p);
+    const persona = doctor || farmacia;
+    if (!persona) throw new Error('Usuario o contraseña incorrectos.');
     return {
-      token: `demo-staff-${doctor.username}`,
+      token: `demo-staff-${persona.username}`,
       usuario: {
-        username: doctor.username,
-        rol: doctor.rol,
-        nombre: doctor.nombre,
-        especialidad: doctor.especialidad,
-        clinica_id: doctor.clinica_id,
-        personal_id: doctor.personal_id,
+        username: persona.username,
+        rol: persona.rol,
+        nombre: persona.nombre,
+        especialidad: persona.especialidad,
+        clinica_id: persona.clinica_id,
+        personal_id: persona.personal_id,
       },
     };
   },
@@ -1085,6 +1113,76 @@ export const DEMO = {
     const paciente = pacientePorCedula(cedula);
     if (!paciente) throw new Error('Paciente no encontrado');
     return _clonar(paciente.citas);
+  },
+  crearCita: async (payload) => {
+    const cedulaLimpia = String(payload.paciente?.cedula || '').replace(/\D/g, '');
+    let paciente = pacientePorCedula(cedulaLimpia);
+    const pinSecreto = String(Math.floor(Math.random() * 900000) + 100000);
+    const codigoConfirmacion = `CITAB-2026-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+    if (!paciente && payload.paciente) {
+      paciente = {
+        perfil: {
+          id: `hc-paciente-${cedulaLimpia}`,
+          numero_historia: `HIS-${payload.paciente.tipo_cedula || 'V'}${cedulaLimpia}`,
+          tipo_cedula: payload.paciente.tipo_cedula || 'V',
+          cedula: cedulaLimpia,
+          nombre_completo: payload.paciente.nombre_completo || 'Paciente Registrado',
+          fecha_nacimiento: '1990-01-01',
+          telefono: '04141234567',
+          email: payload.paciente.email || 'paciente@bna.gob.ve',
+          tipo_sangre: 'O+',
+          antecedentes_medicos: [],
+          alergias: [],
+        },
+        pin: pinSecreto,
+        historial: [],
+        citas: [],
+        ordenes: [],
+        medicoTratante: {
+          nombre: 'Dra. Laura Fernández',
+          especialidad: 'Medicina General',
+          tipo: 'principal',
+          estado: 'activo',
+        },
+      };
+      PACIENTES_DEMO.push(paciente);
+    }
+
+    const nuevaCita = {
+      id: `cita-demo-${Date.now()}`,
+      codigo_confirmacion: codigoConfirmacion,
+      centro_id: payload.centro_id || 2,
+      centro_salud: 'Clínica de los Trabajadores (CITAB)',
+      especialidad_id: payload.especialidad_id || 101,
+      especialidad: 'Medicina General',
+      fecha_cita: payload.fecha_cita || new Date().toISOString().slice(0, 10),
+      hora_inicio: payload.hora_inicio || '08:00:00',
+      motivo: payload.motivo || 'Solicitud web portal municipal',
+      estado: 'confirmada',
+      origen: 'cita_web',
+      paciente_id: paciente?.perfil?.id || `hc-${cedulaLimpia}`,
+      paciente_nombre: payload.paciente?.nombre_completo || paciente?.perfil?.nombre_completo,
+    };
+
+    if (paciente) {
+      paciente.citas.unshift(nuevaCita);
+    }
+
+    return {
+      id: nuevaCita.id,
+      codigo_confirmacion: codigoConfirmacion,
+      paciente_id: nuevaCita.paciente_id,
+      centro_id: nuevaCita.centro_id,
+      especialidad_id: nuevaCita.especialidad_id,
+      fecha_cita: nuevaCita.fecha_cita,
+      hora_inicio: nuevaCita.hora_inicio,
+      motivo: nuevaCita.motivo,
+      origen: nuevaCita.origen,
+      estado: nuevaCita.estado,
+      pin_inicial: paciente?.pin || pinSecreto,
+      pin_enviado_correo: !!payload.paciente?.email,
+    };
   },
   ordenesPaciente: async (pacienteId) => {
     const paciente = pacientePorId(pacienteId);
@@ -1208,6 +1306,45 @@ export const DEMO = {
       items = items.filter((m) => nivelStock(m.stock_actual, m.stock_minimo) !== 'OK');
     }
     return items;
+  },
+
+  /* === Notificaciones (Fase 5) === */
+  notificacionesPaciente: async (cedula) => {
+    const digitos = String(cedula || '').replace(/\D/g, '');
+    const mias = pendientesStore.filter(
+      (r) => String(r.paciente_cedula).replace(/\D/g, '') === digitos
+    );
+    const ahora = new Date().toISOString().slice(0, 16);
+    const base = [
+      {
+        id: 1,
+        tipo: 'bienvenida',
+        canal: 'correo',
+        asunto: '¡Bienvenido a BNA Salud! Tu PIN de acceso al portal',
+        destinatario: 'paciente@demo.local',
+        estado: 'demo',
+        detalle: 'SMTP no configurado (modo demo)',
+        referencia: null,
+        enviado_en: ahora,
+        creado_en: ahora,
+      },
+    ];
+    return base.concat(
+      mias
+        .filter((r) => r.estado === 'ENTREGADA' || r.estado === 'RECIBIDA')
+        .map((r, i) => ({
+          id: 10 + i,
+          tipo: 'receta_entregada',
+          canal: 'correo',
+          asunto: `Receta ${r.codigo_receta} entregada — confirma en tu portal`,
+          destinatario: 'paciente@demo.local',
+          estado: 'demo',
+          detalle: 'SMTP no configurado (modo demo)',
+          referencia: `receta:${r.id}`,
+          enviado_en: r.entregada_at ? String(r.entregada_at) : ahora,
+          creado_en: r.entregada_at ? String(r.entregada_at) : ahora,
+        }))
+    );
   },
 
   /* === Consultas / órdenes === */

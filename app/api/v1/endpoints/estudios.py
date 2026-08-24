@@ -4,11 +4,13 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.v1.deps import exigir_staff, usuario_actual
+from app.api.v1.deps import exigir_roles, exigir_staff, usuario_actual
 from app.core.config import settings
 from app.api.v1.errors import db_fail, fail, not_found
 from app.api.v1.utils import parse_json_list
+from app.core.bitacora import registrar_accion
 from app.core.database import supabase
+from app.core.notificaciones import notificar_resultados_disponibles
 from app.schemas.schemas import (
     EstudioProcesadoResponse,
     OrdenEstudiosCreate,
@@ -179,10 +181,13 @@ def _generar_comprobante_orden() -> str:
 
 
 def _a_orden(fila: dict) -> OrdenEstudiosResponse:
+    paciente = fila.get("historias_clinicas") or {}
     return OrdenEstudiosResponse(
         id=fila["id"],
         comprobante_orden=fila.get("comprobante_orden", ""),
         paciente_id=fila.get("paciente_id", ""),
+        paciente_cedula=paciente.get("cedula"),
+        paciente_nombre=paciente.get("nombre_completo"),
         consulta_id=fila.get("consulta_id"),
         cita_id=fila.get("cita_id"),
         origen=fila.get("origen", "consulta"),
@@ -241,6 +246,32 @@ def crear_orden(
     return _a_orden(creado.data[0])
 
 
+@router.get("/ordenes", response_model=List[OrdenEstudiosResponse])
+def listar_ordenes_general(
+    estado: Optional[str] = None,
+    limite: int = 50,
+    _: dict = Depends(exigir_staff),
+) -> List[OrdenEstudiosResponse]:
+    """Listado general de órdenes de estudios para la unidad de laboratorio.
+
+    Filtrable por estado ('solicitada' | 'con_resultados'); trae los datos
+    del paciente para la cola de trabajo del personal.
+    """
+    try:
+        query = (
+            supabase.table("ordenes_estudios")
+            .select("*, historias_clinicas(id, cedula, nombre_completo)")
+            .order("created_at", desc=True)
+            .limit(limite)
+        )
+        if estado:
+            query = query.eq("estado", estado)
+        filas = query.execute().data or []
+    except Exception:
+        db_fail("listar las órdenes de estudios")
+    return [_a_orden(f) for f in filas]
+
+
 @router.get("/ordenes/paciente/{paciente_id}", response_model=List[OrdenEstudiosResponse])
 def listar_ordenes(
     paciente_id: str,
@@ -274,9 +305,12 @@ def listar_ordenes(
 def registrar_resultados(
     orden_id: str,
     payload: OrdenResultadosUpdate,
-    _: dict = Depends(exigir_staff),
+    usuario: dict = Depends(exigir_roles("medico", "enfermero", "superusuario")),
 ) -> OrdenEstudiosResponse:
-    """Registra los resultados de una orden previamente emitida."""
+    """Registra los resultados de una orden previamente emitida.
+
+    Rol: enfermero (laboratorio), médico o superusuario.
+    """
     try:
         filas = (
             supabase.table("ordenes_estudios")
@@ -321,4 +355,13 @@ def registrar_resultados(
         )
     except Exception:
         db_fail("recargar la orden actualizada")
+
+    # Fase 6: aviso al paciente cuando los resultados quedan disponibles.
+    try:
+        notificar_resultados_disponibles(fila)
+    except Exception:
+        pass
+
+    registrar_accion(usuario, "resultados_orden", "ordenes_estudios", orden_id)
+
     return _a_orden(fila)

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.api.v1.deps import exigir_roles, exigir_staff
 from app.api.v1.errors import db_fail, fail, not_found
+from app.core.bitacora import registrar_accion
 from app.core.database import supabase
 from app.schemas.schemas import CheckInRequest, ColaItemSchema, ColaListaResponse
 
@@ -166,6 +167,13 @@ def registrar_checkin(
         creado = supabase.table("cola_pacientes").insert(registro).execute()
     except Exception:
         db_fail("registrar el check-in en la cola")
+    registrar_accion(
+        usuario,
+        "checkin_cola",
+        "cola_pacientes",
+        creado.data[0]["id"],
+        detalle=f"Turno {registro['token']} · {registro['paciente_nombre']}",
+    )
     return _a_item(creado.data[0])
 
 
@@ -220,6 +228,7 @@ def asignar_paciente(
         ).eq("id", cola_id).execute()
     except Exception:
         db_fail("asignar el paciente al médico")
+    registrar_accion(usuario, "cola_asignar", "cola_pacientes", cola_id)
     return _a_item(_leer_fila(cola_id))
 
 
@@ -245,6 +254,7 @@ def finalizar_paciente(
         ).eq("id", cola_id).execute()
     except Exception:
         db_fail("finalizar el turno")
+    registrar_accion(usuario, "cola_finalizar", "cola_pacientes", cola_id)
     return _a_item(_leer_fila(cola_id))
 
 
@@ -263,4 +273,5 @@ def cancelar_paciente(
         ).execute()
     except Exception:
         db_fail("cancelar el turno")
+    registrar_accion(usuario, "cola_cancelar", "cola_pacientes", cola_id)
     return _a_item(_leer_fila(cola_id))

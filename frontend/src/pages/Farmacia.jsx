@@ -1,12 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '../components/Icon';
 import ClinicalShell from '../clinical/ClinicalShell';
 import { Stamp, LedgerCard, SectionLabel, Code, ToneButton } from '../clinical/ui';
-import { API } from '../api';
+import { API, cerrarSesion } from '../api';
 import { DEMO, nivelStock } from '../clinical/demo';
 
 const USUARIO_FARMACIA = { id: 2071, clinica_id: 2 };
 const CLAVE_REPOSICIONES = 'bna_farmacia_reposiciones';
+const CLAVE_SESION_FARMACIA = 'bna_sesion_farmacia';
+/* El empleado (farmaceutico) despacha y entrega; solo la jefatura
+   (jefe_farmacia) o administración gestionan el stock. */
+const ROLES_FARMACIA_UI = ['jefe_farmacia', 'farmaceutico', 'superusuario'];
+const ROLES_STOCK_UI = ['jefe_farmacia', 'superusuario'];
 
 const VISTAS = [
   {
@@ -22,6 +27,7 @@ const VISTAS = [
     etiqueta: 'Inventario de medicamentos',
     detalle: 'Listado y existencias',
     icono: 'inventory_2',
+    soloJefe: true,
   },
   {
     id: 'alertas',
@@ -29,6 +35,7 @@ const VISTAS = [
     etiqueta: 'Alertas de stock',
     detalle: 'Agotados y bajo mínimo',
     icono: 'warning',
+    soloJefe: true,
   },
 ];
 
@@ -75,6 +82,16 @@ function infoVencimiento(v) {
 export default function Farmacia() {
   const [vista, setVista] = useState('despacho');
 
+  /* === Acceso del personal (Fase 7): farmacéutico o superusuario === */
+  const [sesion, setSesion] = useState(null);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [loginEntrando, setLoginEntrando] = useState(false);
+
+  /* El encargado (o administración) gestiona el stock; el empleado solo despacha */
+  const esJefeStock = !!sesion && ROLES_STOCK_UI.includes(sesion.rol);
+  const vistasVisibles = VISTAS.filter((v) => !v.soloJefe || esJefeStock);
+
   /* === Capítulo I · Despacho === */
   const [busqueda, setBusqueda] = useState('');
   const [receta, setReceta] = useState(null);
@@ -106,7 +123,9 @@ export default function Farmacia() {
     }
   });
 
-  useEffect(() => {
+  /* El inventario solo se consulta con permisos de stock; el empleado
+     trabaja únicamente con las recetas pendientes. */
+  const cargarDatos = useCallback((conStock) => {
     API.recetasPendientes()
       .then((d) => {
         setPendientes(d);
@@ -120,9 +139,7 @@ export default function Farmacia() {
           setPendientes([]);
         }
       });
-  }, []);
-
-  useEffect(() => {
+    if (!conStock) return;
     API.getInventario()
       .then((d) => setInventario(d || []))
       .catch(async () => {
@@ -133,6 +150,69 @@ export default function Farmacia() {
         }
       });
   }, []);
+
+  useEffect(() => {
+    if (!sesion) return;
+    cargarDatos(esJefeStock);
+  }, [sesion, esJefeStock, cargarDatos]);
+
+  useEffect(() => {
+    try {
+      const guardada = localStorage.getItem(CLAVE_SESION_FARMACIA);
+      if (guardada) setSesion(JSON.parse(guardada));
+    } catch {
+      /* sin sesión guardada */
+    }
+  }, []);
+
+  /* Si la sesión guardada no tiene permisos de stock, regresa al despacho */
+  useEffect(() => {
+    if (!sesion) return;
+    const actual = VISTAS.find((v) => v.id === vista);
+    if (actual && actual.soloJefe && !esJefeStock) setVista('despacho');
+  }, [sesion, vista, esJefeStock]);
+
+  async function iniciarSesionFarmacia(e) {
+    e.preventDefault();
+    setLoginEntrando(true);
+    setLoginError('');
+    try {
+      let res;
+      try {
+        res = await API.login(loginForm.username, loginForm.password);
+      } catch {
+        res = await DEMO.login({
+          username: loginForm.username,
+          password: loginForm.password,
+        });
+      }
+      if (!ROLES_FARMACIA_UI.includes(res.usuario.rol)) {
+        setLoginError('Este módulo es exclusivo del personal de farmacia.');
+        return;
+      }
+      try {
+        localStorage.setItem('bna_token', res.token);
+        localStorage.setItem(CLAVE_SESION_FARMACIA, JSON.stringify(res.usuario));
+      } catch {
+        /* sin almacenamiento */
+      }
+      setSesion(res.usuario);
+    } catch (err) {
+      setLoginError(err.message || 'No se pudo iniciar sesión.');
+    } finally {
+      setLoginEntrando(false);
+    }
+  }
+
+  function salirFarmacia() {
+    cerrarSesion('staff');
+    try {
+      localStorage.removeItem(CLAVE_SESION_FARMACIA);
+    } catch {
+      /* sin almacenamiento */
+    }
+    setSesion(null);
+  }
 
   function guardarReposiciones(conjunto) {
     try {
@@ -242,8 +322,8 @@ export default function Farmacia() {
     try {
       const payload = {
         receta_id: receta.id,
-        clinica_id: USUARIO_FARMACIA.clinica_id,
-        despachado_por_id: USUARIO_FARMACIA.id,
+        clinica_id: sesion?.clinica_id ?? USUARIO_FARMACIA.clinica_id,
+        despachado_por_id: sesion?.personal_id ?? USUARIO_FARMACIA.id,
         items: items.map((i) => ({
           medicamento_id: i.medicamento_id,
           cantidad_despachada: i.cantidad_despachada,
@@ -437,8 +517,70 @@ export default function Farmacia() {
     );
   };
 
+  /* === Pantalla de acceso (Fase 7) === */
+  if (!sesion) {
+    return (
+      <ClinicalShell module="farmacia" sinSidebar navbarMinimo>
+        <main className="h-full overflow-y-auto ledger-scroll">
+          <div className="max-w-md mx-auto px-5 pt-14 pb-20">
+            <LedgerCard tick className="p-7">
+              <SectionLabel index="ACCESO">Unidad de farmacia</SectionLabel>
+              <p className="text-xs text-ink-faint mt-3 leading-relaxed">
+                Módulo privado del personal autorizado. Los empleados farmacéuticos
+                despachan y entregan recetas; la jefatura de farmacia administra además
+                el inventario y las alertas de stock.
+              </p>
+              <form onSubmit={iniciarSesionFarmacia} className="mt-6 space-y-4">
+                <label className="block">
+                  <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint mb-1.5">
+                    Usuario
+                  </span>
+                  <input
+                    value={loginForm.username}
+                    onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-md bg-paper border border-ink-line text-sm text-ink focus:outline-none focus:ring-2 focus:ring-fx/40"
+                    placeholder="usuario.farmacia"
+                    autoComplete="username"
+                  />
+                </label>
+                <label className="block">
+                  <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint mb-1.5">
+                    Contraseña
+                  </span>
+                  <input
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-md bg-paper border border-ink-line text-sm text-ink focus:outline-none focus:ring-2 focus:ring-fx/40"
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                  />
+                </label>
+                {loginError && (
+                  <p className="text-xs font-semibold text-blood bg-blood-soft rounded-lg px-3 py-2">
+                    {loginError}
+                  </p>
+                )}
+                <ToneButton type="submit" loading={loginEntrando} className="w-full justify-center">
+                  <Icon name="prescriptions" className="text-base" />
+                  Entrar a farmacia
+                </ToneButton>
+              </form>
+            </LedgerCard>
+          </div>
+        </main>
+      </ClinicalShell>
+    );
+  }
+
   return (
-    <ClinicalShell module="farmacia" sinSidebar>
+    <ClinicalShell
+      module="farmacia"
+      sinSidebar
+      navbarMinimo
+      usuario={sesion}
+      onSalir={salirFarmacia}
+    >
       <main className="h-full overflow-y-auto ledger-scroll px-5 md:px-8 py-6 md:py-8 pb-20 max-w-[1440px] mx-auto">
         {/* ===== Encabezado del libro ===== */}
         <header className="mb-6">
@@ -451,7 +593,7 @@ export default function Farmacia() {
                 Farmacia <span className="italic text-fx">Central</span>
               </h2>
             </div>
-            <div className="hidden lg:flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-ink-faint capitalize">
+            <div className="hidden lg:flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-ink-faint capitalize">
               <Icon name="auto_stories" className="text-base text-fx" />
               {fecha}
             </div>
@@ -469,8 +611,8 @@ export default function Farmacia() {
                   'radial-gradient(120% 90% at 0% 0%, rgba(29,78,216,0.55), transparent 55%)',
               }}
             />
-            <ul className="relative flex overflow-x-auto ledger-scroll">
-              {VISTAS.map((v) => {
+            <ul className="relative flex overflow-x-auto ledger-scroll scrollbar-hide">
+              {vistasVisibles.map((v) => {
                 const activa = vista === v.id;
                 const conteo =
                   v.id === 'despacho'
@@ -540,7 +682,7 @@ export default function Farmacia() {
                     {pendientes.length} en espera
                   </span>
                 </div>
-                <div className="flex gap-3 overflow-x-auto ledger-scroll pb-2 -mx-1 px-1">
+                <div className="flex gap-3 overflow-x-auto ledger-scroll scrollbar-hide pb-2 -mx-1 px-1">
                   {pendientes.map((rx) => {
                     const activa = receta && receta.id === rx.id;
                     return (
@@ -579,9 +721,11 @@ export default function Farmacia() {
               </section>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 items-start">
+            <div
+              className={`grid grid-cols-1 ${esJefeStock ? 'lg:grid-cols-3' : ''} gap-6 md:gap-8 items-start`}
+            >
               {/* Búsqueda + receta activa */}
-              <div className="lg:col-span-2 space-y-6">
+              <div className={`${esJefeStock ? 'lg:col-span-2' : ''} space-y-6`}>
                 <div>
                   <label className="relative block group">
                     <Icon
@@ -916,7 +1060,8 @@ export default function Farmacia() {
                 )}
               </div>
 
-              {/* Atajos operativos (sin métricas: el consolidado lo verá administración) */}
+              {/* Atajos operativos del stock: solo la jefatura los ve */}
+              {esJefeStock && (
               <div className="space-y-6">
                 <LedgerCard>
                   <div className="p-6">
@@ -1009,6 +1154,7 @@ export default function Farmacia() {
                   </div>
                 </LedgerCard>
               </div>
+              )}
             </div>
           </div>
         )}

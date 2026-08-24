@@ -12,11 +12,11 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid md:grid-cols-3 gap-8 mb-8">
           <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-12 rounded-xl overflow-hidden bg-white shadow-lg ring-1 ring-white/10 flex items-center justify-center px-1.5">
+            <div className="flex items-center gap-3 mb-4 min-w-0">
+              <div className="h-12 rounded-xl overflow-hidden bg-white shadow-lg ring-1 ring-white/10 flex items-center justify-center px-1.5 shrink-0">
                 <img src="/identidad visual/SBna.jpeg" alt="Logo Salud Barcelona" className="h-full w-auto object-contain" loading="lazy" />
               </div>
-              <span className="text-lg font-bold text-white">Salud Barcelona · Instituto de Salud Municipal</span>
+              <span className="text-base sm:text-lg font-bold text-white leading-snug min-w-0">Salud Barcelona · Instituto de Salud Municipal</span>
             </div>
             <p className="text-sm text-secondary-container/80 leading-relaxed">Red de centros de salud públicos y aliados del Municipio Simón Bolívar. Salud gratuita, digna y oportuna para toda la comunidad barcelonesa.</p>
           </div>
