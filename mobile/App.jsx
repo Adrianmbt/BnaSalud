@@ -8,7 +8,7 @@ import './global.css';
 
 function MainApp() {
   const insets = useSafeAreaInsets();
-  const [rolActivo, setRolActivo] = useState<'doctor' | 'farmacia'>('doctor');
+  const [rolActivo, setRolActivo] = useState('doctor');
 
   return (
     <View className="flex-1 bg-slate-900">
@@ -19,7 +19,7 @@ function MainApp() {
         {rolActivo === 'doctor' ? <DoctorQueueScreen /> : <PharmacyDispenseScreen />}
       </View>
 
-      {/* Barra de Navegación Inferior (Roles de Personal) */}
+      {/* Barra de Navegacion Inferior (Roles de Personal) */}
       <View
         style={{ paddingBottom: Math.max(insets.bottom, 12) }}
         className="bg-white border-t border-slate-200 px-6 pt-3 flex-row justify-around items-center"
@@ -36,7 +36,7 @@ function MainApp() {
               rolActivo === 'doctor' ? 'text-teal-800' : 'text-slate-400'
             }`}
           >
-            🩺 Cola Médica
+            Cola Medica
           </Text>
         </TouchableOpacity>
 
@@ -54,7 +54,7 @@ function MainApp() {
               rolActivo === 'farmacia' ? 'text-teal-800' : 'text-slate-400'
             }`}
           >
-            💊 Farmacia
+            Farmacia
           </Text>
         </TouchableOpacity>
       </View>

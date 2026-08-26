@@ -11,16 +11,16 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { MobileAPI, RecetaPendiente, DetalleRecetaItem } from '../../api/client';
+import { MobileAPI } from '../../api/client';
 
 export function PharmacyDispenseScreen() {
   const insets = useSafeAreaInsets();
-  const [pendientes, setPendientes] = useState<RecetaPendiente[]>([]);
+  const [pendientes, setPendientes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
-  const [recetaSeleccionada, setRecetaSeleccionada] = useState<RecetaPendiente | null>(null);
-  const [seleccionados, setSeleccionados] = useState<Set<number>>(new Set());
+  const [recetaSeleccionada, setRecetaSeleccionada] = useState(null);
+  const [seleccionados, setSeleccionados] = useState(new Set());
   const [despachando, setDespachando] = useState(false);
 
   const cargarPendientes = useCallback(async () => {
@@ -32,23 +32,22 @@ export function PharmacyDispenseScreen() {
         setSeleccionados(new Set(data[0].detalles.map((d) => d.medicamento_id)));
       }
     } catch {
-      // Datos demo de contingencia
-      const demoData: RecetaPendiente[] = [
+      const demoData = [
         {
           id: 1,
           codigo_receta: 'RX-2026-0891',
           paciente_nombre: 'Ana Cristina Morales',
           paciente_cedula: 'V-18452109',
-          medico: 'Dra. Laura Fernández',
+          medico: 'Dra. Laura Fernandez',
           estado: 'PENDIENTE',
           fecha_emision: '2026-08-24 08:30',
           detalles: [
             {
               medicamento_id: 101,
-              nombre_medicamento: 'Losartán Potásico 50mg',
+              nombre_medicamento: 'Losartan Potasico 50mg',
               cantidad_prescrita: 30,
               cantidad_despachada: 0,
-              posologia: '1 tableta cada 12 horas por 30 días',
+              posologia: '1 tableta cada 12 horas por 30 dias',
               stock: 120,
             },
             {
@@ -64,7 +63,7 @@ export function PharmacyDispenseScreen() {
         {
           id: 2,
           codigo_receta: 'RX-2026-0892',
-          paciente_nombre: 'José Gregorio Silva',
+          paciente_nombre: 'Jose Gregorio Silva',
           paciente_cedula: 'V-8945123',
           medico: 'Dr. Antonio Valera',
           estado: 'PENDIENTE',
@@ -102,7 +101,7 @@ export function PharmacyDispenseScreen() {
     await cargarPendientes();
   }, [cargarPendientes]);
 
-  const toggleSeleccion = (medicamentoId: number) => {
+  const toggleSeleccion = (medicamentoId) => {
     Haptics.selectionAsync();
     setSeleccionados((prev) => {
       const next = new Set(prev);
@@ -112,7 +111,7 @@ export function PharmacyDispenseScreen() {
     });
   };
 
-  const seleccionarReceta = (rx: RecetaPendiente) => {
+  const seleccionarReceta = (rx) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRecetaSeleccionada(rx);
     setSeleccionados(new Set(rx.detalles.map((d) => d.medicamento_id)));
@@ -121,7 +120,7 @@ export function PharmacyDispenseScreen() {
   const procesarDespacho = async () => {
     if (!recetaSeleccionada) return;
     if (seleccionados.size === 0) {
-      Alert.alert('Atención', 'Seleccione al menos un medicamento para despachar.');
+      Alert.alert('Atencion', 'Seleccione al menos un medicamento para despachar.');
       return;
     }
 
@@ -146,7 +145,7 @@ export function PharmacyDispenseScreen() {
       }
 
       Alert.alert(
-        'Despacho Registrado con Éxito',
+        'Despacho Registrado con Exito',
         `Se han dispensado ${itemsADespachar.length} medicamento(s) para ${recetaSeleccionada.paciente_nombre}. La receta pasa a estado ENTREGADA.`,
         [
           {
@@ -176,32 +175,29 @@ export function PharmacyDispenseScreen() {
 
   return (
     <View style={{ paddingTop: insets.top }} className="flex-1 bg-slate-100">
-      {/* Header Superior */}
       <View className="px-5 py-4 bg-white border-b border-slate-200">
         <Text className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold">
-          Salud Barcelona · Farmacia Central
+          Salud Barcelona - Farmacia Central
         </Text>
-        <h1 className="text-2xl font-black text-slate-900 leading-tight">
+        <Text className="text-2xl font-black text-slate-900 leading-tight">
           Despacho de Recetas
-        </h1>
+        </Text>
 
-        {/* Barra de Búsqueda */}
         <View className="mt-3 flex-row items-center bg-slate-100 rounded-xl px-3.5 border border-slate-200">
           <TextInput
             value={busqueda}
             onChangeText={setBusqueda}
-            placeholder="Buscar por código (RX-...) o cédula"
+            placeholder="Buscar por codigo (RX-...) o cedula"
             className="flex-1 py-2.5 text-sm text-slate-900"
             placeholderTextColor="#94a3b8"
           />
           {busqueda.length > 0 && (
             <TouchableOpacity onPress={() => setBusqueda('')} className="p-1">
-              <Text className="text-slate-400 font-bold text-xs">✕</Text>
+              <Text className="text-slate-400 font-bold text-xs">X</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Carrusel de Recetas Pendientes */}
         {filtradas.length > 0 && (
           <View className="mt-3">
             <Text className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1.5">
@@ -255,7 +251,6 @@ export function PharmacyDispenseScreen() {
         )}
       </View>
 
-      {/* Contenido Principal: Ficha de la Receta Activa */}
       {cargando ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#00677d" />
@@ -265,7 +260,6 @@ export function PharmacyDispenseScreen() {
         </View>
       ) : recetaSeleccionada ? (
         <View className="flex-1 p-4 justify-between">
-          {/* Tarjeta de Datos del Paciente */}
           <View className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm mb-3">
             <View className="flex-row justify-between items-center mb-1">
               <Text className="font-mono text-xs font-bold text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-md border border-teal-200">
@@ -280,11 +274,10 @@ export function PharmacyDispenseScreen() {
               {recetaSeleccionada.paciente_nombre}
             </Text>
             <Text className="text-xs text-slate-500 font-medium">
-              Cédula: {recetaSeleccionada.paciente_cedula} · Indicada por: {recetaSeleccionada.medico}
+              Cedula: {recetaSeleccionada.paciente_cedula} - Indicada por: {recetaSeleccionada.medico}
             </Text>
           </View>
 
-          {/* Lista de Medicamentos con Checkbox Táctil */}
           <View className="flex-1 bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
             <Text className="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold mb-3">
               Medicamentos Indicados ({recetaSeleccionada.detalles.length})
@@ -306,7 +299,7 @@ export function PharmacyDispenseScreen() {
                   <TouchableOpacity
                     onPress={() => toggleSeleccion(item.medicamento_id)}
                     activeOpacity={0.7}
-                    className={`p-3.5 rounded-xl border mb-2.5 flex-row items-center justify-between transition-all ${
+                    className={`p-3.5 rounded-xl border mb-2.5 flex-row items-center justify-between ${
                       seleccionado
                         ? 'bg-teal-50/70 border-teal-500 shadow-xs'
                         : 'bg-white border-slate-200 opacity-60'
@@ -317,7 +310,7 @@ export function PharmacyDispenseScreen() {
                         {item.nombre_medicamento}
                       </Text>
                       <Text className="text-xs text-slate-500 mt-0.5">
-                        {item.posologia || 'Según indicación médica'}
+                        {item.posologia || 'Segun indicacion medica'}
                       </Text>
                       <View className="flex-row items-center gap-2 mt-1">
                         <Text className="text-[11px] font-mono font-bold text-slate-600">
@@ -328,12 +321,11 @@ export function PharmacyDispenseScreen() {
                             stockSuficiente ? 'text-emerald-700' : 'text-rose-600'
                           }`}
                         >
-                          · Stock: {stockDisponible}
+                          Stock: {stockDisponible}
                         </Text>
                       </View>
                     </View>
 
-                    {/* Casilla Táctil de Selección */}
                     <View
                       className={`w-7 h-7 rounded-lg items-center justify-center border ${
                         seleccionado
@@ -341,7 +333,7 @@ export function PharmacyDispenseScreen() {
                           : 'border-slate-300 bg-white'
                       }`}
                     >
-                      {seleccionado && <Text className="text-white font-bold text-xs">✓</Text>}
+                      {seleccionado && <Text className="text-white font-bold text-xs">V</Text>}
                     </View>
                   </TouchableOpacity>
                 );
@@ -349,7 +341,6 @@ export function PharmacyDispenseScreen() {
             />
           </View>
 
-          {/* Botón Principal de Confirmación */}
           <View className="pt-3">
             <TouchableOpacity
               onPress={procesarDespacho}
@@ -373,8 +364,8 @@ export function PharmacyDispenseScreen() {
             No hay recetas pendientes de despacho
           </Text>
           <Text className="text-xs text-slate-400 text-center mt-1">
-            Cuando un médico finalice una consulta, las recetas aparecerán en esta pantalla
-            automáticamente.
+            Cuando un medico finalice una consulta, las recetas apareceran en esta pantalla
+            automaticamente.
           </Text>
         </View>
       )}

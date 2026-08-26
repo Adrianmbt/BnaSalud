@@ -226,6 +226,7 @@ export default function Doctores() {
       activo = false;
     };
   }, [cargarCola]);
+
   const [tab, setTab] = useState('espera');
   const [queueAbierta, setQueueAbierta] = useState(false);
   const [activoId, setActivoId] = useState(null);
@@ -324,7 +325,8 @@ export default function Doctores() {
     [temaCentro]
   );
 
-  const perfilCedula = activo?.perfil?.cedula;  const perfilMotivo = activo?.perfil?.motivo;
+  const perfilCedula = activo?.perfil?.cedula;
+  const perfilMotivo = activo?.perfil?.motivo;
 
   const cargarOrdenesPaciente = useCallback(async () => {
     if (!perfilCedula) return;
@@ -689,8 +691,6 @@ export default function Doctores() {
   }
 
   const recetasContables = recetas.filter((r) => r.nombre.trim());
-  const disponibles = recetasContables.filter((r) => disponibilidad(r.nombre).estado === 'ok').length;
-  const sinStock = recetasContables.filter((r) => disponibilidad(r.nombre).estado === 'no').length;
 
   function seleccionarPaciente(p) {
     setTab('consulta');
@@ -876,7 +876,6 @@ export default function Doctores() {
 
   const listaTab = cola[tab] || [];
   const sinResultados = listaTab.length === 0;
-
   const notificaciones = 3;
 
   const contenidoCola = (
@@ -899,7 +898,7 @@ export default function Doctores() {
             alt=""
             className="w-9 h-9 rounded-xl bg-white/90 object-contain p-1 shadow"
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[13px] font-extrabold leading-tight truncate">
               {centro?.nombre || 'Salud Barcelona'}
             </p>
@@ -907,29 +906,29 @@ export default function Doctores() {
               {temaCentro.lema}
             </p>
           </div>
-          <span className="ml-auto font-mono text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-white/15 border border-white/25 shrink-0">
+          <span className="font-mono text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-white/15 border border-white/25 shrink-0">
             {centro?.codigo || 'BNA'}
           </span>
         </div>
       </div>
 
-      {/* Cabecera */}
-      <div className="px-5 pt-6 pb-4 border-b border-outline-variant bg-surface-container-low/60">
-        <div className="flex items-center justify-between mb-4">
+      {/* Cabecera de turnos */}
+      <div className="px-4 md:px-5 pt-5 pb-4 border-b border-outline-variant bg-surface-container-low/60 shrink-0">
+        <div className="flex items-center justify-between mb-3.5">
           <div className="flex items-center gap-2.5">
-            <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-              <Icon name="groups" filled className="text-lg" />
+            <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+              <Icon name="groups" filled className="text-base" />
             </span>
             <div>
-              <h2 className="text-base font-bold text-primary leading-tight">Gestión de Turnos</h2>
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
-                Cola del centro de salud
+              <h2 className="text-sm md:text-base font-bold text-primary leading-tight">Cola de Pacientes</h2>
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-on-surface-variant">
+                Gestión de Turnos Médicos
               </p>
             </div>
           </div>
           <button
             onClick={() => setQueueAbierta(false)}
-            className="lg:hidden p-2 rounded-full text-on-surface-variant hover:bg-surface-container"
+            className="lg:hidden p-2 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
             aria-label="Cerrar cola"
           >
             <Icon name="close" />
@@ -937,7 +936,7 @@ export default function Doctores() {
         </div>
 
         {/* Indicador de capacidad del turno del médico */}
-        <div className="mb-4">
+        <div className="mb-3.5">
           <CapacityIndicator
             ocupados={(cola.espera || []).length + (cola.consulta || []).length + atendidosHoy}
             maximo={15}
@@ -957,16 +956,13 @@ export default function Doctores() {
                 role="tab"
                 aria-selected={activado}
                 onClick={() => setTab(t.id)}
-                className={`flex-1 py-2 px-1 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                className={`flex-1 py-1.5 px-1 rounded-full text-xs font-semibold flex items-center justify-center gap-1 transition-all ${
                   activado ? 'bg-surface text-secondary shadow-sm' : 'text-on-surface-variant hover:text-secondary'
                 }`}
               >
-                <span className="hidden sm:inline">{t.etiqueta}</span>
-                <span className="sm:hidden text-[10px] truncate">
-                  {t.etiqueta.replace('En ', '').replace('Finalizado', 'Fin')}
-                </span>
+                <span>{t.etiqueta}</span>
                 <span
-                  className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
+                  className={`font-mono text-[10px] px-1.5 py-0.2 rounded-full ${
                     activado ? 'bg-secondary text-on-secondary' : 'bg-surface-container-high text-on-surface-variant'
                   }`}
                 >
@@ -979,23 +975,23 @@ export default function Doctores() {
       </div>
 
       {/* Lista de pacientes */}
-      <div className="flex-1 overflow-y-auto ledger-scroll px-4 py-4 space-y-2.5">
+      <div className="flex-1 overflow-y-auto ledger-scroll px-3 md:px-4 py-3 space-y-2.5">
         {tab === 'finalizado' && atendidosHoy > 0 && (
           <button
             onClick={() => setListadoAbierto(true)}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl border border-secondary/40 bg-secondary/5 px-4 py-2.5 text-xs font-bold text-secondary hover:bg-secondary/10 transition-colors"
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-secondary/40 bg-secondary/5 px-3 py-2 text-xs font-bold text-secondary hover:bg-secondary/10 transition-colors"
           >
             <Icon name="print" className="text-base" />
             Imprimir listado de atendidos
           </button>
         )}
         {sinResultados && (
-          <div className="text-center py-12 text-on-surface-variant space-y-2">
+          <div className="text-center py-10 text-on-surface-variant space-y-2">
             <Icon
               name={tab === 'finalizado' ? 'done_all' : 'groups'}
-              className="text-5xl opacity-40"
+              className="text-4xl opacity-40"
             />
-            <p className="text-sm font-medium">
+            <p className="text-xs font-medium">
               {tab === 'finalizado'
                 ? 'Aún no se han atendido pacientes.'
                 : 'No hay pacientes en esta fila.'}
@@ -1017,7 +1013,7 @@ export default function Doctores() {
             >
               <button
                 onClick={() => seleccionarPaciente(p)}
-                className="flex-1 min-w-0 flex items-center gap-3 p-3 text-left"
+                className="flex-1 min-w-0 flex items-center gap-2.5 p-3 text-left"
               >
                 <div className={`w-1 self-stretch rounded-full shrink-0 ${esAlta ? 'bg-error' : 'bg-success'}`} />
                 <Avatar
@@ -1027,23 +1023,25 @@ export default function Doctores() {
                     border: `1.5px solid ${esAlta ? 'var(--color-error)' : 'var(--color-secondary)'}`,
                     fontWeight: 700,
                     fontSize: '0.8rem',
+                    width: 36,
+                    height: 36,
                   }}
                 >
                   {iniciales(p.nombre)}
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`font-semibold text-sm leading-tight ${esActivo ? 'text-on-secondary-container' : 'text-primary'}`}>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`font-semibold text-xs md:text-sm leading-tight ${esActivo ? 'text-on-secondary-container' : 'text-primary'}`}>
                       {p.nombre}
                     </span>
                     {esAlta && (
                       <Chip
                         size="small"
-                        icon={<Icon name="warning" className="text-sm !text-on-error-container" />}
-                        label="Alta prioridad"
+                        icon={<Icon name="warning" className="text-xs !text-on-error-container" />}
+                        label="Alta"
                         sx={{
-                          height: 20,
-                          fontSize: '0.62rem',
+                          height: 18,
+                          fontSize: '0.6rem',
                           fontWeight: 700,
                           bgcolor: 'var(--color-error-container)',
                           color: 'var(--color-on-error-container)',
@@ -1052,7 +1050,7 @@ export default function Doctores() {
                       />
                     )}
                   </div>
-                  <div className={`flex items-center gap-1.5 font-mono text-[10px] mt-1 ${esActivo ? 'text-on-secondary-container/70' : 'text-on-surface-variant'}`}>
+                  <div className={`flex items-center gap-1.5 font-mono text-[10px] mt-0.5 ${esActivo ? 'text-on-secondary-container/70' : 'text-on-surface-variant'}`}>
                     <Icon name={tab === 'consulta' ? 'timer' : 'schedule'} className="text-xs" />
                     {tab === 'consulta'
                       ? `Sesión: ${String(Math.floor(p.espera * 0.3)).padStart(2, '0')}:${String((p.espera * 18) % 60).padStart(2, '0')} min`
@@ -1075,10 +1073,10 @@ export default function Doctores() {
                     disabled={guardando}
                     title="Finalizar consulta y llamar al siguiente paciente"
                     aria-label={`Finalizar consulta de ${p.nombre} y pasar al siguiente`}
-                    className="flex items-center gap-1 rounded-full px-3 py-1.5 text-white text-[11px] font-bold shadow-md transition-all hover:brightness-110 active:scale-95 disabled:opacity-60"
+                    className="flex items-center gap-1 rounded-full px-2.5 py-1 text-white text-[10px] font-bold shadow transition-all hover:brightness-110 active:scale-95 disabled:opacity-60"
                     style={{ background: temaCentro.gradient }}
                   >
-                    <Icon name="skip_next" className="text-base" />
+                    <Icon name="skip_next" className="text-sm" />
                     Finalizar
                   </button>
                 </div>
@@ -1089,9 +1087,9 @@ export default function Doctores() {
       </div>
 
       {/* Registrar paciente */}
-      <div className="p-4 border-t border-outline-variant bg-surface-container-low/60">
+      <div className="p-3 md:p-4 border-t border-outline-variant bg-surface-container-low/60 shrink-0">
         {formNuevo ? (
-          <form onSubmit={agregarPaciente} className="space-y-2.5 bg-surface border border-outline-variant rounded-2xl p-4">
+          <form onSubmit={agregarPaciente} className="space-y-2.5 bg-surface border border-outline-variant rounded-2xl p-3.5">
             <p className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant">
               Registrar nuevo turno · Triaje
             </p>
@@ -1113,7 +1111,7 @@ export default function Doctores() {
             />
             <select
               name="prioridad"
-              className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-primary outline-none focus:border-secondary"
+              className="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs text-primary outline-none focus:border-secondary"
             >
               <option value="NORMAL">Prioridad normal</option>
               <option value="ALTA">Alta prioridad</option>
@@ -1149,14 +1147,15 @@ export default function Doctores() {
             fullWidth
             variant="contained"
             onClick={() => setFormNuevo(true)}
-            startIcon={<Icon name="add_circle" className="text-lg" />}
+            startIcon={<Icon name="add_circle" className="text-base" />}
             sx={{
               backgroundColor: 'var(--color-secondary)',
               '&:hover': { backgroundColor: 'var(--color-secondary-dark)' },
               textTransform: 'none',
               fontWeight: 600,
               borderRadius: 3,
-              py: 1.1,
+              py: 1,
+              fontSize: '0.82rem',
             }}
           >
             Registrar Paciente / Triaje
@@ -1169,9 +1168,9 @@ export default function Doctores() {
   if (!sesion) {
     return (
       <div className="min-h-screen bg-paper paper-noise text-ink font-ui" style={varsCentro}>
-        <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="min-h-screen flex items-center justify-center p-4 md:p-6">
           <div className="w-full max-w-md">
-            <div className="bg-card border border-ink-line rounded-lg corner-tick shadow-[0_1px_2px_rgba(20,35,47,0.05)] p-8 relative overflow-hidden">
+            <div className="bg-card border border-ink-line rounded-lg corner-tick shadow-[0_1px_2px_rgba(20,35,47,0.05)] p-6 md:p-8 relative overflow-hidden">
               <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
               <div className="relative">
                 <div className="w-14 h-14 rounded-xl flex items-center justify-center text-white shadow-lg mb-5" style={{ background: temaCentro.gradient }}>
@@ -1264,37 +1263,69 @@ export default function Doctores() {
   return (
     <div className="h-dvh overflow-hidden flex flex-col bg-paper paper-noise text-ink font-ui" style={varsCentro}>
       {/* ===== Barra superior ===== */}
-      <header className="relative z-40 shrink-0 bg-paper/90 backdrop-blur-md">
-        <div className="flex items-center gap-3 md:gap-4 px-4 md:px-6 h-16 border-b border-ink-line">
-          {/* Menú: abre/cierra la cola de turnos */}
+      <header className="relative z-30 shrink-0 bg-paper/90 backdrop-blur-md">
+        <div className="flex items-center gap-2 md:gap-4 px-3 md:px-6 h-16 border-b border-ink-line">
+          {/* Menú: abre/cierra la cola de turnos con badge flotante de pacientes en espera */}
           <button
             onClick={() => setQueueAbierta((v) => !v)}
-            className="p-2 -ml-2 rounded-full text-ink-soft hover:bg-paper-2 lg:ring-1 lg:ring-ink-line transition-colors"
+            className="flex items-center gap-2 p-2 -ml-1 rounded-xl text-ink hover:bg-paper-2 border border-ink-line transition-all active:scale-95 shrink-0"
             aria-label={queueAbierta ? 'Cerrar cola de turnos' : 'Abrir cola de turnos'}
             aria-expanded={queueAbierta}
           >
             <Icon name={queueAbierta ? 'close' : 'menu'} />
+            <span className="text-xs font-bold hidden sm:inline">Cola de Turnos</span>
+            {cola.espera.length > 0 && (
+              <span className="font-mono text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-secondary text-on-secondary">
+                {cola.espera.length}
+              </span>
+            )}
           </button>
 
-          <div className="flex-1" />
+          {/* Información rápida de paciente activo en header para móvil */}
+          {activo ? (
+            <div className="flex items-center gap-2 min-w-0 mx-1 flex-1 lg:flex-initial">
+              <Avatar
+                sx={{
+                  width: 30,
+                  height: 30,
+                  background: gradiente(activo.nombre, temaCentro),
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  shrink: 0,
+                }}
+              >
+                {iniciales(activo.nombre)}
+              </Avatar>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-ink truncate leading-tight">{activo.nombre}</p>
+                <p className="font-mono text-[9px] text-ink-faint truncate">
+                  C.I. {activo.perfil?.cedula} · <span className="text-secondary font-semibold">En consulta</span>
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1" />
+          )}
+
+          <div className="flex-1 lg:block hidden" />
 
           <IconButton
             aria-label="Notificaciones"
-            sx={{ color: 'var(--color-ink-soft)' }}
+            sx={{ color: 'var(--color-ink-soft)', padding: 1 }}
           >
             <Badge badgeContent={notificaciones} color="error">
               <Icon name="notifications" className="text-xl" />
             </Badge>
           </IconButton>
 
-          <div className="flex items-center gap-2.5 pl-1">
-            <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 38, height: 38, fontWeight: 700, fontSize: '0.8rem' }}>
+          <div className="flex items-center gap-2 pl-1">
+            <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 36, height: 36, fontWeight: 700, fontSize: '0.78rem' }}>
               {iniciales(MEDICO.nombre)}
             </Avatar>
-            <div className="hidden xl:block">
-              <p className="text-sm font-bold text-ink leading-tight">{MEDICO.nombre}</p>
+            <div className="hidden sm:block">
+              <p className="text-xs font-bold text-ink leading-tight">{MEDICO.nombre}</p>
               <p className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
-                {MEDICO.especialidad} · ID {MEDICO.id}
+                {MEDICO.especialidad}
               </p>
             </div>
           </div>
@@ -1304,7 +1335,7 @@ export default function Doctores() {
           <Link
             to="/"
             onClick={cerrarSesionDoctor}
-            className="flex items-center justify-center w-10 h-10 rounded-full text-ink-soft hover:text-blood hover:bg-blood-soft/60 transition-colors"
+            className="flex items-center justify-center w-9 h-9 rounded-full text-ink-soft hover:text-blood hover:bg-blood-soft/60 transition-colors shrink-0"
             aria-label="Cerrar sesión y volver al portal"
             title="Cerrar sesión"
           >
@@ -1317,18 +1348,18 @@ export default function Doctores() {
         {/* ===== Fondo de la cola en móvil (overlay) ===== */}
         {queueAbierta && (
           <div
-            className="fixed inset-0 z-30 bg-black/25 lg:hidden"
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs lg:hidden transition-opacity"
             onClick={() => setQueueAbierta(false)}
             aria-hidden="true"
           />
         )}
 
-        {/* ===== Cola de turnos (overlay en móvil, empuja el contenido en escritorio) ===== */}
+        {/* ===== Cola de turnos (overlay en móvil z-50, panel empujado en escritorio) ===== */}
         <aside
-          className={`fixed lg:relative z-40 inset-y-0 left-0 shrink-0 w-[min(320px,85vw)] bg-card border-r border-ink-line flex flex-col transition-all duration-300 ease-out ${
+          className={`fixed lg:relative z-50 lg:z-10 inset-y-0 left-0 shrink-0 w-[min(340px,88vw)] lg:w-80 bg-card border-r border-ink-line flex flex-col transition-all duration-300 ease-out shadow-2xl lg:shadow-none ${
             queueAbierta
-              ? 'translate-x-0 lg:translate-x-0 ml-0'
-              : '-translate-x-full lg:translate-x-0 -ml-[min(320px,85vw)]'
+              ? 'translate-x-0 ml-0'
+              : '-translate-x-full lg:translate-x-0 lg:-ml-80'
           }`}
           aria-label="Cola de pacientes"
         >
@@ -1339,103 +1370,103 @@ export default function Doctores() {
         <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {activo ? (
             <>
-              <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+              <div className="flex-1 overflow-y-auto ledger-scroll px-3 md:px-6 py-4 md:py-5 space-y-4 md:space-y-5">
                 {/* Cabecera paciente */}
-                <section className="bg-card border border-ink-line rounded-lg corner-tick p-5 md:p-6 relative overflow-hidden">
+                <section className="bg-card border border-ink-line rounded-lg corner-tick p-4 md:p-6 relative overflow-hidden">
                   <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
-                  <div className="relative flex flex-col md:flex-row gap-5 md:items-center">
-                    <div className="relative shrink-0 self-start">
-                      <Avatar
-                        sx={{
-                          width: 76,
-                          height: 76,
-                          background: gradiente(activo.nombre, temaCentro),
-                          fontWeight: 800,
-                          fontSize: '1.6rem',
-                          boxShadow: '0 12px 28px -10px rgba(15,37,55,0.4)',
-                        }}
-                      >
-                        {iniciales(activo.nombre)}
-                      </Avatar>
-                      <span className="absolute -bottom-1 -right-1 bg-success text-on-secondary w-7 h-7 rounded-full flex items-center justify-center border-2 border-surface shadow">
-                        <Icon name="check" className="text-sm" />
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2.5 flex-wrap mb-1.5">
-                        <h2 className="font-display text-[26px] font-bold text-primary tracking-tight">
-                          {activo.nombre}
-                        </h2>
-                        <span className="font-mono text-[10px] px-2.5 py-1 rounded-full bg-surface border border-outline-variant text-on-surface-variant whitespace-nowrap">
-                          ID: HIS-V{activo.perfil.cedula}
+                  <div className="relative flex flex-col md:flex-row gap-4 md:items-center">
+                    <div className="flex items-center gap-3.5 md:gap-5 min-w-0">
+                      <div className="relative shrink-0">
+                        <Avatar
+                          sx={{
+                            width: { xs: 60, md: 76 },
+                            height: { xs: 60, md: 76 },
+                            background: gradiente(activo.nombre, temaCentro),
+                            fontWeight: 800,
+                            fontSize: { xs: '1.2rem', md: '1.6rem' },
+                            boxShadow: '0 12px 28px -10px rgba(15,37,55,0.4)',
+                          }}
+                        >
+                          {iniciales(activo.nombre)}
+                        </Avatar>
+                        <span className="absolute -bottom-1 -right-1 bg-success text-on-secondary w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center border-2 border-surface shadow">
+                          <Icon name="check" className="text-xs md:text-sm" />
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <Chip
-                          icon={<Icon name="cake" className="text-sm !text-secondary" />}
-                          label={activo.perfil.edad}
-                          sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.78rem' }}
-                        />
-                        {activo.perfil.alergia && (
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h2 className="font-display text-lg md:text-[26px] font-bold text-primary tracking-tight truncate">
+                            {activo.nombre}
+                          </h2>
+                          <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-surface border border-outline-variant text-on-surface-variant whitespace-nowrap">
+                            HIS-V{activo.perfil.cedula}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
                           <Chip
-                            icon={<Icon name="warning" className="text-sm !text-on-error-container" />}
-                            label={`Alergia: ${activo.perfil.alergia}`}
-                            sx={{ bgcolor: 'var(--color-error-container)', color: 'var(--color-on-error-container)', fontWeight: 700, fontSize: '0.78rem' }}
+                            icon={<Icon name="cake" className="text-xs md:text-sm !text-secondary" />}
+                            label={activo.perfil.edad}
+                            sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.72rem', height: 26 }}
                           />
-                        )}
-                        <Chip
-                          icon={<Icon name="assignment_ind" className="text-sm !text-tertiary" />}
-                          label={activo.perfil.antecedente}
-                          sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.78rem' }}
-                        />
-                        {medicoRel && medicoRel.nombre ? (
+                          {activo.perfil.alergia && (
+                            <Chip
+                              icon={<Icon name="warning" className="text-xs md:text-sm !text-on-error-container" />}
+                              label={`Alergia: ${activo.perfil.alergia}`}
+                              sx={{ bgcolor: 'var(--color-error-container)', color: 'var(--color-on-error-container)', fontWeight: 700, fontSize: '0.72rem', height: 26 }}
+                            />
+                          )}
                           <Chip
-                            icon={
-                              <Icon
-                                name={medicoRel.nombre === MEDICO.nombre ? 'verified_user' : 'stethoscope'}
-                                className={`text-sm ${medicoRel.nombre === MEDICO.nombre ? '!text-on-secondary' : '!text-doc'}`}
-                              />
-                            }
-                            label={
-                              medicoRel.nombre === MEDICO.nombre
-                                ? 'Paciente asignado a ti · principal'
-                                : `Médico tratante: ${medicoRel.nombre}`
-                            }
-                            sx={{
-                              bgcolor:
+                            icon={<Icon name="assignment_ind" className="text-xs md:text-sm !text-tertiary" />}
+                            label={activo.perfil.antecedente}
+                            sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.72rem', height: 26 }}
+                          />
+                          {medicoRel && medicoRel.nombre ? (
+                            <Chip
+                              icon={
+                                <Icon
+                                  name={medicoRel.nombre === MEDICO.nombre ? 'verified_user' : 'stethoscope'}
+                                  className={`text-xs md:text-sm ${medicoRel.nombre === MEDICO.nombre ? '!text-on-secondary' : '!text-doc'}`}
+                                />
+                              }
+                              label={
                                 medicoRel.nombre === MEDICO.nombre
-                                  ? 'var(--color-fx)'
-                                  : 'var(--color-doc-soft)',
-                              color:
-                                medicoRel.nombre === MEDICO.nombre
-                                  ? '#fff'
-                                  : 'var(--color-doc-deep)',
-                              fontWeight: 700,
-                              fontSize: '0.72rem',
-                            }}
-                          />
-                        ) : (
-                          <Chip
-                            icon={<Icon name="person_add" className="text-sm !text-on-surface-variant" />}
-                            label="Sin médico principal asignado"
-                            sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.72rem' }}
-                          />
-                        )}
+                                  ? 'Paciente asignado a ti'
+                                  : `Médico: ${medicoRel.nombre}`
+                              }
+                              sx={{
+                                bgcolor:
+                                  medicoRel.nombre === MEDICO.nombre
+                                    ? 'var(--color-fx)'
+                                    : 'var(--color-doc-soft)',
+                                color:
+                                  medicoRel.nombre === MEDICO.nombre
+                                    ? '#fff'
+                                    : 'var(--color-doc-deep)',
+                                fontWeight: 700,
+                                fontSize: '0.7rem',
+                                height: 26,
+                              }}
+                            />
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-2 w-full sm:w-auto shrink-0">
+
+                    <div className="flex gap-2 w-full md:w-auto shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-ink-line/60">
                       <Button
                         variant="outlined"
                         size="small"
-                        fullWidth
-                        startIcon={<Icon name="history" className="text-lg" />}
+                        className="flex-1 md:flex-initial"
+                        startIcon={<Icon name="history" className="text-base" />}
                         onClick={() => setHistorialAbierto(true)}
                         sx={{
                           borderColor: 'var(--color-ink-line)',
                           color: 'var(--color-ink-soft)',
                           textTransform: 'none',
-                          borderRadius: 3,
+                          borderRadius: 2.5,
                           fontWeight: 600,
+                          fontSize: '0.8rem',
+                          py: 0.8,
                         }}
                       >
                         Historial
@@ -1443,27 +1474,29 @@ export default function Doctores() {
                       <Button
                         variant="outlined"
                         size="small"
-                        fullWidth
-                        startIcon={<Icon name="print" className="text-lg" />}
+                        className="flex-1 md:flex-initial"
+                        startIcon={<Icon name="print" className="text-base" />}
                         onClick={() => setRecetaAbierto(true)}
                         sx={{
                           borderColor: 'var(--color-ink-line)',
                           color: 'var(--color-ink-soft)',
                           textTransform: 'none',
-                          borderRadius: 3,
+                          borderRadius: 2.5,
                           fontWeight: 600,
+                          fontSize: '0.8rem',
+                          py: 0.8,
                         }}
                       >
-                        Imprimir
+                        Imprimir Receta
                       </Button>
                     </div>
                   </div>
                 </section>
 
                 {/* Secciones del registro clínico */}
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div
-                    className="flex bg-surface-container rounded-full p-1"
+                    className="flex bg-surface-container rounded-full p-1 max-w-full overflow-x-auto ledger-scroll scrollbar-hide"
                     role="tablist"
                     aria-label="Sección del registro clínico"
                   >
@@ -1481,7 +1514,7 @@ export default function Doctores() {
                           role="tab"
                           aria-selected={activado}
                           onClick={() => setSeccion(s.id)}
-                          className={`flex-1 px-3.5 py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                          className={`px-3.5 md:px-4 py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${
                             activado ? 'bg-surface text-secondary shadow-sm' : 'text-on-surface-variant hover:text-secondary'
                           }`}
                         >
@@ -1513,630 +1546,670 @@ export default function Doctores() {
 
                 {seccion === 'consulta' && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* Motivo de consulta */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">01</span>
-                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="description" filled className="text-sm" />
-                      </span>
-                      <h3 className="text-sm font-bold text-primary">Motivo de Consulta</h3>
-                      <span className="flex-1 ledger-rule opacity-70" />
-                    </div>
-                    <TextField
-                      fullWidth
-                      multiline
-                      minRows={3}
-                      value={form.motivo}
-                      onChange={(e) => setForm((f) => ({ ...f, motivo: e.target.value }))}
-                      placeholder="Síntoma principal y duración..."
-                      sx={fieldSx}
-                    />
-                  </section>
-
-                  {/* Examen físico */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">02</span>
-                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="stethoscope" filled className="text-sm" />
-                      </span>
-                      <h3 className="text-sm font-bold text-primary">Examen Físico</h3>
-                      <span className="flex-1 ledger-rule opacity-70" />
-                    </div>
-                    <TextField
-                      fullWidth
-                      multiline
-                      minRows={3}
-                      value={form.examen}
-                      onChange={(e) => setForm((f) => ({ ...f, examen: e.target.value }))}
-                      placeholder="Hallazgos en exploración física..."
-                      sx={fieldSx}
-                    />
-                  </section>
-
-                  {/* Diagnóstico CIE-10 */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">03</span>
-                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="medical_information" filled className="text-sm" />
-                      </span>
-                      <h3 className="text-sm font-bold text-primary">Diagnóstico CIE-10</h3>
-                      <span className="flex-1 ledger-rule opacity-70" />
-                    </div>
-                    <div className="relative" ref={cieRef}>
+                    {/* Motivo de consulta */}
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">01</span>
+                        <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                          <Icon name="description" filled className="text-sm" />
+                        </span>
+                        <h3 className="text-sm font-bold text-primary">Motivo de Consulta</h3>
+                        <span className="flex-1 ledger-rule opacity-70" />
+                      </div>
                       <TextField
                         fullWidth
-                        size="small"
-                        value={cieBusqueda}
-                        onChange={(e) => {
-                          setCieBusqueda(e.target.value);
-                          setCieAbierto(true);
-                          setForm((f) => ({ ...f, cie10_codigo: '', cie10_descripcion: '' }));
-                        }}
-                        onFocus={() => setCieAbierto(true)}
-                        placeholder="Buscar código o descripción..."
-                        InputProps={{
-                          startAdornment: (
-                            <span className="mr-2 text-on-surface-variant">
-                              <Icon name="search" className="text-lg" />
-                            </span>
-                          ),
-                        }}
+                        multiline
+                        minRows={3}
+                        value={form.motivo}
+                        onChange={(e) => setForm((f) => ({ ...f, motivo: e.target.value }))}
+                        placeholder="Síntoma principal y duración..."
                         sx={fieldSx}
                       />
-                      {cieAbierto && (
-                        <div className="absolute z-20 w-full mt-1.5 bg-surface border border-outline-variant rounded-2xl shadow-xl max-h-56 overflow-y-auto ledger-scroll">
-                          {cieFiltrados.map((c) => (
-                            <button
-                              key={c.codigo}
-                              onClick={() => seleccionarCie(c)}
-                              className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary-container/30 border-b border-outline-variant/60 last:border-0 flex items-center gap-2.5"
-                            >
-                              <span className="font-mono text-xs font-semibold text-secondary w-12 shrink-0">{c.codigo}</span>
-                              <span className="text-primary">{c.descripcion}</span>
-                            </button>
-                          ))}
-                          {cieFiltrados.length === 0 && (
-                            <p className="px-4 py-3 text-xs text-on-surface-variant">Sin coincidencias.</p>
-                          )}
-                        </div>
+                    </section>
+
+                    {/* Examen físico */}
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">02</span>
+                        <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                          <Icon name="stethoscope" filled className="text-sm" />
+                        </span>
+                        <h3 className="text-sm font-bold text-primary">Examen Físico</h3>
+                        <span className="flex-1 ledger-rule opacity-70" />
+                      </div>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        value={form.examen}
+                        onChange={(e) => setForm((f) => ({ ...f, examen: e.target.value }))}
+                        placeholder="Hallazgos en exploración física..."
+                        sx={fieldSx}
+                      />
+                    </section>
+
+                    {/* Diagnóstico CIE-10 */}
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">03</span>
+                        <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                          <Icon name="medical_information" filled className="text-sm" />
+                        </span>
+                        <h3 className="text-sm font-bold text-primary">Diagnóstico CIE-10</h3>
+                        <span className="flex-1 ledger-rule opacity-70" />
+                      </div>
+                      <div className="relative" ref={cieRef}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={cieBusqueda}
+                          onChange={(e) => {
+                            setCieBusqueda(e.target.value);
+                            setCieAbierto(true);
+                            setForm((f) => ({ ...f, cie10_codigo: '', cie10_descripcion: '' }));
+                          }}
+                          onFocus={() => setCieAbierto(true)}
+                          placeholder="Buscar código o descripción..."
+                          InputProps={{
+                            startAdornment: (
+                              <span className="mr-2 text-on-surface-variant">
+                                <Icon name="search" className="text-lg" />
+                              </span>
+                            ),
+                          }}
+                          sx={fieldSx}
+                        />
+                        {cieAbierto && (
+                          <div className="absolute z-20 w-full mt-1.5 bg-surface border border-outline-variant rounded-2xl shadow-xl max-h-56 overflow-y-auto ledger-scroll">
+                            {cieFiltrados.map((c) => (
+                              <button
+                                key={c.codigo}
+                                onClick={() => seleccionarCie(c)}
+                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-secondary-container/30 border-b border-outline-variant/60 last:border-0 flex items-center gap-2.5"
+                              >
+                                <span className="font-mono text-xs font-semibold text-secondary w-12 shrink-0">{c.codigo}</span>
+                                <span className="text-primary">{c.descripcion}</span>
+                              </button>
+                            ))}
+                            {cieFiltrados.length === 0 && (
+                              <p className="px-4 py-3 text-xs text-on-surface-variant">Sin coincidencias.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {form.cie10_codigo && (
+                        <p className="mt-2.5 flex items-center gap-1.5 text-xs text-success font-semibold">
+                          <Icon name="verified" className="text-sm" />
+                          {form.cie10_codigo} · {form.cie10_descripcion}
+                        </p>
                       )}
-                    </div>
-                    {form.cie10_codigo && (
-                      <p className="mt-2.5 flex items-center gap-1.5 text-xs text-success font-semibold">
-                        <Icon name="verified" className="text-sm" />
-                        {form.cie10_codigo} · {form.cie10_descripcion}
-                      </p>
-                    )}
-                  </section>
+                    </section>
 
-                  {/* Tratamiento / Indicaciones */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">04</span>
-                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="medication" filled className="text-sm" />
-                      </span>
-                      <h3 className="text-sm font-bold text-primary">Tratamiento / Indicaciones</h3>
-                      <span className="flex-1 ledger-rule opacity-70" />
-                    </div>
-                    <TextField
-                      fullWidth
-                      multiline
-                      minRows={3}
-                      value={form.tratamiento}
-                      onChange={(e) => setForm((f) => ({ ...f, tratamiento: e.target.value }))}
-                      placeholder="Medicación, dosis y frecuencia..."
-                      sx={fieldSx}
-                    />
-                  </section>
+                    {/* Tratamiento / Indicaciones */}
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">04</span>
+                        <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                          <Icon name="medication" filled className="text-sm" />
+                        </span>
+                        <h3 className="text-sm font-bold text-primary">Tratamiento / Indicaciones</h3>
+                        <span className="flex-1 ledger-rule opacity-70" />
+                      </div>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        value={form.tratamiento}
+                        onChange={(e) => setForm((f) => ({ ...f, tratamiento: e.target.value }))}
+                        placeholder="Medicación, dosis y frecuencia..."
+                        sx={fieldSx}
+                      />
+                    </section>
 
-                  {/* Recomendaciones generales */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 lg:col-span-2">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">05</span>
-                      <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                        <Icon name="tips_and_updates" filled className="text-sm" />
-                      </span>
-                      <h3 className="text-sm font-bold text-primary">Recomendaciones Generales</h3>
-                      <span className="flex-1 ledger-rule opacity-70" />
-                    </div>
-                    <TextField
-                      fullWidth
-                      multiline
-                      minRows={2}
-                      value={form.recomendaciones}
-                      onChange={(e) => setForm((f) => ({ ...f, recomendaciones: e.target.value }))}
-                      placeholder="Estilo de vida, dieta o derivaciones..."
-                      sx={fieldSx}
-                    />
-                  </section>
-                </div>
+                    {/* Recomendaciones generales */}
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 lg:col-span-2">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">05</span>
+                        <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                          <Icon name="tips_and_updates" filled className="text-sm" />
+                        </span>
+                        <h3 className="text-sm font-bold text-primary">Recomendaciones Generales</h3>
+                        <span className="flex-1 ledger-rule opacity-70" />
+                      </div>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        value={form.recomendaciones}
+                        onChange={(e) => setForm((f) => ({ ...f, recomendaciones: e.target.value }))}
+                        placeholder="Estilo de vida, dieta o derivaciones..."
+                        sx={fieldSx}
+                      />
+                    </section>
+                  </div>
                 )}
 
                 {seccion === 'recetas' && (
                   <div className="space-y-4 tab-fade">
-                  {/* Recetas a despachar */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 md:p-5">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
-                      <div className="flex items-center gap-2.5">
-                        <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                          <Icon name="prescriptions" filled className="text-base" />
-                        </span>
-                        <div>
-                          <h3 className="text-sm font-bold text-primary">Recetas a despachar en farmacia</h3>
-                          <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
-                            Disponibilidad verificada contra el inventario del centro
-                          </p>
+                    {/* Recetas a despachar */}
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 md:p-5">
+                      <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                            <Icon name="prescriptions" filled className="text-base" />
+                          </span>
+                          <div>
+                            <h3 className="text-sm font-bold text-primary">Recetas a despachar en farmacia</h3>
+                            <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                              Disponibilidad verificada contra el inventario del centro
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="mt-4">
-                      <PrescripcionInput
-                        recetas={recetas}
-                        onChange={cambiarReceta}
-                        onAdd={agregarReceta}
-                        onRemove={quitarReceta}
-                      />
-                    </div>
-                  </section>
+                      <div className="mt-4">
+                        <PrescripcionInput
+                          recetas={recetas}
+                          onChange={cambiarReceta}
+                          onAdd={agregarReceta}
+                          onRemove={quitarReceta}
+                        />
+                      </div>
+                    </section>
                   </div>
                 )}
 
                 {seccion === 'estudios' && (
                   <div className="space-y-4 tab-fade">
-                  {/* Estudios y resultados */}
-                  <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 md:p-5">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1.5">
-                      <div className="flex items-center gap-2.5">
-                        <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                          <Icon name="monitor_heart" filled className="text-base" />
-                        </span>
-                        <div>
-                          <h3 className="text-sm font-bold text-primary">Estudios y Resultados</h3>
-                          <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
-                            Laboratorio · Imagen · Funcional — escanee o tome foto para llenado automático
-                          </p>
+                    {/* Estudios y resultados */}
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 md:p-5">
+                      <div className="flex items-center justify-between flex-wrap gap-3 mb-1.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                            <Icon name="monitor_heart" filled className="text-base" />
+                          </span>
+                          <div>
+                            <h3 className="text-sm font-bold text-primary">Estudios y Resultados</h3>
+                            <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                              Laboratorio · Imagen · Funcional — escanee para llenado automático
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex bg-surface-container rounded-full p-1" role="tablist" aria-label="Categoría de estudio">
-                        {[
-                          { id: 'laboratorio', etiqueta: 'Laboratorio', icono: 'biotech' },
-                          { id: 'imagen', etiqueta: 'Imagen', icono: 'image_search' },
-                          { id: 'funcional', etiqueta: 'Funcional', icono: 'monitor_heart' },
-                        ].map((t) => {
-                          const activado = tabEstudio === t.id;
-                          const est = CATEGORIA_ESTILO[t.id] || {};
-                          return (
-                            <button
-                              key={t.id}
-                              role="tab"
-                              aria-selected={activado}
-                              onClick={() => setTabEstudio(t.id)}
-                              className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                                activado ? 'text-white shadow-sm' : 'text-on-surface-variant hover:text-secondary'
-                              }`}
-                              style={activado ? { backgroundColor: est.color } : undefined}
-                            >
-                              <Icon name={t.icono} className="text-sm" />
-                              {t.etiqueta}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {errorEstudio && (
-                      <p className="mt-3 text-xs font-semibold text-error flex items-center gap-1.5">
-                        <Icon name="error" className="text-sm" />
-                        {errorEstudio}
-                      </p>
-                    )}
-
-                    {/* Órdenes de estudios del paciente */}
-                    <div className="mt-4 bg-surface-container-low/50 border border-outline-variant rounded-2xl p-3.5 space-y-2">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
-                          <Icon name="description" className="text-sm" />
-                          Órdenes pendientes del paciente
-                        </p>
-                        <button
-                          onClick={cargarOrdenesPaciente}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-secondary hover:underline underline-offset-4"
-                        >
-                          <Icon name="refresh" className="text-sm" />
-                          Actualizar
-                        </button>
-                      </div>
-                      {ordenesCargando && (
-                        <p className="text-xs text-on-surface-variant flex items-center gap-1.5">
-                          <Icon name="sync" className="animate-spin text-sm" /> Cargando órdenes...
-                        </p>
-                      )}
-                      {!ordenesCargando && ordenesPaciente.length === 0 && (
-                        <p className="text-xs text-on-surface-variant italic">
-                          Sin órdenes registradas para este paciente.
-                        </p>
-                      )}
-                      {!ordenesCargando &&
-                        ordenesPaciente.map((o) => {
-                          const pendiente = o.estado === 'solicitada';
-                          return (
-                            <div
-                              key={o.id}
-                              className="flex items-center gap-2.5 flex-wrap bg-surface border border-outline-variant rounded-xl px-3 py-2"
-                            >
-                              <span className="font-mono text-[10px] font-semibold text-secondary">
-                                {o.comprobante_orden}
-                              </span>
-                              <span
-                                className={`font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                                  pendiente ? 'bg-amber-soft text-amber' : 'bg-mint-soft text-mint'
+                        <div className="flex bg-surface-container rounded-full p-1" role="tablist" aria-label="Categoría de estudio">
+                          {[
+                            { id: 'laboratorio', etiqueta: 'Laboratorio', icono: 'biotech' },
+                            { id: 'imagen', etiqueta: 'Imagen', icono: 'image_search' },
+                            { id: 'funcional', etiqueta: 'Funcional', icono: 'monitor_heart' },
+                          ].map((t) => {
+                            const activado = tabEstudio === t.id;
+                            const est = CATEGORIA_ESTILO[t.id] || {};
+                            return (
+                              <button
+                                key={t.id}
+                                role="tab"
+                                aria-selected={activado}
+                                onClick={() => setTabEstudio(t.id)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                  activado ? 'text-white shadow-sm' : 'text-on-surface-variant hover:text-secondary'
                                 }`}
+                                style={activado ? { backgroundColor: est.color } : undefined}
                               >
-                                {o.estado}
-                              </span>
-                              <span className="font-mono text-[10px] text-on-surface-variant">
-                                {o.estudios?.length || 0} estudio(s)
-                              </span>
-                              <span className="font-mono text-[10px] text-on-surface-variant capitalize">{o.prioridad}</span>
-                              <div className="flex-1" />
-                              <IconButton
-                                onClick={() => setOrdenEmitida(o)}
-                                sx={{ color: 'var(--color-on-surface-variant)', padding: 0.5 }}
-                                aria-label="Imprimir orden"
-                              >
-                                <Icon name="print" className="text-lg" />
-                              </IconButton>
-                              {pendiente && (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  startIcon={<Icon name="edit_note" className="text-sm" />}
-                                  onClick={() => completarOrden(o)}
-                                  sx={{
-                                    borderColor: 'var(--color-secondary)',
-                                    color: 'var(--color-secondary)',
-                                    textTransform: 'none',
-                                    fontWeight: 600,
-                                    borderRadius: 2,
-                                  }}
-                                >
-                                  Completar
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        })}
-                    </div>
-
-                    {/* Completando una orden emitida */}
-                    {ordenCompletando && (
-                      <div className="mt-3 border-2 border-secondary/40 bg-doc-soft/40 rounded-2xl p-3.5 space-y-2">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="w-7 h-7 rounded-full bg-secondary/15 text-secondary flex items-center justify-center">
-                            <Icon name="clinical_notes" className="text-sm" />
-                          </span>
-                          <p className="text-xs font-bold text-primary">
-                            Completando orden {ordenCompletando.comprobante_orden}
-                          </p>
-                          <span className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant">
-                            {ordenCompletando.estudios?.length || 0} estudio(s)
-                          </span>
+                                <Icon name={t.icono} className="text-sm" />
+                                {t.etiqueta}
+                              </button>
+                            );
+                          })}
                         </div>
-                        {errorOrden && (
-                          <p className="text-xs font-semibold text-error flex items-center gap-1.5">
-                            <Icon name="error" className="text-sm" />
-                            {errorOrden}
+                      </div>
+
+                      {errorEstudio && (
+                        <p className="mt-3 text-xs font-semibold text-error flex items-center gap-1.5">
+                          <Icon name="error" className="text-sm" />
+                          {errorEstudio}
+                        </p>
+                      )}
+
+                      {/* Órdenes de estudios del paciente */}
+                      <div className="mt-4 bg-surface-container-low/50 border border-outline-variant rounded-2xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant flex items-center gap-1.5">
+                            <Icon name="description" className="text-sm" />
+                            Órdenes pendientes del paciente
+                          </p>
+                          <button
+                            onClick={cargarOrdenesPaciente}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-secondary hover:underline underline-offset-4"
+                          >
+                            <Icon name="refresh" className="text-sm" />
+                            Actualizar
+                          </button>
+                        </div>
+                        {ordenesCargando && (
+                          <p className="text-xs text-on-surface-variant flex items-center gap-1.5">
+                            <Icon name="sync" className="animate-spin text-sm" /> Cargando órdenes...
                           </p>
                         )}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Button
-                            size="small"
-                            variant="contained"
-                            disabled={guardandoOrden}
-                            startIcon={
-                              guardandoOrden ? <Icon name="sync" className="animate-spin text-sm" /> : <Icon name="save" className="text-sm" />
-                            }
-                            onClick={guardarResultadosOrden}
-                            sx={{
-                              backgroundColor: 'var(--color-secondary)',
-                              '&:hover': { backgroundColor: 'var(--color-secondary-dark)' },
-                              textTransform: 'none',
-                              fontWeight: 700,
-                              borderRadius: 2,
-                            }}
-                          >
-                            {guardandoOrden ? 'Guardando...' : 'Guardar resultados de la orden'}
-                          </Button>
-                          <Button
-                            size="small"
-                            onClick={quitarOrdenActiva}
-                            sx={{ color: 'var(--color-on-surface-variant)', textTransform: 'none', fontWeight: 600 }}
-                          >
-                            Descartar
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-3 mt-4">
-                      {estudios.filter((e) => e.tipo === tabEstudio).length === 0 && (
-                        <p className="text-sm text-on-surface-variant italic">
-                          Sin estudios de {tabEstudio} registrados.
-                        </p>
-                      )}
-                      {estudios.map((est) => {
-                        if (est.tipo !== tabEstudio) return null;
-                        const esLab = est.tipo === 'laboratorio';
-                        const esImagen = est.tipo === 'imagen';
-                        return (
-                          <div
-                            key={est.id}
-                            className="bg-surface border border-outline-variant rounded-2xl p-4 space-y-3"
-                            style={{
-                              borderLeftWidth: 3,
-                              borderLeftColor:
-                                esLab
-                                  ? 'var(--color-fx)'
-                                  : esImagen
-                                    ? 'var(--color-doc)'
-                                    : 'var(--color-amber)',
-                            }}
-                          >
-                            <div className="flex items-start gap-3">
-                              <span className="font-mono text-xs pt-2.5 w-6 text-on-surface-variant">
-                                {(estudios.filter((e) => e.tipo === tabEstudio).indexOf(est) + 1).toString().padStart(2, '0')}
-                              </span>
-                              <div className="flex-1 min-w-0 space-y-2">
-                                <TextField
-                                  size="small"
-                                  fullWidth
-                                  value={est.nombre}
-                                  onChange={(e) => cambiarEstudio(est.id, 'nombre', e.target.value)}
-                                  placeholder={
-                                    esLab
-                                      ? 'Nombre del examen (ej. Hemograma completo)'
-                                      : esImagen
-                                        ? 'Tipo de estudio (ej. Radiografía de tórax)'
-                                        : 'Tipo de estudio (ej. Electrocardiograma de reposo)'
-                                  }
-                                  sx={fieldSx}
-                                />
-                                {esLab && (
-                                  <div className="space-y-2">
-                                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                                      <TextField
-                                        size="small"
-                                        placeholder="Parámetro"
-                                        value={est.parametros[0]?.parametro || ''}
-                                        onChange={(e) => {
-                                          if (est.parametros.length === 0) agregarParametro(est.id);
-                                          cambiarParametro(est.id, 0, 'parametro', e.target.value);
-                                        }}
-                                        sx={fieldSx}
-                                      />
-                                      <TextField
-                                        size="small"
-                                        placeholder="Valor"
-                                        value={est.parametros[0]?.valor || ''}
-                                        onChange={(e) => {
-                                          if (est.parametros.length === 0) agregarParametro(est.id);
-                                          cambiarParametro(est.id, 0, 'valor', e.target.value);
-                                        }}
-                                        sx={fieldSx}
-                                      />
-                                      <TextField
-                                        size="small"
-                                        placeholder="Unidad"
-                                        value={est.parametros[0]?.unidad || ''}
-                                        onChange={(e) => {
-                                          if (est.parametros.length === 0) agregarParametro(est.id);
-                                          cambiarParametro(est.id, 0, 'unidad', e.target.value);
-                                        }}
-                                        sx={fieldSx}
-                                      />
-                                      <TextField
-                                        size="small"
-                                        placeholder="Rango ref."
-                                        value={est.parametros[0]?.rango || ''}
-                                        onChange={(e) => {
-                                          if (est.parametros.length === 0) agregarParametro(est.id);
-                                          cambiarParametro(est.id, 0, 'rango', e.target.value);
-                                        }}
-                                        sx={fieldSx}
-                                      />
-                                    </div>
-                                    {est.parametros.slice(1).map((p, i) => (
-                                      <div key={i} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] gap-2 items-center">
-                                        <span className="font-mono text-[10px] text-on-surface-variant w-6">{(i + 2).toString().padStart(2, '0')}</span>
-                                        <TextField
-                                          size="small"
-                                          placeholder="Parámetro"
-                                          value={p.parametro}
-                                          onChange={(e) => cambiarParametro(est.id, i + 1, 'parametro', e.target.value)}
-                                          sx={fieldSx}
-                                        />
-                                        <TextField
-                                          size="small"
-                                          placeholder="Valor"
-                                          value={p.valor}
-                                          onChange={(e) => cambiarParametro(est.id, i + 1, 'valor', e.target.value)}
-                                          sx={fieldSx}
-                                        />
-                                        <TextField
-                                          size="small"
-                                          placeholder="Unidad"
-                                          value={p.unidad}
-                                          onChange={(e) => cambiarParametro(est.id, i + 1, 'unidad', e.target.value)}
-                                          sx={fieldSx}
-                                        />
-                                        <TextField
-                                          size="small"
-                                          placeholder="Rango ref."
-                                          value={p.rango}
-                                          onChange={(e) => cambiarParametro(est.id, i + 1, 'rango', e.target.value)}
-                                          sx={fieldSx}
-                                        />
-                                        <IconButton
-                                          onClick={() => quitarParametro(est.id, i + 1)}
-                                          sx={{ color: 'var(--color-error)', justifySelf: 'end' }}
-                                          aria-label="Quitar parámetro"
-                                        >
-                                          <Icon name="delete" className="text-base" />
-                                        </IconButton>
-                                      </div>
-                                    ))}
-                                    <button
-                                      onClick={() => agregarParametro(est.id)}
-                                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary hover:underline underline-offset-4"
-                                    >
-                                      <Icon name="add" className="text-sm" />
-                                      Agregar parámetro
-                                    </button>
-                                  </div>
-                                )}
-                                {esImagen && (
-                                  <TextField
+                        {!ordenesCargando && ordenesPaciente.length === 0 && (
+                          <p className="text-xs text-on-surface-variant italic">
+                            Sin órdenes registradas para este paciente.
+                          </p>
+                        )}
+                        {!ordenesCargando &&
+                          ordenesPaciente.map((o) => {
+                            const pendiente = o.estado === 'solicitada';
+                            return (
+                              <div
+                                key={o.id}
+                                className="flex items-center gap-2.5 flex-wrap bg-surface border border-outline-variant rounded-xl px-3 py-2"
+                              >
+                                <span className="font-mono text-[10px] font-semibold text-secondary">
+                                  {o.comprobante_orden}
+                                </span>
+                                <span
+                                  className={`font-mono text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                                    pendiente ? 'bg-amber-soft text-amber' : 'bg-mint-soft text-mint'
+                                  }`}
+                                >
+                                  {o.estado}
+                                </span>
+                                <span className="font-mono text-[10px] text-on-surface-variant">
+                                  {o.estudios?.length || 0} estudio(s)
+                                </span>
+                                <span className="font-mono text-[10px] text-on-surface-variant capitalize">{o.prioridad}</span>
+                                <div className="flex-1" />
+                                <IconButton
+                                  onClick={() => setOrdenEmitida(o)}
+                                  sx={{ color: 'var(--color-on-surface-variant)', padding: 0.5 }}
+                                  aria-label="Imprimir orden"
+                                >
+                                  <Icon name="print" className="text-lg" />
+                                </IconButton>
+                                {pendiente && (
+                                  <Button
                                     size="small"
-                                    fullWidth
-                                    multiline
-                                    minRows={2}
-                                    value={est.descripcion}
-                                    onChange={(e) => cambiarEstudio(est.id, 'descripcion', e.target.value)}
-                                    placeholder="Descripción de los hallazgos..."
-                                    sx={fieldSx}
-                                  />
-                                )}
-                                {(esImagen || est.tipo === 'funcional') && (
-                                  <TextField
-                                    size="small"
-                                    fullWidth
-                                    multiline
-                                    minRows={2}
-                                    value={est.conclusion}
-                                    onChange={(e) => cambiarEstudio(est.id, 'conclusion', e.target.value)}
-                                    placeholder={esImagen ? 'Conclusión / impresión diagnóstica...' : 'Interpretación del estudio...'}
-                                    sx={fieldSx}
-                                  />
-                                )}
-                                {est.tipo === 'funcional' && est.parametros.length > 0 && (
-                                  <div className="space-y-2">
-                                    {est.parametros.map((p, i) => (
-                                      <div key={i} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] gap-2 items-center">
-                                        <span className="font-mono text-[10px] text-on-surface-variant w-6">{(i + 1).toString().padStart(2, '0')}</span>
-                                        <TextField
-                                          size="small"
-                                          placeholder="Parámetro"
-                                          value={p.parametro}
-                                          onChange={(e) => cambiarParametro(est.id, i, 'parametro', e.target.value)}
-                                          sx={fieldSx}
-                                        />
-                                        <TextField
-                                          size="small"
-                                          placeholder="Valor"
-                                          value={p.valor}
-                                          onChange={(e) => cambiarParametro(est.id, i, 'valor', e.target.value)}
-                                          sx={fieldSx}
-                                        />
-                                        <TextField
-                                          size="small"
-                                          placeholder="Unidad"
-                                          value={p.unidad}
-                                          onChange={(e) => cambiarParametro(est.id, i, 'unidad', e.target.value)}
-                                          sx={fieldSx}
-                                        />
-                                        <TextField
-                                          size="small"
-                                          placeholder="Rango ref."
-                                          value={p.rango}
-                                          onChange={(e) => cambiarParametro(est.id, i, 'rango', e.target.value)}
-                                          sx={fieldSx}
-                                        />
-                                        <IconButton
-                                          onClick={() => quitarParametro(est.id, i)}
-                                          sx={{ color: 'var(--color-error)', justifySelf: 'end' }}
-                                          aria-label="Quitar parámetro"
-                                        >
-                                          <Icon name="delete" className="text-base" />
-                                        </IconButton>
-                                      </div>
-                                    ))}
-                                    <button
-                                      onClick={() => agregarParametro(est.id)}
-                                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary hover:underline underline-offset-4"
-                                    >
-                                      <Icon name="add" className="text-sm" />
-                                      Agregar parámetro
-                                    </button>
-                                  </div>
+                                    variant="outlined"
+                                    startIcon={<Icon name="edit_note" className="text-sm" />}
+                                    onClick={() => completarOrden(o)}
+                                    sx={{
+                                      borderColor: 'var(--color-secondary)',
+                                      color: 'var(--color-secondary)',
+                                      textTransform: 'none',
+                                      fontWeight: 600,
+                                      borderRadius: 2,
+                                    }}
+                                  >
+                                    Completar
+                                  </Button>
                                 )}
                               </div>
-                              <IconButton
-                                onClick={() => quitarEstudio(est.id)}
-                                sx={{ color: 'var(--color-error)' }}
-                                aria-label="Quitar estudio"
-                              >
-                                <Icon name="delete" className="text-lg" />
-                              </IconButton>
-                            </div>
+                            );
+                          })}
+                      </div>
 
-                            {/* Escanear / foto */}
-                            <div className="flex items-center gap-2.5 pl-9">
-                              <label
-                                className="inline-flex items-center gap-2 text-xs font-semibold text-secondary border border-secondary/40 rounded-lg px-3 py-2 hover:bg-secondary/5 cursor-pointer transition-colors"
-                              >
-                                <Icon
-                                  name={procesandoEstudio === est.id ? 'sync' : 'photo_camera'}
-                                  className={`text-base ${procesandoEstudio === est.id ? 'animate-spin' : ''}`}
-                                />
-                                {procesandoEstudio === est.id ? 'Procesando...' : 'Escanear / tomar foto'}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  capture="environment"
-                                  className="hidden"
-                                  disabled={procesandoEstudio === est.id}
-                                  onChange={(e) => {
-                                    procesarImagenEstudio(est.id, e.target.files?.[0]);
-                                    e.target.value = '';
-                                  }}
-                                />
-                              </label>
-                              <span className="font-mono text-[10px] text-on-surface-variant">
-                                El texto se extrae con IA y queda editable
-                              </span>
-                            </div>
+                      {/* Completando una orden emitida */}
+                      {ordenCompletando && (
+                        <div className="mt-3 border-2 border-secondary/40 bg-doc-soft/40 rounded-2xl p-3.5 space-y-2">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="w-7 h-7 rounded-full bg-secondary/15 text-secondary flex items-center justify-center">
+                              <Icon name="clinical_notes" className="text-sm" />
+                            </span>
+                            <p className="text-xs font-bold text-primary">
+                              Completando orden {ordenCompletando.comprobante_orden}
+                            </p>
+                            <span className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant">
+                              {ordenCompletando.estudios?.length || 0} estudio(s)
+                            </span>
                           </div>
-                        );
-                      })}
-                      <button
-                        onClick={agregarEstudio}
-                        className="inline-flex items-center gap-2 text-sm font-semibold text-secondary hover:underline underline-offset-4"
-                      >
-                        <Icon name="add" className="text-lg" />
-                        Agregar estudio de {tabEstudio}
-                      </button>
-                    </div>
-                  </section>
+                          {errorOrden && (
+                            <p className="text-xs font-semibold text-error flex items-center gap-1.5">
+                              <Icon name="error" className="text-sm" />
+                              {errorOrden}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Button
+                              size="small"
+                              variant="contained"
+                              disabled={guardandoOrden}
+                              startIcon={
+                                guardandoOrden ? <Icon name="sync" className="animate-spin text-sm" /> : <Icon name="save" className="text-sm" />
+                              }
+                              onClick={guardarResultadosOrden}
+                              sx={{
+                                backgroundColor: 'var(--color-secondary)',
+                                '&:hover': { backgroundColor: 'var(--color-secondary-dark)' },
+                                textTransform: 'none',
+                                fontWeight: 700,
+                                borderRadius: 2,
+                              }}
+                            >
+                              {guardandoOrden ? 'Guardando...' : 'Guardar resultados de la orden'}
+                            </Button>
+                            <Button
+                              size="small"
+                              onClick={quitarOrdenActiva}
+                              sx={{ color: 'var(--color-on-surface-variant)', textTransform: 'none', fontWeight: 600 }}
+                            >
+                              Descartar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-3 mt-4">
+                        {estudios.filter((e) => e.tipo === tabEstudio).length === 0 && (
+                          <p className="text-sm text-on-surface-variant italic">
+                            Sin estudios de {tabEstudio} registrados.
+                          </p>
+                        )}
+                        {estudios.map((est) => {
+                          if (est.tipo !== tabEstudio) return null;
+                          const esLab = est.tipo === 'laboratorio';
+                          const esImagen = est.tipo === 'imagen';
+                          return (
+                            <div
+                              key={est.id}
+                              className="bg-surface border border-outline-variant rounded-2xl p-4 space-y-3"
+                              style={{
+                                borderLeftWidth: 3,
+                                borderLeftColor:
+                                  esLab
+                                    ? 'var(--color-fx)'
+                                    : esImagen
+                                      ? 'var(--color-doc)'
+                                      : 'var(--color-amber)',
+                              }}
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className="font-mono text-xs pt-2.5 w-6 text-on-surface-variant">
+                                  {(estudios.filter((e) => e.tipo === tabEstudio).indexOf(est) + 1).toString().padStart(2, '0')}
+                                </span>
+                                <div className="flex-1 min-w-0 space-y-2">
+                                  <TextField
+                                    size="small"
+                                    fullWidth
+                                    value={est.nombre}
+                                    onChange={(e) => cambiarEstudio(est.id, 'nombre', e.target.value)}
+                                    placeholder={
+                                      esLab
+                                        ? 'Nombre del examen (ej. Hemograma completo)'
+                                        : esImagen
+                                          ? 'Tipo de estudio (ej. Radiografía de tórax)'
+                                          : 'Tipo de estudio (ej. Electrocardiograma de reposo)'
+                                    }
+                                    sx={fieldSx}
+                                  />
+                                  {esLab && (
+                                    <div className="space-y-2">
+                                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                                        <TextField
+                                          size="small"
+                                          placeholder="Parámetro"
+                                          value={est.parametros[0]?.parametro || ''}
+                                          onChange={(e) => {
+                                            if (est.parametros.length === 0) agregarParametro(est.id);
+                                            cambiarParametro(est.id, 0, 'parametro', e.target.value);
+                                          }}
+                                          sx={fieldSx}
+                                        />
+                                        <TextField
+                                          size="small"
+                                          placeholder="Valor"
+                                          value={est.parametros[0]?.valor || ''}
+                                          onChange={(e) => {
+                                            if (est.parametros.length === 0) agregarParametro(est.id);
+                                            cambiarParametro(est.id, 0, 'valor', e.target.value);
+                                          }}
+                                          sx={fieldSx}
+                                        />
+                                        <TextField
+                                          size="small"
+                                          placeholder="Unidad"
+                                          value={est.parametros[0]?.unidad || ''}
+                                          onChange={(e) => {
+                                            if (est.parametros.length === 0) agregarParametro(est.id);
+                                            cambiarParametro(est.id, 0, 'unidad', e.target.value);
+                                          }}
+                                          sx={fieldSx}
+                                        />
+                                        <TextField
+                                          size="small"
+                                          placeholder="Rango ref."
+                                          value={est.parametros[0]?.rango || ''}
+                                          onChange={(e) => {
+                                            if (est.parametros.length === 0) agregarParametro(est.id);
+                                            cambiarParametro(est.id, 0, 'rango', e.target.value);
+                                          }}
+                                          sx={fieldSx}
+                                        />
+                                      </div>
+                                      {est.parametros.slice(1).map((p, i) => (
+                                        <div key={i} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] gap-2 items-center">
+                                          <span className="font-mono text-[10px] text-on-surface-variant w-6">{(i + 2).toString().padStart(2, '0')}</span>
+                                          <TextField
+                                            size="small"
+                                            placeholder="Parámetro"
+                                            value={p.parametro}
+                                            onChange={(e) => cambiarParametro(est.id, i + 1, 'parametro', e.target.value)}
+                                            sx={fieldSx}
+                                          />
+                                          <TextField
+                                            size="small"
+                                            placeholder="Valor"
+                                            value={p.valor}
+                                            onChange={(e) => cambiarParametro(est.id, i + 1, 'valor', e.target.value)}
+                                            sx={fieldSx}
+                                          />
+                                          <TextField
+                                            size="small"
+                                            placeholder="Unidad"
+                                            value={p.unidad}
+                                            onChange={(e) => cambiarParametro(est.id, i + 1, 'unidad', e.target.value)}
+                                            sx={fieldSx}
+                                          />
+                                          <TextField
+                                            size="small"
+                                            placeholder="Rango ref."
+                                            value={p.rango}
+                                            onChange={(e) => cambiarParametro(est.id, i + 1, 'rango', e.target.value)}
+                                            sx={fieldSx}
+                                          />
+                                          <IconButton
+                                            onClick={() => quitarParametro(est.id, i + 1)}
+                                            sx={{ color: 'var(--color-error)', justifySelf: 'end' }}
+                                            aria-label="Quitar parámetro"
+                                          >
+                                            <Icon name="delete" className="text-base" />
+                                          </IconButton>
+                                        </div>
+                                      ))}
+                                      <button
+                                        onClick={() => agregarParametro(est.id)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary hover:underline underline-offset-4"
+                                      >
+                                        <Icon name="add" className="text-sm" />
+                                        Agregar parámetro
+                                      </button>
+                                    </div>
+                                  )}
+                                  {esImagen && (
+                                    <TextField
+                                      size="small"
+                                      fullWidth
+                                      multiline
+                                      minRows={2}
+                                      value={est.descripcion}
+                                      onChange={(e) => cambiarEstudio(est.id, 'descripcion', e.target.value)}
+                                      placeholder="Descripción de los hallazgos..."
+                                      sx={fieldSx}
+                                    />
+                                  )}
+                                  {(esImagen || est.tipo === 'funcional') && (
+                                    <TextField
+                                      size="small"
+                                      fullWidth
+                                      multiline
+                                      minRows={2}
+                                      value={est.conclusion}
+                                      onChange={(e) => cambiarEstudio(est.id, 'conclusion', e.target.value)}
+                                      placeholder={esImagen ? 'Conclusión / impresión diagnóstica...' : 'Interpretación del estudio...'}
+                                      sx={fieldSx}
+                                    />
+                                  )}
+                                  {est.tipo === 'funcional' && est.parametros.length > 0 && (
+                                    <div className="space-y-2">
+                                      {est.parametros.map((p, i) => (
+                                        <div key={i} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_1fr_1fr] gap-2 items-center">
+                                          <span className="font-mono text-[10px] text-on-surface-variant w-6">{(i + 1).toString().padStart(2, '0')}</span>
+                                          <TextField
+                                            size="small"
+                                            placeholder="Parámetro"
+                                            value={p.parametro}
+                                            onChange={(e) => cambiarParametro(est.id, i, 'parametro', e.target.value)}
+                                            sx={fieldSx}
+                                          />
+                                          <TextField
+                                            size="small"
+                                            placeholder="Valor"
+                                            value={p.valor}
+                                            onChange={(e) => cambiarParametro(est.id, i, 'valor', e.target.value)}
+                                            sx={fieldSx}
+                                          />
+                                          <TextField
+                                            size="small"
+                                            placeholder="Unidad"
+                                            value={p.unidad}
+                                            onChange={(e) => cambiarParametro(est.id, i, 'unidad', e.target.value)}
+                                            sx={fieldSx}
+                                          />
+                                          <TextField
+                                            size="small"
+                                            placeholder="Rango ref."
+                                            value={p.rango}
+                                            onChange={(e) => cambiarParametro(est.id, i, 'rango', e.target.value)}
+                                            sx={fieldSx}
+                                          />
+                                          <IconButton
+                                            onClick={() => quitarParametro(est.id, i)}
+                                            sx={{ color: 'var(--color-error)', justifySelf: 'end' }}
+                                            aria-label="Quitar parámetro"
+                                          >
+                                            <Icon name="delete" className="text-base" />
+                                          </IconButton>
+                                        </div>
+                                      ))}
+                                      <button
+                                        onClick={() => agregarParametro(est.id)}
+                                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary hover:underline underline-offset-4"
+                                      >
+                                        <Icon name="add" className="text-sm" />
+                                        Agregar parámetro
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                                <IconButton
+                                  onClick={() => quitarEstudio(est.id)}
+                                  sx={{ color: 'var(--color-error)' }}
+                                  aria-label="Quitar estudio"
+                                >
+                                  <Icon name="delete" className="text-lg" />
+                                </IconButton>
+                              </div>
+
+                              {/* Escanear / foto */}
+                              <div className="flex items-center gap-2.5 pl-9 flex-wrap">
+                                <label
+                                  className="inline-flex items-center gap-2 text-xs font-semibold text-secondary border border-secondary/40 rounded-lg px-3 py-2 hover:bg-secondary/5 cursor-pointer transition-colors"
+                                >
+                                  <Icon
+                                    name={procesandoEstudio === est.id ? 'sync' : 'photo_camera'}
+                                    className={`text-base ${procesandoEstudio === est.id ? 'animate-spin' : ''}`}
+                                  />
+                                  {procesandoEstudio === est.id ? 'Procesando...' : 'Escanear / tomar foto'}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    disabled={procesandoEstudio === est.id}
+                                    onChange={(e) => {
+                                      procesarImagenEstudio(est.id, e.target.files?.[0]);
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                </label>
+                                <span className="font-mono text-[10px] text-on-surface-variant">
+                                  El texto se extrae con IA y queda editable
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <button
+                          onClick={agregarEstudio}
+                          className="inline-flex items-center gap-2 text-sm font-semibold text-secondary hover:underline underline-offset-4"
+                        >
+                          <Icon name="add" className="text-lg" />
+                          Agregar estudio de {tabEstudio}
+                        </button>
+                      </div>
+                    </section>
                   </div>
                 )}
               </div>
 
-              {/* Barra de acciones inferior (desplazable en móvil, sin apilarse) */}
-              <div className="shrink-0 border-t border-ink-line bg-paper/95 backdrop-blur-md px-4 md:px-6 py-3">
-                <div className="flex items-center gap-2 md:gap-3 flex-nowrap overflow-x-auto ledger-scroll">
+              {/* Barra de acciones inferior (desplazable en móvil, sin apilarse, con Finalizar destacado) */}
+              <div className="shrink-0 border-t border-ink-line bg-paper/95 backdrop-blur-md px-3 md:px-6 py-2.5 md:py-3 z-30">
+                <div className="flex items-center gap-2 md:gap-3 flex-nowrap overflow-x-auto ledger-scroll scrollbar-hide py-0.5">
+                  {/* Botón Principal: Finalizar consulta y llamar al siguiente (Siempre visible y destacado con paciente activo) */}
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={
+                      guardando ? (
+                        <Icon name="sync" className="animate-spin text-base" />
+                      ) : (
+                        <Icon name="skip_next" className="text-base" />
+                      )
+                    }
+                    onClick={finalizarSiguiente}
+                    disabled={guardando}
+                    className="shrink-0 font-extrabold shadow-md active:scale-95 transition-all"
+                    sx={{
+                      background: temaCentro.gradient,
+                      color: '#ffffff',
+                      textTransform: 'none',
+                      borderRadius: 2.5,
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      px: 2.5,
+                      py: 1,
+                      fontSize: '0.82rem',
+                    }}
+                  >
+                    {guardando ? 'Guardando...' : 'Finalizar y Siguiente'}
+                  </Button>
+
+                  <div className="w-px h-6 bg-ink-line shrink-0" aria-hidden="true" />
+
                   <Button
                     variant="outlined"
                     size="small"
                     startIcon={<Icon name="science" className="text-base !text-fx" />}
                     onClick={() => abrirOrden('laboratorio')}
                     className="shrink-0"
-                    sx={{ borderColor: 'var(--color-ink-line)', color: 'var(--color-ink-soft)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600, whiteSpace: 'nowrap' }}
+                    sx={{
+                      borderColor: 'var(--color-ink-line)',
+                      color: 'var(--color-ink-soft)',
+                      textTransform: 'none',
+                      borderRadius: 2.5,
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      fontSize: '0.8rem',
+                      py: 0.9,
+                    }}
                   >
-                    Orden de Laboratorio
+                    Orden Laboratorio
                   </Button>
                   <Button
                     variant="outlined"
@@ -2144,9 +2217,18 @@ export default function Doctores() {
                     startIcon={<Icon name="image_search" className="text-base !text-doc" />}
                     onClick={() => abrirOrden('imagen')}
                     className="shrink-0"
-                    sx={{ borderColor: 'var(--color-ink-line)', color: 'var(--color-ink-soft)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600, whiteSpace: 'nowrap' }}
+                    sx={{
+                      borderColor: 'var(--color-ink-line)',
+                      color: 'var(--color-ink-soft)',
+                      textTransform: 'none',
+                      borderRadius: 2.5,
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      fontSize: '0.8rem',
+                      py: 0.9,
+                    }}
                   >
-                    Orden de Imagen
+                    Orden Imagen
                   </Button>
                   <Button
                     variant="outlined"
@@ -2155,7 +2237,16 @@ export default function Doctores() {
                     startIcon={<Icon name="emergency" className="text-base" />}
                     onClick={() => setAviso('Alerta de urgencia notificada al equipo de emergencias.')}
                     className="shrink-0"
-                    sx={{ borderColor: 'var(--color-error)', color: 'var(--color-error)', textTransform: 'none', borderRadius: 2.5, fontWeight: 700, whiteSpace: 'nowrap' }}
+                    sx={{
+                      borderColor: 'var(--color-error)',
+                      color: 'var(--color-error)',
+                      textTransform: 'none',
+                      borderRadius: 2.5,
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                      fontSize: '0.8rem',
+                      py: 0.9,
+                    }}
                   >
                     Urgencia
                   </Button>
@@ -2164,14 +2255,23 @@ export default function Doctores() {
                     size="small"
                     startIcon={<Icon name="print" className="text-base" />}
                     onClick={() => setRecetaAbierto(true)}
-                    className="order-last md:order-none flex-1 md:flex-none shrink-0 whitespace-nowrap"
-                    sx={{ borderColor: 'var(--color-ink-line)', color: 'var(--color-ink-soft)', textTransform: 'none', borderRadius: 2.5, fontWeight: 600 }}
+                    className="shrink-0"
+                    sx={{
+                      borderColor: 'var(--color-ink-line)',
+                      color: 'var(--color-ink-soft)',
+                      textTransform: 'none',
+                      borderRadius: 2.5,
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      fontSize: '0.8rem',
+                      py: 0.9,
+                    }}
                   >
                     Imprimir Receta
                   </Button>
-                  <div className="flex-1" />
+
                   {error && (
-                    <span className="text-xs font-semibold text-error max-w-[240px] truncate order-2 w-full md:w-auto md:order-none">
+                    <span className="text-xs font-semibold text-error shrink-0 px-2 py-1 rounded bg-error-container/50">
                       {error}
                     </span>
                   )}
@@ -2180,18 +2280,38 @@ export default function Doctores() {
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center p-6">
-              <div className="text-center max-w-md">
+              <div className="text-center max-w-md space-y-4">
                 <div
-                  className="mx-auto w-20 h-20 rounded-full text-white flex items-center justify-center mb-5 shadow-xl"
+                  className="mx-auto w-20 h-20 rounded-2xl text-white flex items-center justify-center shadow-xl"
                   style={{ background: temaCentro.gradient }}
                 >
                   <Icon name="stethoscope" className="text-4xl" />
                 </div>
-                <h2 className="text-2xl font-extrabold text-primary mb-2">Seleccione un paciente</h2>
-                <p className="text-sm text-on-surface-variant">
-                  Elija un turno de la cola de {centro?.nombre || 'su centro'} para comenzar la
-                  valoración clínica, el diagnóstico y el registro de la consulta.
-                </p>
+                <div>
+                  <h2 className="text-2xl font-extrabold text-primary mb-1.5">Seleccione un paciente</h2>
+                  <p className="text-sm text-on-surface-variant leading-relaxed">
+                    Elija un turno de la cola de {centro?.nombre || 'su centro'} para comenzar la
+                    valoración clínica, el diagnóstico y el registro de la consulta.
+                  </p>
+                </div>
+                <div className="pt-2 lg:hidden">
+                  <Button
+                    variant="contained"
+                    onClick={() => setQueueAbierta(true)}
+                    startIcon={<Icon name="groups" className="text-lg" />}
+                    sx={{
+                      background: temaCentro.gradient,
+                      color: '#ffffff',
+                      textTransform: 'none',
+                      fontWeight: 700,
+                      borderRadius: 3,
+                      px: 3,
+                      py: 1.2,
+                    }}
+                  >
+                    Ver Cola de Pacientes ({cola.espera.length} en espera)
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -2204,15 +2324,15 @@ export default function Doctores() {
         onClose={() => setHistorialAbierto(false)}
         fullWidth
         maxWidth="md"
-        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: { xs: 3, md: 4 }, margin: { xs: 2, md: 4 } } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
-          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
             <Icon name="history" filled className="text-lg" />
           </span>
-          <div>
-            Historial clínico de {activo?.nombre}
-            <p className="font-mono text-[10px] font-medium uppercase tracking-widest text-on-surface-variant mt-0.5">
+          <div className="min-w-0 flex-1">
+            <p className="truncate">Historial clínico de {activo?.nombre}</p>
+            <p className="font-mono text-[10px] font-medium uppercase tracking-widest text-on-surface-variant mt-0.5 truncate">
               {historial ? `${historial.total_consultas} consulta(s) · ${historial.paciente.numero_historia || ''}` : 'Expediente del paciente'}
             </p>
           </div>
@@ -2287,10 +2407,10 @@ export default function Doctores() {
         onClose={() => setRecetaAbierto(false)}
         fullWidth
         maxWidth="sm"
-        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: { xs: 3, md: 4 }, margin: { xs: 2, md: 4 } } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
-          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
             <Icon name="print" filled className="text-lg" />
           </span>
           Receta médica
@@ -2366,10 +2486,10 @@ export default function Doctores() {
         onClose={() => setOrdenEmitida(null)}
         fullWidth
         maxWidth="sm"
-        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: { xs: 3, md: 4 }, margin: { xs: 2, md: 4 } } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
-          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
             <Icon name="print" filled className="text-lg" />
           </span>
           Orden de estudios
@@ -2473,7 +2593,7 @@ export default function Doctores() {
         onClose={() => setOrdenAbierta(false)}
         fullWidth
         maxWidth="md"
-        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: { xs: 3, md: 4 }, margin: { xs: 2, md: 4 } } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
           <span
@@ -2482,9 +2602,9 @@ export default function Doctores() {
           >
             <Icon name={catEstilo.icono || 'science'} filled className="text-lg" />
           </span>
-          <div>
-            Orden médica de estudios
-            <p className="font-mono text-[10px] font-medium uppercase tracking-widest text-on-surface-variant mt-0.5">
+          <div className="min-w-0 flex-1">
+            <p className="truncate">Orden médica de estudios</p>
+            <p className="font-mono text-[10px] font-medium uppercase tracking-widest text-on-surface-variant mt-0.5 truncate">
               Seleccione los exámenes a solicitar para {activo?.nombre}
             </p>
           </div>
@@ -2492,7 +2612,7 @@ export default function Doctores() {
         <DialogContent dividers>
           <div className="space-y-3">
             {/* Categorías */}
-            <div className="flex bg-surface-container rounded-full p-1" role="tablist" aria-label="Categoría de la orden">
+            <div className="flex bg-surface-container rounded-full p-1 max-w-full overflow-x-auto ledger-scroll" role="tablist" aria-label="Categoría de la orden">
               {[
                 { id: 'laboratorio', etiqueta: 'Laboratorio', icono: 'science' },
                 { id: 'imagen', etiqueta: 'Imagen', icono: 'image_search' },
@@ -2509,7 +2629,7 @@ export default function Doctores() {
                       setOrdenCategoria(t.id);
                       setOrdenBusqueda('');
                     }}
-                    className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`flex-1 px-3 py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${
                       activado ? 'text-white shadow-sm' : 'text-on-surface-variant hover:text-secondary'
                     }`}
                     style={activado ? { backgroundColor: tEstilo.color } : undefined}
@@ -2657,10 +2777,10 @@ export default function Doctores() {
         open={!!informePaciente}
         fullWidth
         maxWidth="md"
-        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: { xs: 3, md: 4 }, margin: { xs: 2, md: 4 } } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
-          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
             <Icon name="check_circle" filled className="text-lg" />
           </span>
           Informe de consulta
@@ -2820,10 +2940,10 @@ export default function Doctores() {
         onClose={() => setListadoAbierto(false)}
         fullWidth
         maxWidth="sm"
-        PaperProps={{ sx: { ...varsCentro, borderRadius: 4 } }}
+        PaperProps={{ sx: { ...varsCentro, borderRadius: { xs: 3, md: 4 }, margin: { xs: 2, md: 4 } } }}
       >
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: 'var(--color-primary)' }}>
-          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+          <span className="w-9 h-9 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
             <Icon name="done_all" filled className="text-lg" />
           </span>
           Pacientes atendidos hoy

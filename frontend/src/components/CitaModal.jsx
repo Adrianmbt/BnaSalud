@@ -6,6 +6,34 @@ import LogoPlate from './LogoPlate';
 import CapacityIndicator from './CapacityIndicator';
 import { getCentroTheme } from '../centroTheme';
 
+const PREFIJOS_VENEZUELA = ['0412', '0414', '0424', '0416', '0426', '0422', '0418'];
+
+function normalizarTelefono(valor) {
+  const soloDigitos = valor.replace(/\D/g, '');
+  if (soloDigitos.length === 10 && soloDigitos.startsWith('0')) {
+    return `58${soloDigitos.slice(1)}`;
+  }
+  if (soloDigitos.length === 9 && !soloDigitos.startsWith('0')) {
+    return `58${soloDigitos}`;
+  }
+  if (soloDigitos.length === 11 && soloDigitos.startsWith('58')) {
+    return soloDigitos;
+  }
+  return soloDigitos;
+}
+
+function validarTelefonoVenezolano(valor) {
+  const limpio = valor.replace(/\D/g, '');
+  if (limpio.length < 7) return false;
+  if (limpio.length === 10) return PREFIJOS_VENEZUELA.some(p => limpio.startsWith(p));
+  if (limpio.length === 9) return PREFIJOS_VENEZUELA.some(p => limpio.slice(0, 3) === p.slice(1));
+  if (limpio.length === 11 && limpio.startsWith('58')) {
+    const local = limpio.slice(2);
+    return PREFIJOS_VENEZUELA.some(p => local.startsWith(p.slice(1)));
+  }
+  return limpio.length >= 7;
+}
+
 const PASOS = [
   { numero: 1, etiqueta: 'Tus datos', icono: 'person' },
   { numero: 2, etiqueta: 'Especialidad y fecha', icono: 'calendar_month' },
@@ -26,9 +54,9 @@ export default function CitaModal({ centro, onClose }) {
   const [apiError, setApiError] = useState('');
   const [exitoCodigo, setExitoCodigo] = useState(null);
   const [exitoPin, setExitoPin] = useState('');
-  const [pinEnviadoCorreo, setPinEnviadoCorreo] = useState(false);
+  const [pinEnviadoWhatsapp, setPinEnviadoWhatsapp] = useState(false);
 
-  const [form, setForm] = useState({ nombre: '', cedula: '', email: '' });
+  const [form, setForm] = useState({ nombre: '', cedula: '', telefono: '' });
   const [errores, setErrores] = useState({});
 
   const dialogRef = useRef(null);
@@ -124,7 +152,7 @@ export default function CitaModal({ centro, onClose }) {
     if (paso === 1) {
       if (!form.nombre.trim()) errs.nombre = 'Este campo es obligatorio';
       if (!form.cedula.trim()) errs.cedula = 'Este campo es obligatorio';
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = 'Ingrese un correo válido';
+      if (!validarTelefonoVenezolano(form.telefono)) errs.telefono = 'Ingrese un número de WhatsApp válido (ej: 04121234567)';
     }
     if (paso === 2) {
       if (!especialidadId) errs.especialidad = 'Seleccione una especialidad';
@@ -158,7 +186,7 @@ export default function CitaModal({ centro, onClose }) {
         tipo_cedula: ident.tipo_cedula,
         cedula: ident.cedula,
         nombre_completo: form.nombre.trim(),
-        email: form.email.trim(),
+        telefono_whatsapp: normalizarTelefono(form.telefono),
       },
     };
 
@@ -166,7 +194,7 @@ export default function CitaModal({ centro, onClose }) {
       const cita = await API.crearCita(payload);
       setExitoCodigo(cita.codigo_confirmacion || 'CITAB-2026-OK');
       setExitoPin(cita.pin_inicial || '');
-      setPinEnviadoCorreo(!!cita.pin_enviado_correo);
+      setPinEnviadoWhatsapp(!!cita.pin_enviado_whatsapp);
     } catch (err) {
       setApiError(err.message);
     } finally {
@@ -260,7 +288,7 @@ export default function CitaModal({ centro, onClose }) {
                 </div>
                 <h4 className="text-2xl md:text-3xl font-extrabold text-primary">¡Cita Agendada!</h4>
                 <p className="text-sm text-on-surface-variant mt-2 max-w-sm">
-                  Recibirás un correo de confirmación con los detalles de tu cita en {centro.nombre}.
+                  Recibirás un mensaje de WhatsApp con los detalles de tu cita y tu PIN Secreto en {centro.nombre}.
                 </p>
                 <div className="mt-4 w-full max-w-sm text-left rounded-2xl p-5 relative overflow-hidden bg-emerald-50/80 border border-emerald-300/80 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
@@ -283,7 +311,7 @@ export default function CitaModal({ centro, onClose }) {
                       </span>
                     </div>
                     <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-lg">
-                      {pinEnviadoCorreo ? 'Enviado al correo' : 'Guárdalo ahora'}
+                      {pinEnviadoWhatsapp ? 'Enviado por WhatsApp' : 'Guárdalo ahora'}
                     </span>
                   </div>
 
@@ -432,25 +460,28 @@ export default function CitaModal({ centro, onClose }) {
                           </div>
                         </div>
                         <div>
-                          <label htmlFor="modal-email" className="text-sm font-medium text-on-surface-variant">
-                            Correo Electrónico
+                          <label htmlFor="modal-telefono" className="text-sm font-medium text-on-surface-variant">
+                            WhatsApp / Teléfono
                           </label>
                           <input
-                            type="email"
-                            id="modal-email"
-                            value={form.email}
-                            onChange={(e) => setForm({ ...form, email: e.target.value })}
-                            className={`mt-1.5 ${inputCls('email')}`}
-                            placeholder="ejemplo@correo.com"
-                            autoComplete="email"
-                            aria-invalid={!!errores.email}
-                            aria-describedby={errores.email ? 'err-email' : undefined}
+                            type="tel"
+                            id="modal-telefono"
+                            value={form.telefono}
+                            onChange={(e) => setForm({ ...form, telefono: e.target.value })}
+                            className={`mt-1.5 ${inputCls('telefono')}`}
+                            placeholder="04121234567"
+                            autoComplete="tel"
+                            aria-invalid={!!errores.telefono}
+                            aria-describedby={errores.telefono ? 'err-telefono' : undefined}
                           />
-                          {errores.email && (
-                            <span id="err-email" role="alert" className="text-xs text-error mt-1 block">
-                              {errores.email}
+                          {errores.telefono && (
+                            <span id="err-telefono" role="alert" className="text-xs text-error mt-1 block">
+                              {errores.telefono}
                             </span>
                           )}
+                          <p className="text-[10px] text-on-surface-variant/60 mt-1">
+                            Formato venezolano: 0412, 0414, 0424, 0416, 0426
+                          </p>
                         </div>
                       </div>
                     )}
@@ -576,7 +607,7 @@ export default function CitaModal({ centro, onClose }) {
                           <dl className="text-sm space-y-2.5 pt-4">
                             {[
                               ['Paciente', `${form.nombre} · ${form.cedula}`],
-                              ['Correo', form.email],
+                              ['WhatsApp', form.telefono ? `+${normalizarTelefono(form.telefono)}` : '—'],
                               ['Especialidad', especialidadSeleccionada?.nombre || '—'],
                               ['Fecha', fechaLegible || '—'],
                               ['Hora', hora || '—'],
@@ -590,7 +621,7 @@ export default function CitaModal({ centro, onClose }) {
                         </div>
                         <p className="text-xs text-on-surface-variant flex items-center gap-1.5">
                           <Icon name="info" className="text-sm text-secondary" />
-                          Al confirmar, el sistema registra tu solicitud y envía el código al correo indicado.
+                          Al confirmar, el sistema registra tu solicitud y envía el código y tu PIN por WhatsApp.
                         </p>
                       </div>
                     )}

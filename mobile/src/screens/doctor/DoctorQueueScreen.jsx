@@ -12,16 +12,12 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { MobileAPI, PacienteCola } from '../../api/client';
+import { MobileAPI } from '../../api/client';
 
 export function DoctorQueueScreen() {
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<'espera' | 'consulta' | 'finalizado'>('espera');
-  const [cola, setCola] = useState<{
-    espera: PacienteCola[];
-    consulta: PacienteCola[];
-    finalizado: PacienteCola[];
-  }>({
+  const [tab, setTab] = useState('espera');
+  const [cola, setCola] = useState({
     espera: [],
     consulta: [],
     finalizado: [],
@@ -47,8 +43,8 @@ export function DoctorQueueScreen() {
         consulta: data.consulta || [],
         finalizado: data.finalizado || [],
       });
-    } catch (err: any) {
-      // Datos de demostración en caso de servidor desconectado
+    } catch (err) {
+      // Datos de demostracion en caso de servidor desconectado
       setCola((prev) =>
         prev.espera.length === 0
           ? {
@@ -58,7 +54,7 @@ export function DoctorQueueScreen() {
                   token: 'C-48192',
                   paciente_cedula: 'V-14285932',
                   paciente_nombre: 'Carlos Mendoza Ramos',
-                  motivo: 'Dolor torácico opresivo y disnea',
+                  motivo: 'Dolor toracico opresivo y disnea',
                   prioridad: 1,
                   estado: 'EN_ESPERA',
                   creado_en: '2026-08-24 08:15',
@@ -67,8 +63,8 @@ export function DoctorQueueScreen() {
                   id: 102,
                   token: 'C-48193',
                   paciente_cedula: 'V-20114852',
-                  paciente_nombre: 'María Rodríguez Silva',
-                  motivo: 'Evaluación y control de hipertensión',
+                  paciente_nombre: 'Maria Rodriguez Silva',
+                  motivo: 'Evaluacion y control de hipertension',
                   prioridad: 3,
                   estado: 'EN_ESPERA',
                   creado_en: '2026-08-24 08:30',
@@ -77,8 +73,8 @@ export function DoctorQueueScreen() {
                   id: 103,
                   token: 'C-48194',
                   paciente_cedula: 'V-8945123',
-                  paciente_nombre: 'José Gregorio Silva',
-                  motivo: 'Revisión de resultados de laboratorio',
+                  paciente_nombre: 'Jose Gregorio Silva',
+                  motivo: 'Revision de resultados de laboratorio',
                   prioridad: 3,
                   estado: 'EN_ESPERA',
                   creado_en: '2026-08-24 08:45',
@@ -105,12 +101,12 @@ export function DoctorQueueScreen() {
     await cargarCola();
   }, [cargarCola]);
 
-  const llamarPaciente = async (paciente: PacienteCola) => {
+  const llamarPaciente = async (paciente) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await MobileAPI.asignarPaciente(paciente.id);
     } catch {
-      // Simulación local si no hay conexión
+      // Simulacion local si no hay conexion
     }
 
     setCola((prev) => ({
@@ -126,12 +122,12 @@ export function DoctorQueueScreen() {
     );
   };
 
-  const finalizarConsulta = async (paciente: PacienteCola) => {
+  const finalizarConsulta = async (paciente) => {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     try {
       await MobileAPI.finalizarPaciente(paciente.id);
     } catch {
-      // Simulación local
+      // Simulacion local
     }
 
     setCola((prev) => ({
@@ -142,13 +138,13 @@ export function DoctorQueueScreen() {
 
     Alert.alert(
       'Consulta Finalizada',
-      `Se registró la atención médica de ${paciente.paciente_nombre}.`
+      `Se registro la atencion medica de ${paciente.paciente_nombre}.`
     );
   };
 
   const handleAgregarEmergencia = async () => {
     if (!formEmergencia.nombre.trim() || !formEmergencia.cedula.trim()) {
-      Alert.alert('Datos requeridos', 'Por favor ingrese el nombre y la cédula del paciente.');
+      Alert.alert('Datos requeridos', 'Por favor ingrese el nombre y la cedula del paciente.');
       return;
     }
 
@@ -156,7 +152,7 @@ export function DoctorQueueScreen() {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
     try {
-      let nuevo: PacienteCola;
+      let nuevo;
       try {
         nuevo = await MobileAPI.registrarEmergencia({
           nombre: formEmergencia.nombre.trim(),
@@ -188,7 +184,7 @@ export function DoctorQueueScreen() {
 
       Alert.alert(
         'Paciente Ingresado a Cola',
-        `Se agregó a ${nuevo.paciente_nombre} exitosamente.`
+        `Se agrego a ${nuevo.paciente_nombre} exitosamente.`
       );
     } finally {
       setGuardandoEmergencia(false);
@@ -207,14 +203,14 @@ export function DoctorQueueScreen() {
         <View className="flex-row justify-between items-center">
           <View>
             <Text className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold">
-              Salud Barcelona · Portal Médico
+              Salud Barcelona - Portal Medico
             </Text>
-            <h1 className="text-2xl font-black text-slate-900 leading-tight">
+            <Text className="text-2xl font-black text-slate-900 leading-tight">
               Cola de Pacientes
-            </h1>
+            </Text>
           </View>
 
-          {/* Botón "+ Agregar Paciente" (Urgencia) */}
+          {/* Boton "+ Agregar Paciente" (Urgencia) */}
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -227,7 +223,7 @@ export function DoctorQueueScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Indicador de Capacidad de Turno (Límite 10-15) */}
+        {/* Indicador de Capacidad de Turno (Limite 10-15) */}
         <View className="mt-3.5 bg-slate-50 p-3 rounded-2xl border border-slate-200">
           <View className="flex-row justify-between items-center mb-1.5">
             <Text className="text-xs font-bold text-slate-700">Capacidad del Turno</Text>
@@ -266,7 +262,7 @@ export function DoctorQueueScreen() {
                 key={t.id}
                 onPress={() => {
                   Haptics.selectionAsync();
-                  setTab(t.id as any);
+                  setTab(t.id);
                 }}
                 className={`flex-1 py-2 rounded-lg items-center justify-center flex-row gap-1.5 ${
                   activo ? 'bg-white shadow-sm' : ''
@@ -332,7 +328,7 @@ export function DoctorQueueScreen() {
                   </View>
 
                   <Text className="text-xs text-slate-500">
-                    Cédula: {item.paciente_cedula} · Token: {item.token}
+                    Cedula: {item.paciente_cedula} - Token: {item.token}
                   </Text>
                   {item.motivo ? (
                     <Text className="text-xs font-semibold text-teal-800 mt-1" numberOfLines={1}>
@@ -373,21 +369,21 @@ export function DoctorQueueScreen() {
           ListEmptyComponent={
             <View className="p-10 items-center justify-center">
               <Text className="text-sm font-bold text-slate-600">
-                No hay pacientes en esta sección
+                No hay pacientes en esta seccion
               </Text>
               <Text className="text-xs text-slate-400 text-center mt-1">
                 {tab === 'espera'
-                  ? 'La sala de espera está vacía.'
+                  ? 'La sala de espera esta vacia.'
                   : tab === 'consulta'
                     ? 'No hay consultas activas en este momento.'
-                    : 'Aún no se han finalizado atenciones en la jornada.'}
+                    : 'Aun no se han finalizado atenciones en la jornada.'}
               </Text>
             </View>
           }
         />
       )}
 
-      {/* Modal de Emergencia / Triaje Rápido */}
+      {/* Modal de Emergencia / Triaje Rapido */}
       <Modal
         visible={modalEmergenciaVisible}
         animationType="slide"
@@ -397,19 +393,19 @@ export function DoctorQueueScreen() {
         <View className="flex-1 bg-black/60 justify-end">
           <View className="bg-white rounded-t-3xl p-6 space-y-4">
             <View className="flex-row justify-between items-center pb-2 border-b border-slate-100">
-              <div>
+              <View>
                 <Text className="text-lg font-black text-slate-900">
                   + Agregar Paciente a Cola
                 </Text>
                 <Text className="text-xs text-slate-500 font-medium">
-                  Inserción de urgencias / pacientes espontáneos
+                  Insercion de urgencias / pacientes espontaneos
                 </Text>
-              </div>
+              </View>
               <TouchableOpacity
                 onPress={() => setModalEmergenciaVisible(false)}
                 className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center"
               >
-                <Text className="text-slate-600 font-bold text-sm">✕</Text>
+                <Text className="text-slate-600 font-bold text-sm">X</Text>
               </TouchableOpacity>
             </View>
 
@@ -422,14 +418,14 @@ export function DoctorQueueScreen() {
                 <TextInput
                   value={formEmergencia.nombre}
                   onChangeText={(t) => setFormEmergencia({ ...formEmergencia, nombre: t })}
-                  placeholder="Ej: Rafael Gómez"
+                  placeholder="Ej: Rafael Gomez"
                   className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900"
                 />
               </View>
 
               <View>
                 <Text className="text-xs font-mono uppercase font-bold text-slate-500 mb-1">
-                  Cédula de Identidad
+                  Cedula de Identidad
                 </Text>
                 <TextInput
                   value={formEmergencia.cedula}
@@ -441,7 +437,7 @@ export function DoctorQueueScreen() {
 
               <View>
                 <Text className="text-xs font-mono uppercase font-bold text-slate-500 mb-1">
-                  Motivo de Atención / Triaje
+                  Motivo de Atencion / Triaje
                 </Text>
                 <TextInput
                   value={formEmergencia.motivo}
@@ -494,7 +490,7 @@ export function DoctorQueueScreen() {
               </View>
             </View>
 
-            {/* Botón de Confirmación */}
+            {/* Boton de Confirmacion */}
             <TouchableOpacity
               onPress={handleAgregarEmergencia}
               disabled={guardandoEmergencia}
