@@ -13,7 +13,15 @@ CATALOGO = {
         "subtitulo": "Clínica de los Trabajadores",
         "tipo": "Aliado",
         "horario": "Lun - Vie 7:00 AM - 6:00 PM",
-        "servicios": ["Medicina Laboral", "Medicina General", "Farmacia"],
+        "servicios": [
+            "Medicina Interna", "Medicina General", "Traumatología",
+            "Ginecología (citologías)", "Nefrología", "Cardiología",
+            "Emergencia 24 horas", "Terapia de la Conducta",
+            "Cirugía de Mano", "Cirugía General", "Fisiatría",
+            "Pediatría", "Endocrinología", "Gastroenterología",
+            "Epidemiología", "Fisioterapia", "Oftalmología",
+            "Ecografía", "Laboratorio Clínico",
+        ],
         "logo": "/identidad visual/Citab.jpeg",
         "fondoColor": "#1d52d8",
         "textColor": "secondary",
@@ -24,7 +32,15 @@ CATALOGO = {
         "subtitulo": "Atención integral de la mujer",
         "tipo": "Especializada",
         "horario": "Lun - Sáb 7:00 AM - 5:00 PM",
-        "servicios": ["Ginecología", "Obstetricia", "Ecografía", "Planificación"],
+        "servicios": [
+            "Traumatología", "Medicina Familiar", "Medicina Interna",
+            "Medicina General", "Ginecología (citologías y biopsias)",
+            "Alergología", "Cardiología", "Radioterapia Oncológica",
+            "Psiquiatría", "Pediatría", "Mamografía", "Ecografía",
+            "Odontología", "Unidad de Patología Cervico-Uterina",
+            "Parto Humanizado", "Inmunizaciones",
+            "Laboratorio de Anatomía Patológica", "Laboratorio Clínico",
+        ],
         "logo": "/identidad visual/CliMujer.jpeg",
         "fondoColor": "#541e8c",
         "textColor": "rose-700",
@@ -35,7 +51,13 @@ CATALOGO = {
         "subtitulo": "Pediatría y crecimiento infantil",
         "tipo": "Especializada",
         "horario": "Lun - Sáb 7:00 AM - 6:00 PM",
-        "servicios": ["Pediatría", "Vacunación", "Nutrición Infantil"],
+        "servicios": [
+            "Nefrología", "Terapia de la Conducta", "Inmunología",
+            "Neumología", "Psicología", "Epidemiología",
+            "Psicopedagogía", "Terapia Educativa", "Cirugía Pediátrica",
+            "Consulta de Niño Sano", "Consulta por Emergencias",
+            "Odontología", "Inmunizaciones",
+        ],
         "logo": "/identidad visual/CliNiño.jpeg",
         "fondoColor": "#00b4d8",
         "textColor": "cyan-700",
@@ -64,6 +86,21 @@ CATALOGO = {
         "tagText": "text-emerald-700",
         "bgTag": "bg-emerald-50",
     },
+    "CLN-MUNICIPAL": {
+        "subtitulo": "Atención médica municipal",
+        "tipo": "Municipal",
+        "horario": "Lun - Vie 7:00 AM - 5:00 PM",
+        "servicios": [
+            "Control de Niño Sano", "Medicina Interna", "Medicina General",
+            "Pediatría", "Ginecología (citologías y biopsias)",
+            "Ecografía", "Parto Humanizado", "Inmunizaciones",
+        ],
+        "logo": "/identidad visual/ClinicaMunicipalJosePerezFernandez.jpeg",
+        "fondoColor": "#059669",
+        "textColor": "emerald-700",
+        "tagText": "text-emerald-700",
+        "bgTag": "bg-emerald-50",
+    },
 }
 
 # Datos de respaldo (si Supabase no responde) para no romper la página
@@ -87,6 +124,10 @@ MAQUETA_FALLBACK: List[dict] = [
     {
         "id": 5, "nombre": "Jornadas de Salud Móviles", "codigo": "CLN-JORNADAS", "parroquia": "General",
         "direccion": "Atención Itinerante - Municipio Simón Bolívar", "activo": True,
+    },
+    {
+        "id": 6, "nombre": "Clínica Municipal José Pérez Fernández", "codigo": "CLN-MUNICIPAL", "parroquia": "El Carmen",
+        "direccion": "Barcelona, Anzoátegui", "activo": True,
     },
 ]
 

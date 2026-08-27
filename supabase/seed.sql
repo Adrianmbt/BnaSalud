@@ -21,14 +21,15 @@ INSERT INTO public.cargos (id, nombre, departamento, descripcion) VALUES
 ON CONFLICT (nombre) DO UPDATE SET departamento = EXCLUDED.departamento, descripcion = EXCLUDED.descripcion;
 
 -- ============================================================
--- 2. CLÍNICAS / CENTROS DE SALUD (5 centros de la red municipal)
+-- 2. CLÍNICAS / CENTROS DE SALUD (6 centros de la red municipal)
 -- ============================================================
 INSERT INTO public.clinicas (id, nombre, codigo, parroquia, direccion, activo) VALUES
   (1, 'Clínica del Niño', 'CLN-NINO', 'El Carmen', 'Barcelona, Anzoátegui', TRUE),
   (2, 'Clínica de los Trabajadores (CITAB)', 'CLN-CITAB', 'El Carmen', 'Barcelona, Anzoátegui', TRUE),
   (3, 'Clínica de la Mujer', 'CLN-MUJER', 'San Cristóbal', 'Barcelona, Anzoátegui', TRUE),
   (4, 'Centro Oncológico Municipal', 'CLN-ONCO', 'El Carmen', 'Barcelona, Anzoátegui', TRUE),
-  (5, 'Jornadas de Salud Móviles', 'CLN-JORNADAS', 'General', 'Atención Itinerante - Municipio Simón Bolívar', TRUE)
+  (5, 'Jornadas de Salud Móviles', 'CLN-JORNADAS', 'General', 'Atención Itinerante - Municipio Simón Bolívar', TRUE),
+  (6, 'Clínica Municipal José Pérez Fernández', 'CLN-MUNICIPAL', 'El Carmen', 'Barcelona, Anzoátegui', TRUE)
 ON CONFLICT (codigo) DO UPDATE SET nombre = EXCLUDED.nombre, parroquia = EXCLUDED.parroquia, direccion = EXCLUDED.direccion, activo = EXCLUDED.activo;
 
 -- ============================================================
@@ -208,7 +209,7 @@ ON CONFLICT (nombre) DO UPDATE SET
 -- ============================================================
 -- 9. STOCK POR CLÍNICA (stock_clinica)
 --    Una fila por (clínica × medicamento). Cantidad derivada del
---    stock global repartido entre los 5 centros.
+--    stock global repartido entre los 6 centros.
 -- ============================================================
 INSERT INTO public.stock_clinica (clinica_id, medicamento_id, cantidad_actual, lote)
 SELECT

@@ -165,6 +165,7 @@ class HistoriaClinicaResponse(HistoriaClinicaBase):
 class CitaBase(BaseModel):
     centro_id: int = Field(..., json_schema_extra={"example": 1}, description="ID del centro de salud")
     especialidad_id: int = Field(..., json_schema_extra={"example": 101})
+    medico_id: Optional[int] = Field(None, json_schema_extra={"example": 127}, description="ID del médico (personal)")
     fecha_cita: date = Field(..., json_schema_extra={"example": "2026-08-15"})
     hora_inicio: time = Field(..., json_schema_extra={"example": "08:30:00"})
     motivo: Optional[str] = Field(None, json_schema_extra={"example": "Control de rutina"})
@@ -188,6 +189,10 @@ class CitaResponse(CitaBase):
     pin_enviado_correo: bool = Field(
         default=False,
         description="True si el PIN se envió por correo (tarjeta de bienvenida)",
+    )
+    pin_enviado_whatsapp: bool = Field(
+        default=False,
+        description="True si el PIN se envió por WhatsApp (Green API)",
     )
     created_at: datetime
 

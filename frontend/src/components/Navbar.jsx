@@ -12,15 +12,11 @@ export default function Navbar() {
   const [menuAbierto, setMenuAbierto] = useState(false);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass h-20" aria-label="Navegación principal">
+    <nav className="fixed top-0 left-0 right-0 z-50 glass h-14" aria-label="Navegación principal">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-full flex justify-between items-center gap-3">
-        <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
-          <div className="w-14 h-12 rounded-xl overflow-hidden bg-white shadow-lg ring-1 ring-outline-variant/30 flex items-center justify-center px-1.5 shrink-0">
-            <img src="/identidad visual/SBna.jpeg" alt="Logo Salud Barcelona" className="h-full w-auto object-contain" loading="lazy" />
-          </div>
-          <div className="min-w-0">
-            <span className="text-lg sm:text-xl font-bold text-primary leading-none block truncate">Salud Barcelona</span>
-            <span className="text-[11px] sm:text-xs font-semibold text-secondary uppercase tracking-[0.15em] block truncate">Instituto de Salud Municipal · Simón Bolívar</span>
+        <div className="flex items-center min-w-0">
+          <div className="h-10 w-auto shrink-0 flex items-center">
+            <img src="/identidad visual/InstitutoSalud.jpeg" alt="Logo Instituto de Salud" className="h-full w-auto object-contain" loading="lazy" />
           </div>
         </div>
 
@@ -40,28 +36,27 @@ export default function Navbar() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* El aviso de emergencias vive en el menú móvil; arriba solo cabe en escritorio */}
-          <div className="hidden lg:flex bg-error/10 text-error px-4 py-2 rounded-lg items-center gap-2 animate-pulse-slow">
-            <Icon name="emergency" filled className="text-lg" />
-            <span className="text-xs font-bold whitespace-nowrap">24/7 Emergencias</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden lg:flex bg-error/10 text-error px-3 py-1.5 rounded-lg items-center gap-1.5 animate-pulse-slow">
+            <Icon name="emergency" filled className="text-base" />
+            <span className="text-[11px] font-bold whitespace-nowrap">24/7 Emergencias</span>
           </div>
           <Link
             to="/paciente"
-            className="hidden sm:flex w-10 h-10 items-center justify-center hover:bg-secondary/10 rounded-full transition-all text-on-surface"
+            className="hidden sm:flex w-8 h-8 items-center justify-center hover:bg-secondary/10 rounded-full transition-all text-on-surface"
             aria-label="Portal del paciente"
             title="Portal del paciente"
           >
-            <Icon name="account_circle" />
+            <Icon name="account_circle" className="text-xl" />
           </Link>
           <button
-            className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl hover:bg-secondary/10 transition-all text-primary"
+            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg hover:bg-secondary/10 transition-all text-primary"
             aria-label={menuAbierto ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={menuAbierto}
             aria-controls="menu-movil"
             onClick={() => setMenuAbierto((v) => !v)}
           >
-            <Icon name={menuAbierto ? 'close' : 'menu'} className="text-2xl" />
+            <Icon name={menuAbierto ? 'close' : 'menu'} className="text-xl" />
           </button>
         </div>
       </div>
@@ -69,18 +64,18 @@ export default function Navbar() {
       {menuAbierto && (
         <>
           <div
-            className="lg:hidden fixed inset-0 top-20 z-40 bg-black/25"
+            className="lg:hidden fixed inset-0 top-14 z-40 bg-black/25"
             onClick={() => setMenuAbierto(false)}
             aria-hidden="true"
           />
           <div id="menu-movil" className="lg:hidden absolute top-full left-0 right-0 glass border-t border-outline-variant/20 shadow-2xl z-50">
-            <div className="max-w-7xl mx-auto px-6 py-5 space-y-1">
+            <div className="max-w-7xl mx-auto px-5 py-4 space-y-1">
               {ENLACES.map((e) => (
                 <a
                   key={e.href}
                   href={e.href}
                   onClick={() => setMenuAbierto(false)}
-                  className="block py-3 text-base font-semibold text-primary hover:text-secondary rounded-xl hover:bg-secondary/5 px-3"
+                  className="block py-2.5 text-sm font-semibold text-primary hover:text-secondary rounded-xl hover:bg-secondary/5 px-3"
                 >
                   {e.etiqueta}
                 </a>
@@ -89,7 +84,7 @@ export default function Navbar() {
               <Link
                 to="/paciente"
                 onClick={() => setMenuAbierto(false)}
-                className="flex items-center gap-3 py-3 px-3 text-base font-semibold text-primary hover:text-secondary rounded-xl hover:bg-secondary/5"
+                className="flex items-center gap-3 py-2.5 px-3 text-sm font-semibold text-primary hover:text-secondary rounded-xl hover:bg-secondary/5"
               >
                 <Icon name="account_circle" className="text-xl" /> Portal del paciente
               </Link>

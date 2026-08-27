@@ -36,7 +36,7 @@ function validarTelefonoVenezolano(valor) {
 
 const PASOS = [
   { numero: 1, etiqueta: 'Tus datos', icono: 'person' },
-  { numero: 2, etiqueta: 'Especialidad y fecha', icono: 'calendar_month' },
+  { numero: 2, etiqueta: 'Especialidad, médico y fecha', icono: 'calendar_month' },
   { numero: 3, etiqueta: 'Confirmar', icono: 'task_alt' },
 ];
 
@@ -44,6 +44,9 @@ export default function CitaModal({ centro, onClose }) {
   const [step, setStep] = useState(1);
   const [especialidades, setEspecialidades] = useState([]);
   const [especialidadId, setEspecialidadId] = useState('');
+  const [medicos, setMedicos] = useState([]);
+  const [medicoId, setMedicoId] = useState('');
+  const [cargandoMedicos, setCargandoMedicos] = useState(false);
   const [fecha, setFecha] = useState('');
   const [slots, setSlots] = useState([]);
   const [slotMsg, setSlotMsg] = useState('');
@@ -114,10 +117,36 @@ export default function CitaModal({ centro, onClose }) {
     };
   }, [centro.id]);
 
+  useEffect(() => {
+    if (!especialidadId) {
+      setMedicos([]);
+      setMedicoId('');
+      return;
+    }
+    let activo = true;
+    setCargandoMedicos(true);
+    setMedicoId('');
+    setFecha('');
+    setSlots([]);
+    setHora('');
+    API.getMedicosPorEspecialidad(centro.id, especialidadId)
+      .then((data) => {
+        if (!activo) return;
+        const lista = data?.medicos || [];
+        setMedicos(lista);
+        if (lista.length === 1) {
+          setMedicoId(String(lista[0].id));
+        }
+      })
+      .catch(() => activo && setMedicos([]))
+      .finally(() => activo && setCargandoMedicos(false));
+    return () => { activo = false; };
+  }, [centro.id, especialidadId]);
+
   const consultarDisponibilidad = useCallback(async () => {
-    if (!centro.id || !especialidadId || !fecha) {
+    if (!centro.id || !especialidadId || !medicoId || !fecha) {
       setSlots([]);
-      setSlotMsg('Seleccione fecha y especialidad para ver horarios');
+      setSlotMsg('Seleccione médico y fecha para ver horarios');
       return;
     }
     setConsultandoSlots(true);
@@ -126,6 +155,7 @@ export default function CitaModal({ centro, onClose }) {
       const data = await API.getDisponibilidad({
         centro_id: centro.id,
         especialidad_id: especialidadId,
+        medico_id: medicoId,
         fecha,
       });
       if (data.slots && data.slots.length > 0) {
@@ -141,11 +171,11 @@ export default function CitaModal({ centro, onClose }) {
     } finally {
       setConsultandoSlots(false);
     }
-  }, [centro.id, especialidadId, fecha]);
+  }, [centro.id, especialidadId, medicoId, fecha]);
 
   useEffect(() => {
     consultarDisponibilidad();
-  }, [especialidadId, fecha, consultarDisponibilidad]);
+  }, [especialidadId, medicoId, fecha, consultarDisponibilidad]);
 
   function validarPaso(paso) {
     const errs = {};
@@ -156,6 +186,7 @@ export default function CitaModal({ centro, onClose }) {
     }
     if (paso === 2) {
       if (!especialidadId) errs.especialidad = 'Seleccione una especialidad';
+      if (!medicoId) errs.medico = 'Seleccione un médico';
       if (!fecha) errs.fecha = 'Seleccione una fecha';
       if (!hora) errs.hora = 'Seleccione un horario';
     }
@@ -179,6 +210,7 @@ export default function CitaModal({ centro, onClose }) {
     const payload = {
       centro_id: centro.id,
       especialidad_id: parseInt(especialidadId, 10),
+      medico_id: medicoId ? parseInt(medicoId, 10) : undefined,
       fecha_cita: fecha,
       hora_inicio: hora,
       motivo: 'Solicitud web portal municipal',
@@ -186,7 +218,7 @@ export default function CitaModal({ centro, onClose }) {
         tipo_cedula: ident.tipo_cedula,
         cedula: ident.cedula,
         nombre_completo: form.nombre.trim(),
-        telefono_whatsapp: normalizarTelefono(form.telefono),
+        telefono: normalizarTelefono(form.telefono),
       },
     };
 
@@ -206,6 +238,7 @@ export default function CitaModal({ centro, onClose }) {
     `w-full bg-surface-container-low border border-outline-variant rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 focus:border-secondary transition-all ${errores[campo] ? 'border-error' : ''}`;
 
   const especialidadSeleccionada = especialidades.find((e) => String(e.id) === String(especialidadId));
+  const medicoSeleccionado = medicos.find((m) => String(m.id) === String(medicoId));
   const fechaLegible = fecha
     ? new Date(`${fecha}T00:00:00`).toLocaleDateString('es-VE', {
         weekday: 'long',
@@ -321,9 +354,10 @@ export default function CitaModal({ centro, onClose }) {
                   </p>
                 </div>
 
-                <dl className="mt-4 text-left text-sm space-y-2 w-full max-w-sm bg-surface-container-low rounded-2xl p-5">
+                  <dl className="mt-4 text-left text-sm space-y-2 w-full max-w-sm bg-surface-container-low rounded-2xl p-5">
                   {[
                     ['Especialidad', especialidadSeleccionada?.nombre || '—'],
+                    ['Médico', medicoSeleccionado?.nombre_completo || '—'],
                     ['Fecha', fechaLegible || '—'],
                     ['Hora', hora || '—'],
                   ].map(([k, v]) => (
@@ -515,72 +549,127 @@ export default function CitaModal({ centro, onClose }) {
                             </span>
                           )}
                         </div>
-                        <div className="grid sm:grid-cols-2 gap-4">
-                          <div>
-                            <label htmlFor="modal-fecha" className="text-sm font-medium text-on-surface-variant">
-                              Fecha Preferida
-                            </label>
-                            <input
-                              type="date"
-                              id="modal-fecha"
-                              value={fecha}
-                              min={new Date().toISOString().split('T')[0]}
-                              onChange={(e) => setFecha(e.target.value)}
-                              className={`mt-1.5 ${inputCls('fecha')}`}
-                              aria-invalid={!!errores.fecha}
-                              aria-describedby={errores.fecha ? 'err-fecha' : undefined}
-                            />
-                            {errores.fecha && (
-                              <span id="err-fecha" role="alert" className="text-xs text-error mt-1 block">
-                                {errores.fecha}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <label className="text-sm font-medium text-on-surface-variant">Horario Disponible</label>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {consultandoSlots && (
-                                <span className="text-xs text-secondary animate-pulse flex items-center gap-1">
-                                  <Icon name="sync" className="text-sm animate-spin" /> Consultando disponibilidad...
-                                </span>
-                              )}
-                              {!consultandoSlots && slots.length === 0 && (
-                                <span
-                                  className={`text-xs italic ${slotMsg.includes('Error') || slotMsg.includes('No hay') ? 'text-error' : 'text-on-surface-variant/60'}`}
-                                >
-                                  {slotMsg}
-                                </span>
-                              )}
-                              {!consultandoSlots &&
-                                slots.map((slot) => {
-                                  const slotFinal = slot.length === 5 ? `${slot}:00` : slot;
-                                  const activo = hora === slotFinal;
-                                  return (
-                                    <button
-                                      key={slot}
-                                      type="button"
-                                      onClick={() => setHora(slotFinal)}
-                                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                                        activo
-                                          ? 'text-white border-transparent shadow-md'
-                                          : 'border-outline-variant text-primary hover:border-secondary hover:bg-secondary/5'
-                                      }`}
-                                      style={activo ? { background: theme.gradient } : undefined}
-                                    >
-                                      {slot}
-                                    </button>
-                                  );
-                                })}
-                            </div>
-                            {errores.hora && (
-                              <span id="err-hora" role="alert" className="text-xs text-error mt-1 block">
-                                {errores.hora}
-                              </span>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Indicador de capacidad del turno médico */}
+                        {especialidadId && (
+                          <div>
+                            <label htmlFor="modal-medico" className="text-sm font-medium text-on-surface-variant">
+                              Médico
+                            </label>
+                            <select
+                              id="modal-medico"
+                              value={medicoId}
+                              onChange={(e) => {
+                                setMedicoId(e.target.value);
+                                setFecha('');
+                                setSlots([]);
+                                setHora('');
+                              }}
+                              className={`mt-1.5 ${inputCls('medico')}`}
+                              aria-invalid={!!errores.medico}
+                              aria-describedby={errores.medico ? 'err-medico' : undefined}
+                            >
+                              <option value="">
+                                {cargandoMedicos ? 'Cargando médicos...' : 'Seleccione un médico'}
+                              </option>
+                              {medicos.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.nombre_completo} — {m.dias.join(', ')}
+                                </option>
+                              ))}
+                            </select>
+                            {errores.medico && (
+                              <span id="err-medico" role="alert" className="text-xs text-error mt-1 block">
+                                {errores.medico}
+                              </span>
+                            )}
+                            {medicos.length === 0 && !cargandoMedicos && (
+                              <p className="text-xs text-on-surface-variant/60 mt-1">
+                                No hay médicos disponibles para esta especialidad.
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {medicoId && medicoSeleccionado && (
+                          <div className="bg-surface-container-low rounded-xl p-3 border border-outline-variant/20">
+                            <p className="text-xs font-semibold text-on-surface-variant mb-1">Horario del médico</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {medicoSeleccionado.horarios.map((h, i) => (
+                                <span key={i} className="text-[11px] bg-secondary/10 text-secondary px-2 py-0.5 rounded-full font-medium">
+                                  {h.dia} {h.hora_inicio?.slice(0, 5)} - {h.hora_fin?.slice(0, 5)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {medicoId && (
+                          <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                              <label htmlFor="modal-fecha" className="text-sm font-medium text-on-surface-variant">
+                                Fecha Preferida
+                              </label>
+                              <input
+                                type="date"
+                                id="modal-fecha"
+                                value={fecha}
+                                min={new Date().toISOString().split('T')[0]}
+                                onChange={(e) => setFecha(e.target.value)}
+                                className={`mt-1.5 ${inputCls('fecha')}`}
+                                aria-invalid={!!errores.fecha}
+                                aria-describedby={errores.fecha ? 'err-fecha' : undefined}
+                              />
+                              {errores.fecha && (
+                                <span id="err-fecha" role="alert" className="text-xs text-error mt-1 block">
+                                  {errores.fecha}
+                                </span>
+                              )}
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium text-on-surface-variant">Horario Disponible</label>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {consultandoSlots && (
+                                  <span className="text-xs text-secondary animate-pulse flex items-center gap-1">
+                                    <Icon name="sync" className="text-sm animate-spin" /> Consultando disponibilidad...
+                                  </span>
+                                )}
+                                {!consultandoSlots && slots.length === 0 && (
+                                  <span
+                                    className={`text-xs italic ${slotMsg.includes('Error') || slotMsg.includes('No hay') || slotMsg.includes('no atiende') ? 'text-error' : 'text-on-surface-variant/60'}`}
+                                  >
+                                    {slotMsg}
+                                  </span>
+                                )}
+                                {!consultandoSlots &&
+                                  slots.map((slot) => {
+                                    const slotFinal = slot.length === 5 ? `${slot}:00` : slot;
+                                    const activo = hora === slotFinal;
+                                    return (
+                                      <button
+                                        key={slot}
+                                        type="button"
+                                        onClick={() => setHora(slotFinal)}
+                                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                                          activo
+                                            ? 'text-white border-transparent shadow-md'
+                                            : 'border-outline-variant text-primary hover:border-secondary hover:bg-secondary/5'
+                                        }`}
+                                        style={activo ? { background: theme.gradient } : undefined}
+                                      >
+                                        {slot}
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                              {errores.hora && (
+                                <span id="err-hora" role="alert" className="text-xs text-error mt-1 block">
+                                  {errores.hora}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {fecha && (
                           <div className="pt-2">
                             <CapacityIndicator
@@ -609,6 +698,7 @@ export default function CitaModal({ centro, onClose }) {
                               ['Paciente', `${form.nombre} · ${form.cedula}`],
                               ['WhatsApp', form.telefono ? `+${normalizarTelefono(form.telefono)}` : '—'],
                               ['Especialidad', especialidadSeleccionada?.nombre || '—'],
+                              ['Médico', medicoSeleccionado?.nombre_completo || '—'],
                               ['Fecha', fechaLegible || '—'],
                               ['Hora', hora || '—'],
                             ].map(([k, v]) => (

@@ -71,9 +71,13 @@ export const API = {
   getEspecialidades: (centroId) =>
     apiFetch(centroId ? `/especialidades?centro_id=${centroId}` : '/especialidades'),
   getDisponibilidad: (params) => {
-    const qs = new URLSearchParams(params).toString();
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null),
+    ).toString();
     return apiFetch(`/citas/disponibilidad?${qs}`);
   },
+  getMedicosPorEspecialidad: (centroId, especialidadId) =>
+    apiFetch(`/citas/medicos?centro_id=${centroId}&especialidad_id=${especialidadId}`),
   crearCita: (payload) => apiFetch('/citas', { method: 'POST', body: payload }),
 
   /* === Módulo Farmacia === */

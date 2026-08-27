@@ -16,6 +16,7 @@ from app.schemas.schemas import (
     CitaResponse,
     HistoriaClinicaBase,
 )
+from app.services.whatsapp import enviar_bienvenida_cita
 
 router = APIRouter(tags=["Citas Médicas"])
 
@@ -148,7 +149,7 @@ def _generar_codigo(centro_id: int) -> str:
 
 @router.post("", response_model=CitaResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=CitaResponse, status_code=status.HTTP_201_CREATED)
-def crear_cita(
+async def crear_cita(
     payload: Union[CitaConPacienteCreate, CitaCreate],
     db=Depends(_get_db),
 ) -> CitaResponse:
@@ -242,12 +243,32 @@ def crear_cita(
         "estado": "pendiente",
         "codigo_confirmacion": _generar_codigo(payload.centro_id),
     }
+    if payload.medico_id:
+        cita["medico_id"] = payload.medico_id
     try:
         creado = supabase.table("citas").insert(cita).execute()
     except Exception:
         db_fail("registrar la cita")
 
     fila = creado.data[0]
+
+    # Enviar WhatsApp de bienvenida si es paciente nuevo
+    pin_enviado_whatsapp = False
+    if pin_inicial and isinstance(payload, CitaConPacienteCreate):
+        telefono = (payload.paciente.telefono or "").strip()
+        if telefono:
+            pin_enviado_whatsapp = await enviar_bienvenida_cita(
+                telefono=telefono,
+                nombre=payload.paciente.nombre_completo,
+                cedula=payload.paciente.cedula,
+                pin=pin_inicial,
+                centro=centro[0]["nombre"],
+                especialidad=esp[0]["nombre"],
+                fecha=payload.fecha_cita.strftime("%d/%m/%Y"),
+                hora=payload.hora_inicio.strftime("%H:%M"),
+                codigo_confirmacion=fila["codigo_confirmacion"],
+            )
+
     return CitaResponse(
         id=fila["id"],
         codigo_confirmacion=fila["codigo_confirmacion"],
@@ -262,7 +283,93 @@ def crear_cita(
         created_at=fila.get("created_at", datetime.now()),
         pin_inicial=pin_inicial,
         pin_enviado_correo=pin_enviado_correo,
+        pin_enviado_whatsapp=pin_enviado_whatsapp,
     )
+
+
+@router.get("/medicos")
+def listar_medicos_por_especialidad(
+    centro_id: int,
+    especialidad_id: int,
+    db=Depends(_get_db),
+) -> dict:
+    """Devuelve los médicos de una especialidad en un centro, con sus días y horarios."""
+    if centro_id != CITAB_CENTER_ID:
+        return {"medicos": [], "mensaje": "Centro no disponible para agenda digital."}
+
+    try:
+        especialidad = (
+            supabase.table("especialidades")
+            .select("nombre")
+            .eq("id", especialidad_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception:
+        db_fail("validar la especialidad")
+    if not especialidad:
+        not_found("Especialidad")
+
+    nombre_esp = especialidad[0]["nombre"]
+
+    try:
+        personal = (
+            supabase.table("personal")
+            .select("id, nombre, apellido, cedula")
+            .eq("clinica_id", centro_id)
+            .eq("especialidad", nombre_esp)
+            .eq("cargo", "Médico")
+            .eq("estado", "ACTIVO")
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("consultar los médicos")
+
+    if not personal:
+        return {"medicos": [], "mensaje": "No hay médicos disponibles para esta especialidad."}
+
+    medico_ids = [p["id"] for p in personal]
+
+    try:
+        turnos_raw = (
+            supabase.table("personal_turnos")
+            .select("personal_id, turno_id, observaciones, turnos(nombre, hora_inicio, hora_fin)")
+            .in_("personal_id", medico_ids)
+            .eq("clinica_id", centro_id)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("consultar los horarios de los médicos")
+
+    turnos_map: dict[int, list] = {}
+    for t in turnos_raw:
+        pid = t["personal_id"]
+        turno_info = t.get("turnos") or {}
+        turnos_map.setdefault(pid, []).append({
+            "dia": t.get("observaciones", ""),
+            "turno_nombre": turno_info.get("nombre", ""),
+            "hora_inicio": turno_info.get("hora_inicio", ""),
+            "hora_fin": turno_info.get("hora_fin", ""),
+        })
+
+    medicos = []
+    for p in personal:
+        horarios = turnos_map.get(p["id"], [])
+        dias_trabajo = sorted({h["dia"] for h in horarios if h["dia"]})
+        medicos.append({
+            "id": p["id"],
+            "nombre_completo": f"Dr(a). {p['nombre']} {p['apellido']}",
+            "cedula": p.get("cedula", ""),
+            "dias": dias_trabajo,
+            "horarios": horarios,
+        })
+
+    return {"medicos": medicos}
 
 
 @router.get("/disponibilidad")
@@ -270,9 +377,10 @@ def obtener_disponibilidad(
     centro_id: int,
     especialidad_id: int,
     fecha: date,
+    medico_id: Optional[int] = Query(default=None, description="ID del médico para filtrar por su horario"),
     db=Depends(_get_db),
 ) -> dict:
-    """Devuelve los slots libres de 30 minutos para un centro y fecha."""
+    """Devuelve los slots libres de 30 minutos para un centro, fecha y (opcionalmente) médico."""
     if centro_id != CITAB_CENTER_ID:
         return {
             "disponible": False,
@@ -287,6 +395,64 @@ def obtener_disponibilidad(
         db_fail("validar el centro de salud")
     if not existe:
         not_found("Centro de salud")
+
+    if medico_id:
+        dia_semana = fecha.strftime("%A")
+        dias_es = {
+            "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
+            "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo",
+        }
+        dia_es = dias_es.get(dia_semana, "")
+
+        try:
+            turnos_medico = (
+                supabase.table("personal_turnos")
+                .select("turno_id, observaciones, turnos(hora_inicio, hora_fin)")
+                .eq("personal_id", medico_id)
+                .eq("clinica_id", centro_id)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:
+            db_fail("consultar el horario del médico")
+
+        turno_del_dia = None
+        for t in turnos_medico:
+            if t.get("observaciones", "").lower() == dia_es.lower():
+                turno_del_dia = t
+                break
+
+        if not turno_del_dia:
+            return {
+                "disponible": False,
+                "centro_id": centro_id,
+                "especialidad_id": especialidad_id,
+                "medico_id": medico_id,
+                "fecha": fecha.isoformat(),
+                "slots": [],
+                "mensaje": f"El médico no atiende los {dia_es}.",
+            }
+
+        turno_info = turno_del_dia.get("turnos") or {}
+        hora_inicio_turno = turno_info.get("hora_inicio", "07:00")[:5]
+        hora_fin_turno = turno_info.get("hora_fin", "19:00")[:5]
+
+        slots = _generar_slots(centro_id, fecha, especialidad_id)
+        slots_filtrados = [
+            s for s in slots
+            if hora_inicio_turno <= s < hora_fin_turno
+        ]
+
+        return {
+            "disponible": bool(slots_filtrados),
+            "centro_id": centro_id,
+            "especialidad_id": especialidad_id,
+            "medico_id": medico_id,
+            "fecha": fecha.isoformat(),
+            "slots": slots_filtrados,
+            "mensaje": "No hay horarios disponibles para esta fecha." if not slots_filtrados else "",
+        }
 
     slots = _generar_slots(centro_id, fecha, especialidad_id)
     return {

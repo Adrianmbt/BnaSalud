@@ -125,6 +125,30 @@ export const CENTRO_THEMES = {
     outline: '#6f7c79',
     outlineVariant: '#bfcdca',
   },
+  'CLN-MUNICIPAL': {
+    nombre: 'Clínica Municipal José Pérez Fernández',
+    tipo: 'Municipal · Atención integral',
+    parroquia: 'El Carmen',
+    lema: 'Salud municipal al servicio de la comunidad',
+    logo: '/identidad visual/ClinicaMunicipalJosePerezFernandez.jpeg',
+    gradient: 'linear-gradient(135deg, #34d399 0%, #059669 50%, #065f46 100%)',
+    shadow: 'rgba(5, 150, 105, 0.5)',
+    accent: '#059669',
+    accentDark: '#047857',
+    accentLight: '#34d399',
+    soft: '#d1fae5',
+    softLow: '#ecfdf5',
+    primary: '#065f46',
+    primaryDark: '#022c22',
+    primaryLight: '#047857',
+    surface: '#f0fdf4',
+    container: '#a7f3d0',
+    containerLow: '#d1fae5',
+    containerHigh: '#86efac',
+    onSurfaceVariant: '#374140',
+    outline: '#6b7a75',
+    outlineVariant: '#b8c9c2',
+  },
 };
 
 const FALLBACK = {
@@ -174,6 +198,7 @@ export function getCentroTheme(c = {}) {
   if (name.includes('mujer')) return CENTRO_THEMES['CLN-MUJER'];
   if (name.includes('oncológico') || name.includes('oncologico')) return CENTRO_THEMES['CLN-ONCO'];
   if (name.includes('jornada')) return CENTRO_THEMES['CLN-JORNADAS'];
+  if (name.includes('municipal') || name.includes('josé pérez') || name.includes('jose perez')) return CENTRO_THEMES['CLN-MUNICIPAL'];
 
   const base = c.fondoColor || FALLBACK.accent;
   return {

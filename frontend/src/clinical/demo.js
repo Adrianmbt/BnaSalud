@@ -762,6 +762,13 @@ export const CENTROS_DEMO = [
     servicios: ['Atención Primaria', 'Vacunación', 'Despistaje'],
     logo: '/identidad visual/JornadasSaludBna.jpeg', fondoColor: '#0d9488', activo: true,
   },
+  {
+    id: 6, nombre: 'Clínica Municipal José Pérez Fernández', codigo: 'CLN-MUNICIPAL', parroquia: 'El Carmen',
+    direccion: 'Barcelona, Anzoátegui', subtitulo: 'Atención médica municipal',
+    tipo: 'Municipal', horario: 'Lun - Vie 7:00 AM - 5:00 PM',
+    servicios: ['Medicina General', 'Pediatría', 'Ginecología', 'Vacunación', 'Farmacia'],
+    logo: '/identidad visual/ClinicaMunicipalJosePerezFernandez.jpeg', fondoColor: '#059669', activo: true,
+  },
 ];
 
 // ============================================================

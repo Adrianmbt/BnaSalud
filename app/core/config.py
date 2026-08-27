@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     SMTP_FROM: str = ""
     SMTP_USE_TLS: bool = True
 
+    # WhatsApp (Green API) — Fase piloto CITAB
+    GREEN_API_URL: str = "https://1103.api.green-api.com"
+    GREEN_API_INSTANCE: str = ""
+    GREEN_API_TOKEN: str = ""
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",

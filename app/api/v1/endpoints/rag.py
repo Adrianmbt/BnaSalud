@@ -20,9 +20,10 @@ FALLBACKS: List[Dict[str, str]] = [
     {
         "palabras": ["centro", "horario", "horarios", "aliado", "red"],
         "respuesta": (
-            "La red municipal cuenta con 5 centros: CITAB (Clínica de los Trabajadores, "
+            "La red municipal cuenta con 6 centros: CITAB (Clínica de los Trabajadores, "
             "Lun-Vie 7AM-6PM), Clínica de la Mujer (Lun-Sáb 7AM-5PM), Clínica del Niño "
-            "(Lun-Sáb 7AM-6PM), Centro Oncológico (Lun-Vie 7AM-5PM) y Jornadas de Salud "
+            "(Lun-Sáb 7AM-6PM), Clínica Municipal José Pérez Fernández (Lun-Vie 7AM-5PM), "
+            "Centro Oncológico (Lun-Vie 7AM-5PM) y Jornadas de Salud "
             "Móviles (fines de semana). Todos comparten el mismo historial clínico."
         ),
     },
