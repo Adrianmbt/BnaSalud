@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from '../components/Icon';
 import { LedgerCard, SectionLabel, Code, ToneButton, EstadoPunto, StatNum } from '../clinical/ui';
-import { API, cerrarSesion } from '../api';
+import { API, cerrarSesion, marcarUltimaSesion } from '../api';
 
 const TONOS_ESTADO = {
   PENDIENTE: 'amber',
@@ -106,6 +106,7 @@ export default function Admin() {
       try {
         localStorage.setItem('bna_token', res.token);
         localStorage.setItem('bna_sesion_admin', JSON.stringify(res.usuario));
+        marcarUltimaSesion('staff');
       } catch {
         /* sin almacenamiento */
       }

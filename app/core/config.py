@@ -30,10 +30,10 @@ class Settings(BaseSettings):
     SMTP_FROM: str = ""
     SMTP_USE_TLS: bool = True
 
-    # WhatsApp (Green API) — Fase piloto CITAB
-    GREEN_API_URL: str = "https://1103.api.green-api.com"
-    GREEN_API_INSTANCE: str = ""
-    GREEN_API_TOKEN: str = ""
+    # WhatsApp — Evolution API (instancia local vía Docker)
+    EVOLUTION_API_URL: str = "http://localhost:8080"
+    EVOLUTION_API_KEY: str = ""
+    EVOLUTION_INSTANCE_NAME: str = "bnasalud"
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",

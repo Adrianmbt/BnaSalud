@@ -1,5 +1,6 @@
 from datetime import datetime
 import html
+import re
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, status
@@ -65,11 +66,12 @@ def _nombres_personal(medico_ids: List[int]) -> Dict[int, str]:
 
 
 def _buscar_paciente(cedula: str) -> dict:
+    limpia = re.sub(r"\D", "", cedula.strip())
     try:
         filas = (
             supabase.table("historias_clinicas")
             .select("*")
-            .eq("cedula", cedula)
+            .eq("cedula", limpia)
             .limit(1)
             .execute()
             .data

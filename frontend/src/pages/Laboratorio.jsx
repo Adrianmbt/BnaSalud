@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Icon from '../components/Icon';
 import ClinicalShell from '../clinical/ClinicalShell';
 import { LedgerCard, SectionLabel, Code, ToneButton, Stamp } from '../clinical/ui';
-import { API, cerrarSesion } from '../api';
+import { API, cerrarSesion, marcarUltimaSesion } from '../api';
 
 const CLAVE_SESION_LAB = 'bna_sesion_laboratorio';
 const ROLES_LAB = ['medico', 'enfermero', 'superusuario'];
@@ -103,6 +103,7 @@ export default function Laboratorio() {
       try {
         localStorage.setItem('bna_token', res.token);
         localStorage.setItem(CLAVE_SESION_LAB, JSON.stringify(res.usuario));
+        marcarUltimaSesion('staff');
       } catch {
         /* sin almacenamiento */
       }

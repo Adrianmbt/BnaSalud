@@ -1,0 +1,17 @@
+{
+  "name": "bnasalud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de Salud Barcelona - instalacion del monorepo (backend + frontend + mobile + Evolution API)",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "setup:env": "node scripts/setup.js env",
+    "setup:backend": "node scripts/setup.js backend",
+    "setup:frontend": "node scripts/setup.js frontend",
+    "setup:mobile": "node scripts/setup.js mobile",
+    "setup:whatsapp": "node scripts/setup.js evolution"
+  }
+}

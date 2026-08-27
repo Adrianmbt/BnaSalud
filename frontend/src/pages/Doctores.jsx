@@ -20,7 +20,7 @@ import HistorialLinea from '../components/HistorialLinea';
 import DemoSwitcher from '../components/DemoSwitcher';
 import CapacityIndicator from '../components/CapacityIndicator';
 import PrescripcionInput from '../components/PrescripcionInput';
-import { API, cerrarSesion } from '../api';
+import { API, cerrarSesion, marcarUltimaSesion } from '../api';
 import { DEMO, CIE10_DEMO, CATALOGO_EXAMENES, CATEGORIA_ESTILO, GRUPOS_ESTILO, CENTROS_DEMO, getPersonaDemo, PIN_POR_DEFECTO } from '../clinical/demo';
 import { getCentroTheme } from '../centroTheme';
 
@@ -162,6 +162,7 @@ export default function Doctores() {
       try {
         localStorage.setItem('bna_token', res.token);
         localStorage.setItem('bna_sesion_doctor', JSON.stringify(res.usuario));
+        marcarUltimaSesion('staff');
       } catch {
         /* sin almacenamiento */
       }
@@ -200,6 +201,7 @@ export default function Doctores() {
             try {
               localStorage.setItem('bna_token', res.token);
               localStorage.setItem('bna_sesion_doctor', JSON.stringify(res.usuario));
+              marcarUltimaSesion('staff');
             } catch {
               /* sin almacenamiento */
             }

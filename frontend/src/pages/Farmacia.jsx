@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Icon from '../components/Icon';
 import ClinicalShell from '../clinical/ClinicalShell';
 import { Stamp, LedgerCard, SectionLabel, Code, ToneButton } from '../clinical/ui';
-import { API, cerrarSesion } from '../api';
+import { API, cerrarSesion, marcarUltimaSesion } from '../api';
 import { DEMO, nivelStock } from '../clinical/demo';
 
 const USUARIO_FARMACIA = { id: 2071, clinica_id: 2 };
@@ -193,6 +193,7 @@ export default function Farmacia() {
       try {
         localStorage.setItem('bna_token', res.token);
         localStorage.setItem(CLAVE_SESION_FARMACIA, JSON.stringify(res.usuario));
+        marcarUltimaSesion('staff');
       } catch {
         /* sin almacenamiento */
       }

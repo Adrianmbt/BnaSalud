@@ -15,9 +15,7 @@ import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
 import Icon from '../components/Icon';
 import HistorialLinea from '../components/HistorialLinea';
-import DemoSwitcher from '../components/DemoSwitcher';
-import { API, parseCedula, cerrarSesion } from '../api';
-import { DEMO, CENTROS_DEMO, getPersonaDemo, PIN_POR_DEFECTO } from '../clinical/demo';
+import { API, parseCedula, cerrarSesion, marcarUltimaSesion } from '../api';
 import { getCentroTheme } from '../centroTheme';
 import CitaModal from '../components/CitaModal';
 
@@ -126,7 +124,7 @@ const ESTADOS_RECETA = {
 
 const ESTADOS_NOTIFICACION = {
   enviado: { tono: 'success', etiqueta: 'Enviado' },
-  demo: { tono: 'info', etiqueta: 'Modo demo' },
+  demo: { tono: 'info', etiqueta: 'Registrado' },
   error: { tono: 'error', etiqueta: 'Error de envío' },
   pendiente: { tono: 'amber', etiqueta: 'Pendiente' },
 };
@@ -192,6 +190,84 @@ export default function Paciente() {
   const [perfilError, setPerfilError] = useState('');
   const [perfilAbierto, setPerfilAbierto] = useState(false);
 
+  const [citaAPosponer, setCitaAPosponer] = useState(null);
+  const [nuevaFechaPosponer, setNuevaFechaPosponer] = useState('');
+  const [nuevaHoraPosponer, setNuevaHoraPosponer] = useState('');
+  const [motivoPosponer, setMotivoPosponer] = useState('');
+  const [posponiendo, setPosponiendo] = useState(false);
+  const [posponerError, setPosponerError] = useState('');
+  const [slotsPosponer, setSlotsPosponer] = useState([]);
+  const [consultandoSlotsPosponer, setConsultandoSlotsPosponer] = useState(false);
+  const [slotMsgPosponer, setSlotMsgPosponer] = useState('');
+
+  useEffect(() => {
+    if (!citaAPosponer || !nuevaFechaPosponer) {
+      setSlotsPosponer([]);
+      setSlotMsgPosponer('');
+      return;
+    }
+    let activo = true;
+    setConsultandoSlotsPosponer(true);
+    setNuevaHoraPosponer('');
+    setSlotMsgPosponer('');
+    API.getDisponibilidad({
+      centro_id: citaAPosponer.centro_id || 2,
+      especialidad_id: citaAPosponer.especialidad_id,
+      medico_id: citaAPosponer.medico_id,
+      fecha: nuevaFechaPosponer,
+    })
+      .then((data) => {
+        if (!activo) return;
+        if (data.slots && data.slots.length > 0) {
+          setSlotsPosponer(data.slots);
+          setSlotMsgPosponer('');
+        } else {
+          setSlotsPosponer([]);
+          setSlotMsgPosponer(data.mensaje || 'No hay horarios disponibles para esta fecha con este médico.');
+        }
+      })
+      .catch(() => {
+        if (activo) {
+          setSlotsPosponer([]);
+          setSlotMsgPosponer('Error al consultar horarios disponibles.');
+        }
+      })
+      .finally(() => {
+        if (activo) setConsultandoSlotsPosponer(false);
+      });
+    return () => {
+      activo = false;
+    };
+  }, [citaAPosponer, nuevaFechaPosponer]);
+
+  async function handlePosponerSubmit(e) {
+    e.preventDefault();
+    if (!citaAPosponer || !nuevaFechaPosponer || !nuevaHoraPosponer) {
+      setPosponerError('Debe seleccionar una fecha y un horario disponible.');
+      return;
+    }
+    setPosponiendo(true);
+    setPosponerError('');
+    try {
+      const resp = await API.posponerCita(citaAPosponer.id, {
+        nueva_fecha: nuevaFechaPosponer,
+        nueva_hora: nuevaHoraPosponer.length === 5 ? `${nuevaHoraPosponer}:00` : nuevaHoraPosponer,
+        motivo: motivoPosponer || 'Solicitud de postergación desde el portal del paciente',
+      });
+      setCitas((prev) => prev.map((c) => (c.id === resp.id ? resp : c)));
+      setCitaAPosponer(null);
+      setNuevaFechaPosponer('');
+      setNuevaHoraPosponer('');
+      setMotivoPosponer('');
+      setSlotsPosponer([]);
+      setAviso('Cita reprogramada exitosamente. Se envió la notificación de confirmación por WhatsApp.');
+    } catch (err) {
+      setPosponerError(err.message || 'No se pudo reprogramar la cita.');
+    } finally {
+      setPosponiendo(false);
+    }
+  }
+
   const temaCentro = useMemo(() => getCentroTheme({ codigo: 'CLN-CITAB', nombre: '' }), []);
 
   const varsCentro = useMemo(
@@ -224,32 +300,22 @@ export default function Paciente() {
     setEntrando(true);
     setErrorEntrada('');
     setInfoEntrada('');
+    const ident = parseCedula(cedula);
+    const cedulaLimpia = ident.cedula || cedula.replace(/\D/g, '');
     try {
-      let datos;
-      let token;
-      let esDemo = false;
+      const res = await API.loginPaciente(cedulaLimpia, pin);
       try {
-        const res = await API.loginPaciente(cedula, pin);
-        token = res.token;
-        datos = res.paciente;
-      } catch {
-        const res = await DEMO.loginPaciente({ cedula, pin });
-        token = res.token;
-        datos = res.paciente;
-        esDemo = true;
-      }
-      try {
-        localStorage.setItem('bna_token_paciente', token);
-        localStorage.setItem('bna_sesion_paciente', JSON.stringify({ cedula }));
+        localStorage.setItem('bna_token_paciente', res.token);
+        localStorage.setItem('bna_sesion_paciente', JSON.stringify({ cedula: cedulaLimpia }));
+        marcarUltimaSesion('paciente');
       } catch {
         /* sin almacenamiento */
       }
-      setModoDemo(esDemo);
-      setPaciente(datos);
+      setPaciente(res.paciente);
       setSeccion('dashboard');
       setNavAbierta(false);
     } catch (err) {
-      setErrorEntrada(err.message || 'No se pudo iniciar sesión. Verifique sus datos.');
+      setErrorEntrada(err.message || 'No se pudo iniciar sesión. Verifique su cédula y su PIN.');
     } finally {
       setEntrando(false);
     }
@@ -283,13 +349,7 @@ export default function Paciente() {
       return;
     }
     try {
-      let res;
-      try {
-        res = await API.recuperarPin(ident.cedula, recuperarForm.email);
-      } catch {
-        res = await DEMO.recuperarPin({ cedula: ident.cedula, email: recuperarForm.email });
-      }
-      setCodigoDemo(res.codigo_demo || '');
+      const res = await API.recuperarPin(ident.cedula, recuperarForm.email);
       setInfoEntrada(res.mensaje || 'Se envió el código a su correo.');
       setRecuperarForm((f) => ({ ...f, cedula: ident.cedula }));
       setFlujoAcceso('reset');
@@ -312,18 +372,9 @@ export default function Paciente() {
       return;
     }
     try {
-      try {
-        await API.resetPin(recuperarForm.cedula, recuperarForm.codigo, pinNuevo);
-      } catch {
-        await DEMO.resetPin({
-          cedula: recuperarForm.cedula,
-          codigo: recuperarForm.codigo,
-          pin_nuevo: pinNuevo,
-        });
-      }
+      await API.resetPin(recuperarForm.cedula, recuperarForm.codigo, pinNuevo);
       setFlujoAcceso('login');
       setRecuperarForm({ cedula: '', email: '', codigo: '', pinNuevo: '' });
-      setCodigoDemo('');
       setInfoEntrada('¡PIN restablecido! Ingrese con su cédula y el nuevo PIN.');
     } catch (err) {
       setErrorEntrada(err.message || 'No se pudo restablecer el PIN.');
@@ -332,56 +383,34 @@ export default function Paciente() {
     }
   };
 
-  // Restaurar sesión (o la persona activa del modo demo) al montar.
+  // Restaurar sesión al montar (pantalla de login por defecto si no hay sesión real)
   useEffect(() => {
     let activo = true;
     (async () => {
-      const persona = getPersonaDemo();
-      if (persona && persona.tipo === 'paciente') {
-        try {
-          const res = await DEMO.loginPaciente({ cedula: persona.cedula, pin: PIN_POR_DEFECTO });
-          if (activo) {
-            try {
-              localStorage.setItem('bna_token_paciente', res.token);
-              localStorage.setItem('bna_sesion_paciente', JSON.stringify({ cedula: persona.cedula }));
-            } catch {
-              /* sin almacenamiento */
-            }
-            setModoDemo(true);
-            setPaciente(res.paciente);
-          }
-        } catch {
-          /* persona inválida: seguir con la sesión normal */
-        }
-        return;
-      }
       let sesion = null;
+      let token = null;
       try {
         sesion = JSON.parse(localStorage.getItem('bna_sesion_paciente') || 'null');
+        token = localStorage.getItem('bna_token_paciente');
       } catch {
         sesion = null;
+        token = null;
       }
-      if (!sesion || !sesion.cedula) return;
-      try {
-        const datos = await API.buscarPaciente(sesion.cedula);
-        if (activo) setPaciente(datos);
-      } catch (err) {
-        if (err.status === 401) {
-          cerrarSesion('paciente');
-          try {
-            localStorage.removeItem('bna_sesion_paciente');
-          } catch {
-            /* sin almacenamiento */
+
+      if (sesion && sesion.cedula && token) {
+        try {
+          const datos = await API.buscarPaciente(sesion.cedula);
+          if (activo) {
+            marcarUltimaSesion('paciente');
+            setPaciente(datos);
+            return;
           }
-        } else {
-          try {
-            const datos = await DEMO.buscarPaciente(sesion.cedula);
-            if (activo) {
-              setModoDemo(true);
-              setPaciente(datos);
-            }
-          } catch {
-            /* sin datos demo ni backend */
+        } catch (err) {
+          if (err && err.status === 401) {
+            cerrarSesion('paciente');
+            try {
+              localStorage.removeItem('bna_sesion_paciente');
+            } catch {}
           }
         }
       }
@@ -395,18 +424,25 @@ export default function Paciente() {
     if (!paciente) return;
     setCargando(true);
     const cedula = String(paciente.cedula || '').replace(/\D/g, '');
-    const promesas = [
-      API.historialPaciente(cedula).catch(async () => DEMO.historialPaciente(cedula)),
-      API.citasPaciente(cedula).catch(async () => DEMO.citasPaciente(cedula)),
-      API.ordenesPaciente(paciente.id).catch(async () => DEMO.ordenesPaciente(paciente.id || cedula)),
-      API.medicoTratante(cedula)
-        .catch(async () => DEMO.medicoTratante(cedula))
-        .catch(() => null),
-      API.recetasPaciente(cedula).catch(async () => DEMO.recetasPaciente(cedula)),
-      API.notificacionesPaciente(cedula).catch(async () =>
-        DEMO.notificacionesPaciente(cedula)
-      ),
-    ];
+
+    const promesas = (() => {
+      const sinDatos = (err) => {
+        if (err && err.status === 401) throw err;
+        return null;
+      };
+      const sinLista = (err) => {
+        if (err && err.status === 401) throw err;
+        return [];
+      };
+      return [
+        API.historialPaciente(cedula).catch(sinDatos),
+        API.citasPaciente(cedula).catch(sinLista),
+        API.ordenesPaciente(paciente.id).catch(sinLista),
+        API.medicoTratante(cedula).catch(sinDatos),
+        API.recetasPaciente(cedula).catch(sinLista),
+        API.notificacionesPaciente(cedula).catch(sinLista),
+      ];
+    })();
     try {
       const [h, c, o, m, r, n] = await Promise.all(promesas);
       setHistorial(h && h.historial ? h : null);
@@ -415,17 +451,22 @@ export default function Paciente() {
       setMedico(m && m.nombre ? m : null);
       setRecetas(Array.isArray(r) ? r : []);
       setNotificaciones(Array.isArray(n) ? n : []);
-    } catch {
-      setHistorial(null);
-      setCitas([]);
-      setOrdenes([]);
-      setMedico(null);
-      setRecetas([]);
-      setNotificaciones([]);
+    } catch (err) {
+      if (err && err.status === 401) {
+        cerrarSesionPaciente();
+        setAvisoError('Su sesión ha expirado. Por favor ingrese de nuevo.');
+      } else {
+        setHistorial(null);
+        setCitas([]);
+        setOrdenes([]);
+        setMedico(null);
+        setRecetas([]);
+        setNotificaciones([]);
+      }
     } finally {
       setCargando(false);
     }
-  }, [paciente]);
+  }, [paciente, cerrarSesionPaciente]);
 
   useEffect(() => {
     cargarTodo();
@@ -538,7 +579,17 @@ export default function Paciente() {
     }
   }
 
-  const centroCITAB = CENTROS_DEMO.find((c) => c.id === 2) || CENTROS_DEMO[0];
+  const centroCITAB = {
+    id: 2,
+    nombre: 'Centro Integral de Salud CITAB',
+    subtitulo: 'Centro de Especialidades Médicas Municipal',
+    tipo: 'Especializado',
+    parroquia: 'El Carmen',
+    direccion: 'Av. Caracas, Sector Tronconal III, Barcelona',
+    horario: 'Lunes a Viernes 7:00 AM - 5:30 PM',
+    servicios: ['Consulta Especializada', 'Laboratorio', 'Imágenes', 'Farmacia'],
+    logo: '/maquetas/citab_logo.png',
+  };
 
   const contenidoNav = (
     <>
@@ -731,14 +782,6 @@ export default function Paciente() {
                         <p className="text-xs font-semibold text-doc-deep">{infoEntrada}</p>
                       </div>
                     )}
-                    {codigoDemo && (
-                      <div className="mt-3 p-3 rounded-xl border border-dashed border-amber bg-amber/5 flex items-center justify-between" role="status">
-                        <p className="text-xs font-semibold text-amber">
-                          Código de demostración (sin correo real)
-                        </p>
-                        <span className="font-mono text-base font-bold tracking-[0.3em] text-amber">{codigoDemo}</span>
-                      </div>
-                    )}
 
                     {flujoAcceso === 'login' && (
                       <form
@@ -780,7 +823,7 @@ export default function Paciente() {
                             setErrorEntrada('');
                           }}
                           sx={fieldSx}
-                          inputProps={{ inputMode: 'numeric', autoComplete: 'current-password' }}
+                          slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'current-password' } }}
                           helperText="Tu PIN fue creado al registrarte en tu primera cita."
                         />
                         <Button
@@ -883,7 +926,7 @@ export default function Paciente() {
                         <TextField
                           fullWidth
                           label="Código de 6 dígitos"
-                          inputProps={{ inputMode: 'numeric', maxLength: 6 }}
+                          slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 6 } }}
                           value={recuperarForm.codigo}
                           onChange={(e) =>
                             setRecuperarForm((f) => ({
@@ -898,7 +941,7 @@ export default function Paciente() {
                           fullWidth
                           type="password"
                           label="PIN nuevo (4 dígitos)"
-                          inputProps={{ inputMode: 'numeric', maxLength: 8 }}
+                          slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 8 } }}
                           value={recuperarForm.pinNuevo}
                           onChange={(e) =>
                             setRecuperarForm((f) => ({
@@ -1445,10 +1488,16 @@ export default function Paciente() {
                             {c.estado !== 'cancelada' && c.estado !== 'completada' && (
                               <Button
                                 size="small"
-                                onClick={() => setCitaModal(centroCITAB)}
+                                onClick={() => {
+                                  setCitaAPosponer(c);
+                                  setNuevaFechaPosponer('');
+                                  setNuevaHoraPosponer('');
+                                  setMotivoPosponer('');
+                                  setPosponerError('');
+                                }}
                                 sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, color: 'var(--color-secondary)' }}
                               >
-                                Reagendar
+                                Posponer cita
                               </Button>
                             )}
                           </div>
@@ -2101,7 +2150,7 @@ export default function Paciente() {
       </div>
 
       {/* Modal de cita (CITAB) */}
-      {citaModal && <CitaModal centro={citaModal} onClose={() => setCitaModal(null)} />}
+      {citaModal && <CitaModal centro={citaModal} paciente={paciente} onClose={() => setCitaModal(null)} />}
 
       {/* Diálogo: detalle de consulta / comprobante */}
       <Dialog open={!!recetaAbierta} onClose={() => setRecetaAbierta(null)} maxWidth="sm" fullWidth>
@@ -2305,6 +2354,120 @@ export default function Paciente() {
         )}
       </Dialog>
 
+      {/* ====== DIÁLOGO POSPONER CITA ====== */}
+      <Dialog open={!!citaAPosponer} onClose={() => setCitaAPosponer(null)} maxWidth="xs" fullWidth>
+        {citaAPosponer && (
+          <form onSubmit={handlePosponerSubmit}>
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Icon name="update" className="text-secondary text-2xl" />
+                <div>
+                  <h3 className="text-base font-bold text-primary">Posponer Cita</h3>
+                  <p className="text-xs text-on-surface-variant font-normal">
+                    {citaAPosponer.especialidad} · {citaAPosponer.centro_salud}
+                  </p>
+                </div>
+              </div>
+              <IconButton onClick={() => setCitaAPosponer(null)} size="small">
+                <Icon name="close" />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent dividers className="space-y-4">
+              {posponerError && (
+                <Alert severity="error" className="mb-2">
+                  {posponerError}
+                </Alert>
+              )}
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1">
+                  Nueva Fecha Solicitada
+                </label>
+                <TextField
+                  type="date"
+                  fullWidth
+                  size="small"
+                  value={nuevaFechaPosponer}
+                  onChange={(e) => setNuevaFechaPosponer(e.target.value)}
+                  slotProps={{ htmlInput: { min: new Date().toISOString().split('T')[0] } }}
+                  required
+                  sx={fieldSx}
+                />
+              </div>
+              {nuevaFechaPosponer && (
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant mb-1">
+                    Horario Disponible del Médico
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {consultandoSlotsPosponer && (
+                      <span className="text-xs text-secondary animate-pulse flex items-center gap-1 py-1">
+                        <Icon name="sync" className="text-sm animate-spin" /> Verificando disponibilidad del médico...
+                      </span>
+                    )}
+                    {!consultandoSlotsPosponer && slotsPosponer.length === 0 && (
+                      <span className="text-xs italic text-error font-medium py-1">
+                        {slotMsgPosponer || 'Seleccione una fecha para consultar horarios.'}
+                      </span>
+                    )}
+                    {!consultandoSlotsPosponer &&
+                      slotsPosponer.map((slot) => {
+                        const slotFinal = slot.length === 5 ? `${slot}:00` : slot;
+                        const activo = nuevaHoraPosponer === slotFinal;
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => setNuevaHoraPosponer(slotFinal)}
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                              activo
+                                ? 'bg-secondary text-white border-secondary shadow-md scale-105'
+                                : 'border-outline-variant text-primary hover:border-secondary hover:bg-secondary/5'
+                            }`}
+                          >
+                            {slot}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1">
+                  Motivo de la Postergación (Opcional)
+                </label>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  size="small"
+                  placeholder="Ej: Compromiso laboral imprevisto"
+                  value={motivoPosponer}
+                  onChange={(e) => setMotivoPosponer(e.target.value)}
+                  sx={fieldSx}
+                />
+              </div>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, py: 2 }}>
+              <Button
+                onClick={() => setCitaAPosponer(null)}
+                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, color: 'var(--color-secondary)' }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={posponiendo}
+                startIcon={posponiendo ? <Icon name="sync" className="text-lg animate-spin" /> : <Icon name="schedule" className="text-lg" />}
+                sx={{ background: temaCentro.gradient, borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
+              >
+                {posponiendo ? 'Solicitando...' : 'Confirmar Posposición'}
+              </Button>
+            </DialogActions>
+          </form>
+        )}
+      </Dialog>
+
       <Snackbar
         open={!!aviso}
         autoHideDuration={4000}
@@ -2326,8 +2489,6 @@ export default function Paciente() {
           {avisoError}
         </Alert>
       </Snackbar>
-
-      <DemoSwitcher />
     </div>
   );
 }

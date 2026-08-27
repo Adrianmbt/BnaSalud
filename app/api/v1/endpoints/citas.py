@@ -4,8 +4,9 @@ from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.v1.deps import exigir_paciente_o_staff
+from app.api.v1.deps import exigir_paciente_o_staff, exigir_staff, exigir_paciente
 from app.api.v1.errors import db_fail, fail, not_found
+from app.core.bitacora import registrar_accion
 from app.core.database import supabase
 from app.core.mail import enviar_welcome
 from app.core.security import hash_secreto
@@ -13,10 +14,13 @@ from app.schemas.schemas import (
     CitaConPacienteCreate,
     CitaCreate,
     CitaDetalleResponse,
+    CitaEstadoUpdate,
+    CitaPosponer,
     CitaResponse,
+    EstadoCita,
     HistoriaClinicaBase,
 )
-from app.services.whatsapp import enviar_bienvenida_cita
+from app.services.whatsapp import enviar_bienvenida_cita, enviar_notificacion_postergacion
 
 router = APIRouter(tags=["Citas Médicas"])
 
@@ -83,7 +87,7 @@ def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str],
     try:
         existe = (
             supabase.table("historias_clinicas")
-            .select("id, cedula, numero_historia")
+            .select("id, cedula, numero_historia, pin_hash")
             .eq("cedula", cedula)
             .execute()
             .data
@@ -99,6 +103,11 @@ def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str],
             for k, v in datos.items()
             if v is not None and k not in {"cedula", "tipo_cedula"}
         }
+        pin_inicial = None
+        if not fila.get("pin_hash"):
+            pin_inicial = f"{secrets.randbelow(9000) + 1000:04d}"
+            actualizables["pin_hash"] = hash_secreto(pin_inicial)
+
         if actualizables:
             try:
                 supabase.table("historias_clinicas").update(actualizables).eq(
@@ -106,12 +115,12 @@ def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str],
                 ).execute()
             except Exception:
                 db_fail("actualizar los datos del paciente")
-        return fila["id"], None, False
+        return fila["id"], pin_inicial, False
 
     registro = dict(datos)
     registro["numero_historia"] = f"HIS-{paciente.tipo_cedula.value}{cedula}"
-    # Generación de PIN Secreto de 6 dígitos para acceso del paciente al portal
-    pin_inicial = f"{secrets.randbelow(900000) + 100000:06d}"
+    # Generación de PIN Secreto de 4 dígitos para acceso del paciente al portal
+    pin_inicial = f"{secrets.randbelow(9000) + 1000:04d}"
     registro["pin_hash"] = hash_secreto(pin_inicial)
     try:
         creado = supabase.table("historias_clinicas").insert(registro).execute()
@@ -542,3 +551,201 @@ def listar_citas_por_cedula(
     for f in filas:
         f["paciente_nombre"] = paciente[0]["nombre_completo"]
     return [_a_cita_detalle(f) for f in filas]
+
+
+# ---------------------------------------------------------------------------
+# TRANSICIONES PERMITIDAS: solo avances lógicos evitan estados incoherentes
+# ---------------------------------------------------------------------------
+_TRANSICIONES_VALIDAS: dict[str, set[str]] = {
+    "pendiente":    {"confirmada", "cancelada"},
+    "confirmada":   {"en_espera", "cancelada"},
+    "en_espera":    {"en_consulta", "cancelada"},
+    "en_consulta":  {"completada", "finalizada", "cancelada"},
+    "completada":   {"finalizada"},
+    "finalizada":   set(),   # estado terminal
+    "cancelada":    set(),   # estado terminal
+}
+
+
+@router.patch("/{cita_id}/estado", response_model=CitaDetalleResponse)
+async def actualizar_estado_cita(
+    cita_id: str,
+    payload: CitaEstadoUpdate,
+    usuario: dict = Depends(exigir_staff),
+) -> CitaDetalleResponse:
+    """Actualiza el estado de una cita médica (uso exclusivo del personal).
+
+    Valida la transición de estado y registra la acción en la bitácora.
+    Estados permitidos: pendiente → confirmada → en_espera → en_consulta
+                        → completada / finalizada / cancelada.
+    """
+    # Recuperar la cita actual
+    try:
+        fila = (
+            supabase.table("citas")
+            .select("*, historias_clinicas(nombre_completo)")
+            .eq("id", cita_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception:
+        db_fail("buscar la cita")
+    if not fila:
+        not_found("Cita")
+
+    cita_actual = fila[0]
+    estado_actual = cita_actual.get("estado", "pendiente")
+    nuevo_estado = payload.estado.value
+
+    # Validar transición
+    permitidos = _TRANSICIONES_VALIDAS.get(estado_actual, set())
+    if nuevo_estado not in permitidos:
+        fail(
+            f"No se puede cambiar el estado '{estado_actual}' a '{nuevo_estado}'. "
+            f"Transiciones válidas: {', '.join(permitidos) or 'ninguna (estado terminal)'}.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    # Construir actualización
+    actualizacion: dict = {"estado": nuevo_estado}
+    if payload.observaciones:
+        actualizacion["observaciones_medico"] = payload.observaciones
+
+    try:
+        supabase.table("citas").update(actualizacion).eq("id", cita_id).execute()
+    except Exception:
+        db_fail("actualizar el estado de la cita")
+
+    # Registrar en bitácora
+    registrar_accion(
+        usuario,
+        "actualizar_estado_cita",
+        "citas",
+        cita_id,
+        detalle=f"Estado: {estado_actual} → {nuevo_estado}",
+    )
+
+    # Devolver la cita actualizada con el nombre del paciente
+    relacion = cita_actual.get("historias_clinicas") or {}
+    cita_actual["paciente_nombre"] = relacion.get("nombre_completo", "") if relacion else ""
+    cita_actual.pop("historias_clinicas", None)
+    cita_actual["estado"] = nuevo_estado
+    if payload.observaciones:
+        cita_actual["observaciones_medico"] = payload.observaciones
+    return _a_cita_detalle(cita_actual)
+
+
+@router.patch("/{cita_id}/posponer", response_model=CitaDetalleResponse)
+async def posponer_cita(
+    cita_id: str,
+    payload: CitaPosponer,
+    usuario: dict = Depends(exigir_paciente),
+) -> CitaDetalleResponse:
+    """Permite al paciente solicitar una postergación de su cita.
+
+    Solo puede posponer citas en estado 'pendiente' o 'confirmada'.
+    Valida que el nuevo horario esté libre antes de actualizar.
+    Envía notificación WhatsApp asíncrona con el nuevo horario.
+    """
+    # Verificar que la cita existe y pertenece al paciente autenticado
+    try:
+        fila = (
+            supabase.table("citas")
+            .select("*, historias_clinicas(nombre_completo, telefono, cedula)")
+            .eq("id", cita_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception:
+        db_fail("buscar la cita")
+    if not fila:
+        not_found("Cita")
+
+    cita_actual = fila[0]
+
+    # Solo el propio paciente puede posponer su cita
+    if cita_actual.get("paciente_id") != usuario.get("paciente_id"):
+        fail("Solo puede modificar sus propias citas.", status.HTTP_403_FORBIDDEN)
+
+    # Solo se pueden posponer citas activas
+    estados_posponibles = {"pendiente", "confirmada"}
+    if cita_actual.get("estado") not in estados_posponibles:
+        fail(
+            f"Solo se pueden posponer citas en estado pendiente o confirmada. "
+            f"Estado actual: '{cita_actual.get('estado')}'.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    # Validar que la nueva fecha sea futura
+    if payload.nueva_fecha < date.today():
+        fail("La nueva fecha no puede estar en el pasado.")
+
+    # Verificar disponibilidad del nuevo horario
+    nueva_hora_str = payload.nueva_hora.strftime("%H:%M:%S")
+    try:
+        ocupada = (
+            supabase.table("citas")
+            .select("id")
+            .eq("centro_id", cita_actual["centro_id"])
+            .eq("fecha_cita", payload.nueva_fecha.isoformat())
+            .eq("hora_inicio", nueva_hora_str)
+            .not_.eq("estado", "cancelada")
+            .not_.eq("id", cita_id)   # excluir la propia cita
+            .execute()
+            .data
+        )
+    except Exception:
+        db_fail("verificar la disponibilidad del nuevo horario")
+    if ocupada:
+        fail(
+            "Ese horario ya fue reservado. Seleccione otro.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    # Aplicar la postergación
+    try:
+        supabase.table("citas").update(
+            {
+                "fecha_cita": payload.nueva_fecha.isoformat(),
+                "hora_inicio": nueva_hora_str,
+                "estado": "pendiente",   # vuelve a pendiente tras reprogramar
+            }
+        ).eq("id", cita_id).execute()
+    except Exception:
+        db_fail("posponer la cita")
+
+    # Registrar en bitácora
+    registrar_accion(
+        usuario,
+        "posponer_cita",
+        "citas",
+        cita_id,
+        detalle=(
+            f"Nueva fecha: {payload.nueva_fecha.isoformat()} "
+            f"{nueva_hora_str[:5]}"
+        ),
+    )
+
+    # Notificar al paciente por WhatsApp (sin bloquear la respuesta)
+    relacion = cita_actual.get("historias_clinicas") or {}
+    telefono = (relacion.get("telefono") or "").strip()
+    if telefono:
+        await enviar_notificacion_postergacion(
+            telefono=telefono,
+            nombre=relacion.get("nombre_completo", "Paciente"),
+            centro=cita_actual.get("centro_salud", ""),
+            especialidad=cita_actual.get("especialidad", ""),
+            nueva_fecha=payload.nueva_fecha.strftime("%d/%m/%Y"),
+            nueva_hora=payload.nueva_hora.strftime("%H:%M"),
+            codigo_confirmacion=cita_actual.get("codigo_confirmacion", ""),
+        )
+
+    # Devolver la cita actualizada
+    cita_actual.pop("historias_clinicas", None)
+    cita_actual["paciente_nombre"] = relacion.get("nombre_completo", "")
+    cita_actual["fecha_cita"] = payload.nueva_fecha.isoformat()
+    cita_actual["hora_inicio"] = nueva_hora_str
+    cita_actual["estado"] = "pendiente"
+    return _a_cita_detalle(cita_actual)

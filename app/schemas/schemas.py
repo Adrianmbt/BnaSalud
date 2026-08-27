@@ -215,6 +215,17 @@ class CitaDetalleResponse(BaseModel):
     paciente_nombre: str = Field(default="", description="Nombre del paciente (unido desde historias_clinicas)")
     created_at: datetime
 
+class CitaPosponer(BaseModel):
+    """Solicitud de postergación de cita iniciada por el paciente."""
+    nueva_fecha: date = Field(..., description="Nueva fecha solicitada (debe ser futura)")
+    nueva_hora: time = Field(..., description="Nuevo horario solicitado (HH:MM:SS)")
+    motivo: Optional[str] = Field(None, max_length=300, description="Motivo de la postergación")
+
+class CitaEstadoUpdate(BaseModel):
+    """Actualización de estado de una cita por el médico o personal autorizado."""
+    estado: EstadoCita = Field(..., description="Nuevo estado de la cita")
+    observaciones: Optional[str] = Field(None, max_length=500, description="Notas u observaciones del médico")
+
 class TurnoColaResponse(BaseModel):
     cita_id: str
     paciente_id: str

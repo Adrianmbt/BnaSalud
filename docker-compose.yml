@@ -1,0 +1,72 @@
+# =============================================================================
+# BnaSalud — Evolution API v2.2.3
+# =============================================================================
+# Ejecutar con:
+#   docker compose up -d
+#
+# Evolution API queda disponible en http://localhost:8080
+# El panel de administración y la creación de instancias WhatsApp también
+# se gestionan desde esa URL.
+#
+# IMPORTANTE: Este archivo NO contiene credenciales en claro.
+# Copia `.env.example` a `.env` y define SUPABASE_DB_URI / EVOLUTION_API_KEY.
+# =============================================================================
+
+services:
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    container_name: bnasalud_evolution
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+
+    environment:
+      # -------------------------------------------------------------------
+      # Servidor
+      # -------------------------------------------------------------------
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+
+      # -------------------------------------------------------------------
+      # Clave de autenticación global (usada por FastAPI para llamar a
+      # la API y por el panel de administración)
+      # -------------------------------------------------------------------
+      AUTHENTICATION_TYPE: apikey
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-cambiar-esto-por-la-clave-define-en-.env}
+
+      # -------------------------------------------------------------------
+      # Persistencia en Supabase PostgreSQL
+      # El host es el servidor pooler de Supabase (puerto 5432 o 6543)
+      # -------------------------------------------------------------------
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: ${SUPABASE_DB_URI:?Define SUPABASE_DB_URI en el .env}
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_api
+
+      # Sincronizar instancias en BD al arrancar
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      DATABASE_SAVE_DATA_LABELS: "true"
+      DATABASE_SAVE_DATA_HISTORIC: "true"
+
+      # -------------------------------------------------------------------
+      # Instancia de WhatsApp predeterminada
+      # -------------------------------------------------------------------
+      DEL_INSTANCE: "false"
+
+      # -------------------------------------------------------------------
+      # Logs (info en entorno de pruebas, warn en producción)
+      # -------------------------------------------------------------------
+      LOG_LEVEL: info
+      LOG_COLOR: "true"
+      LOG_BAILEYS: error
+
+      # -------------------------------------------------------------------
+      # Configuración de mensajes
+      # -------------------------------------------------------------------
+      # Tiempo de espera al enviar (ms)
+      CONFIG_SESSION_PHONE_CLIENT: BnaSalud
+      CONFIG_SESSION_PHONE_NAME: Chrome

@@ -5,8 +5,29 @@ export const CLAVES_SESION = {
   paciente: 'bna_token_paciente',
 };
 
+// Cuál de las dos sesiones entró en último lugar. `tokenActivo` usa este
+// marcador para no mezclar tokens (un token staff caducado rompía el portal
+// del paciente, porque siempre ganaba la prioridad).
+const CLAVE_ULTIMA_SESION = 'bna_ultima_sesion';
+
+export function marcarUltimaSesion(tipo) {
+  try {
+    localStorage.setItem(CLAVE_ULTIMA_SESION, tipo);
+  } catch {
+    /* sin almacenamiento disponible */
+  }
+}
+
 function tokenActivo() {
   try {
+    const ultima = localStorage.getItem(CLAVE_ULTIMA_SESION);
+    if (ultima === 'paciente') {
+      return (
+        localStorage.getItem(CLAVES_SESION.paciente) ||
+        localStorage.getItem(CLAVES_SESION.staff) ||
+        ''
+      );
+    }
     return (
       localStorage.getItem(CLAVES_SESION.staff) ||
       localStorage.getItem(CLAVES_SESION.paciente) ||
@@ -19,8 +40,18 @@ function tokenActivo() {
 
 export function cerrarSesion(tipo) {
   try {
-    if (tipo === 'staff' || !tipo) localStorage.removeItem(CLAVES_SESION.staff);
-    if (tipo === 'paciente' || !tipo) localStorage.removeItem(CLAVES_SESION.paciente);
+    if (tipo === 'staff' || !tipo) {
+      localStorage.removeItem(CLAVES_SESION.staff);
+      if (localStorage.getItem(CLAVE_ULTIMA_SESION) === 'staff') {
+        localStorage.removeItem(CLAVE_ULTIMA_SESION);
+      }
+    }
+    if (tipo === 'paciente' || !tipo) {
+      localStorage.removeItem(CLAVES_SESION.paciente);
+      if (localStorage.getItem(CLAVE_ULTIMA_SESION) === 'paciente') {
+        localStorage.removeItem(CLAVE_ULTIMA_SESION);
+      }
+    }
   } catch {
     /* sin almacenamiento disponible */
   }
@@ -109,6 +140,16 @@ export const API = {
     apiFetch(`/pacientes/${encodeURIComponent(cedula)}/medico`),
   citasPaciente: (cedula) =>
     apiFetch(`/citas?cedula=${encodeURIComponent(cedula)}`),
+  buscarCita: (codigo) =>
+    apiFetch(`/citas/${encodeURIComponent(codigo)}`),
+
+  // Gestión de citas — médico (staff)
+  actualizarEstadoCita: (citaId, payload) =>
+    apiFetch(`/citas/${citaId}/estado`, { method: 'PATCH', body: payload }),
+
+  // Gestión de citas — paciente
+  posponerCita: (citaId, payload) =>
+    apiFetch(`/citas/${citaId}/posponer`, { method: 'PATCH', body: payload }),
 
   /* === Notificaciones al paciente (Fase 5) === */
   notificacionesPaciente: (cedula) =>

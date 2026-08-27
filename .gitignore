@@ -20,6 +20,9 @@ node_modules/
 dist/
 .vite/
 
+# Evolution API clonado localmente para pruebas (nunca se versiona)
+evolution-api/
+
 # IDE
 .vscode/
 .idea/
@@ -33,7 +36,7 @@ Thumbs.db
 *.db
 *.sqlite3
 
-# Configuración del agente
+# Configuraciï¿½n del agente
 .agents/
 skills-lock.json
 .kiro/

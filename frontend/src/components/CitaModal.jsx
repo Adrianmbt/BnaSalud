@@ -40,8 +40,8 @@ const PASOS = [
   { numero: 3, etiqueta: 'Confirmar', icono: 'task_alt' },
 ];
 
-export default function CitaModal({ centro, onClose }) {
-  const [step, setStep] = useState(1);
+export default function CitaModal({ centro, paciente, onClose }) {
+  const [step, setStep] = useState(paciente ? 2 : 1);
   const [especialidades, setEspecialidades] = useState([]);
   const [especialidadId, setEspecialidadId] = useState('');
   const [medicos, setMedicos] = useState([]);
@@ -59,7 +59,11 @@ export default function CitaModal({ centro, onClose }) {
   const [exitoPin, setExitoPin] = useState('');
   const [pinEnviadoWhatsapp, setPinEnviadoWhatsapp] = useState(false);
 
-  const [form, setForm] = useState({ nombre: '', cedula: '', telefono: '' });
+  const [form, setForm] = useState({
+    nombre: paciente?.nombre_completo || '',
+    cedula: paciente?.cedula || '',
+    telefono: paciente?.telefono || '',
+  });
   const [errores, setErrores] = useState({});
 
   const dialogRef = useRef(null);
