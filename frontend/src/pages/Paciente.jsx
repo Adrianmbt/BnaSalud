@@ -588,12 +588,17 @@ export default function Paciente() {
     direccion: 'Av. Caracas, Sector Tronconal III, Barcelona',
     horario: 'Lunes a Viernes 7:00 AM - 5:30 PM',
     servicios: ['Consulta Especializada', 'Laboratorio', 'Imágenes', 'Farmacia'],
-    logo: '/maquetas/citab_logo.png',
+    logo: '/identidad visual/InstitutoSalud.jpeg',
   };
 
   const contenidoNav = (
     <>
-      <div className="relative overflow-hidden px-5 py-4 text-white shrink-0" style={{ background: temaCentro.gradient }}>
+      <div
+        className="relative overflow-hidden px-5 py-5 text-white shrink-0 border-b border-white/10"
+        style={{ background: temaCentro.gradient }}
+      >
+        <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-white/10 pointer-events-none" />
+        <div className="absolute -bottom-14 -left-10 w-28 h-28 rounded-full bg-white/5 pointer-events-none" />
         <div
           className="absolute inset-0 opacity-15 pointer-events-none"
           style={{
@@ -601,13 +606,25 @@ export default function Paciente() {
               'repeating-linear-gradient(-45deg, rgba(255,255,255,0.35) 0 10px, transparent 10px 26px)',
           }}
         />
-        <div className="relative flex items-center gap-3">
-          <img src={centroCITAB.logo} alt="" className="w-9 h-9 rounded-xl bg-white/90 object-contain p-1 shadow" />
-          <div className="min-w-0">
-            <p className="text-[13px] font-extrabold leading-tight truncate">Portal del Paciente</p>
-            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/75 truncate">
-              {temaCentro.lema}
-            </p>
+        <div className="relative">
+          <div className="bg-white/95 rounded-xl px-3 py-2 shadow-md ring-1 ring-black/5 mb-4">
+            <img
+              src={centroCITAB.logo}
+              alt="Instituto de Salud"
+              loading="lazy"
+              className="h-9 w-full object-contain mx-auto"
+            />
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex w-9 h-9 rounded-lg bg-white/15 border border-white/25 items-center justify-center shrink-0">
+              <Icon name="badge" filled className="text-lg" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[13px] font-extrabold leading-tight truncate">Portal del Paciente</p>
+              <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/75 truncate">
+                {temaCentro.lema}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -1383,7 +1400,7 @@ export default function Paciente() {
                       <section className="relative overflow-hidden bg-card border border-ink-line rounded-3xl p-5 md:p-6 flex flex-col">
                         <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: temaCentro.gradient }} />
                         <div className="flex items-center gap-3 mb-4">
-                          <img src={centroCITAB.logo} alt="" className="w-9 h-9 rounded-lg object-contain p-1 bg-white border border-ink-line" />
+                          <img src={centroCITAB.logo} alt="Instituto de Salud" className="h-8 w-auto max-w-[168px] rounded-lg object-contain p-1 bg-white border border-ink-line" />
                           <div>
                             <p className="text-sm font-extrabold text-primary leading-tight">Comprobante Oficial</p>
                             <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-on-surface-variant">Consulta médica</p>
@@ -1913,7 +1930,11 @@ export default function Paciente() {
                                   <p className="text-xs text-on-surface-variant">{medicoTratante.especialidad || 'Médico'}</p>
                                 </div>
                                 <span className="ml-auto shrink-0 font-mono text-[9px] uppercase tracking-widest px-2 py-1 rounded-md bg-fx-soft text-fx font-bold">
-                                  {medicoTratante.tipo === 'principal' ? 'Principal' : 'Seguimiento'}
+                                  {medicoTratante.tipo === 'principal'
+                                    ? 'Principal'
+                                    : medicoTratante.tipo === 'cita'
+                                      ? 'Por cita'
+                                      : 'Seguimiento'}
                                 </span>
                               </div>
                               <div className="mt-4 space-y-2.5 flex-1">
@@ -2165,7 +2186,7 @@ export default function Paciente() {
             <DialogContent dividers>
               <div className="space-y-4 text-sm">
                 <div className="flex items-center gap-3 pb-4 border-b border-outline-variant">
-                  <img src={centroCITAB.logo} alt="" className="w-9 h-9 rounded-lg object-contain p-1 bg-white border border-outline-variant" />
+                  <img src={centroCITAB.logo} alt="Instituto de Salud" className="h-8 w-auto max-w-[168px] rounded-lg object-contain p-1 bg-white border border-outline-variant" />
                   <div>
                     <p className="font-extrabold text-primary">{recetaAbierta.especialidad}</p>
                     <p className="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">

@@ -189,6 +189,46 @@ def medico_tratante(
             estado=relacion[0].get("estado", "activo"),
         )
 
+    # Si aún no hay vínculo formal, se deduce del médico elegido en la cita
+    # más reciente (el paciente lo seleccionó al solicitar la cita en línea).
+    try:
+        cita = (
+            supabase.table("citas")
+            .select("medico_id")
+            .eq("paciente_id", fila["id"])
+            .not_.eq("estado", "cancelada")
+            .order("fecha_cita", desc=True)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        cita = []
+    if cita and cita[0].get("medico_id"):
+        try:
+            medico_cita = (
+                supabase.table("personal")
+                .select("id, nombre, apellido, especialidad")
+                .eq("id", cita[0]["medico_id"])
+                .limit(1)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:
+            medico_cita = []
+        if medico_cita:
+            p = medico_cita[0]
+            nombre_cita = f"{p.get('nombre', '')} {p.get('apellido', '')}".strip()
+            return MedicoPacienteResponse(
+                medico_id=p.get("id"),
+                nombre=nombre_cita or None,
+                especialidad=p.get("especialidad"),
+                tipo="cita",
+                estado="activo",
+            )
+
     try:
         consulta = (
             supabase.table("consultas")
