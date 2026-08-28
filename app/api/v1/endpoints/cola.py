@@ -14,9 +14,26 @@ from app.schemas.schemas import CheckInRequest, ColaItemSchema, ColaListaRespons
 
 router = APIRouter(tags=["Cola de Pacientes"])
 
+# Estados válidos para que una cita del portal entre a la cola del día.
+ESTADOS_CITA_VALIDOS = {"confirmada", "pendiente"}
+
 
 def _solo_digitos(valor) -> str:
     return re.sub(r"\D", "", str(valor or ""))
+
+
+def _visible_para_medico(fila: dict, medicoid: Optional[int]) -> bool:
+    """Coherencia de la cola por profesional.
+
+    Un turno originado en una cita del portal solo es visible para el médico
+    asignado a esa cita. Los check-in manuales (sin cita vinculada) son el
+    "pool" de triaje compartido del centro y los ve cualquier profesional.
+    """
+    if not medicoid:
+        return True
+    if fila.get("cita_uuid"):
+        return (fila.get("medico_id") or 0) == medicoid
+    return True
 
 
 def _clinica_por_defecto(usuario: Dict) -> Optional[int]:
@@ -59,9 +76,52 @@ def _nombres_personal(ids: List[int]) -> Dict[int, str]:
     }
 
 
-def _a_item(fila: dict, nombres: Optional[Dict[int, str]] = None) -> ColaItemSchema:
+def _codigos_cita(ids: List[str]) -> Dict[str, str]:
+    """Mapa cita_uuid -> codigo_confirmacion para mostrar la cita en la cola."""
+    ids_validos = [i for i in ids if i]
+    if not ids_validos:
+        return {}
+    try:
+        filas = (
+            supabase.table("citas")
+            .select("id, codigo_confirmacion")
+            .in_("id", ids_validos)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return {}
+    return {f["id"]: f.get("codigo_confirmacion", "") for f in filas}
+
+
+def _a_item(
+    fila: dict,
+    nombres: Optional[Dict[int, str]] = None,
+    codigos: Optional[Dict[str, str]] = None,
+) -> ColaItemSchema:
     nombres = nombres or {}
     medico_id = fila.get("medico_id")
+    cita_uuid = fila.get("cita_uuid")
+    cita_id = None
+    if cita_uuid:
+        if codigos is None:
+            try:
+                citas = (
+                    supabase.table("citas")
+                    .select("codigo_confirmacion")
+                    .eq("id", cita_uuid)
+                    .limit(1)
+                    .execute()
+                    .data
+                    or []
+                )
+                if citas:
+                    cita_id = citas[0].get("codigo_confirmacion")
+            except Exception:
+                cita_id = None
+        else:
+            cita_id = codigos.get(cita_uuid)
     return ColaItemSchema(
         id=fila["id"],
         token=fila.get("token", ""),
@@ -73,6 +133,7 @@ def _a_item(fila: dict, nombres: Optional[Dict[int, str]] = None) -> ColaItemSch
         estado=fila.get("estado", "EN_ESPERA"),
         medico_id=medico_id,
         medico_nombre=nombres.get(medico_id, "") if medico_id else "",
+        cita_id=cita_id,
         creado_en=str(fila.get("creado_en") or "")[:19],
         iniciado_en=str(fila.get("iniciado_en") or "")[:19] or None,
         atendido_en=str(fila.get("atendido_en") or "")[:19] or None,
@@ -81,7 +142,8 @@ def _a_item(fila: dict, nombres: Optional[Dict[int, str]] = None) -> ColaItemSch
 
 def _a_lista(filas: List[dict]) -> List[ColaItemSchema]:
     nombres = _nombres_personal([f.get("medico_id") for f in filas])
-    return [_a_item(f, nombres) for f in filas]
+    codigos = _codigos_cita([f.get("cita_uuid") for f in filas])
+    return [_a_item(f, nombres, codigos) for f in filas]
 
 
 def _leer_fila(cola_id: int) -> dict:
@@ -137,7 +199,7 @@ def _sincronizar_citas_cola(clinica: Optional[int]) -> None:
     try:
         existentes = (
             supabase.table("cola_pacientes")
-            .select("id, token, estado")
+            .select("id, token, estado, motivo, cita_uuid")
             .in_("token", tokens)
             .execute()
             .data
@@ -166,11 +228,23 @@ def _sincronizar_citas_cola(clinica: Optional[int]) -> None:
     for cita in citas:
         token = _token(cita["id"])
         fila_existente = por_token.get(token)
-        if cita.get("estado") == "cancelada":
-            if fila_existente and fila_existente.get("estado") == "EN_ESPERA":
+        if cita.get("estado") not in ESTADOS_CITA_VALIDOS:
+            if fila_existente and fila_existente.get("estado") in ("EN_ESPERA", "EN_CONSULTA"):
                 to_cancelar.append(fila_existente["id"])
             continue
         if fila_existente:
+            actualizar = {}
+            if not fila_existente.get("cita_uuid"):
+                actualizar["cita_uuid"] = cita["id"]
+            if not fila_existente.get("motivo"):
+                actualizar["motivo"] = "cita solicitada desde el portal web"
+            if actualizar:
+                try:
+                    supabase.table("cola_pacientes").update(actualizar).eq(
+                        "id", fila_existente["id"]
+                    ).execute()
+                except Exception:
+                    pass
             continue
         px = datos_pacientes.get(cita.get("paciente_id"))
         if not px:
@@ -179,12 +253,13 @@ def _sincronizar_citas_cola(clinica: Optional[int]) -> None:
         to_insert.append(
             {
                 "token": token,
+                "cita_uuid": cita["id"],
                 "paciente_id": px["id"],
                 "paciente_cedula": f"{tipo}-{px.get('cedula', '')}",
                 "paciente_nombre": px.get("nombre_completo", "Paciente"),
                 "clinica_id": clinica,
                 "especialidad": cita.get("especialidad"),
-                "motivo": cita.get("motivo"),
+                "motivo": cita.get("motivo") or "cita solicitada desde el portal web",
                 "prioridad": 3,
                 "estado": "EN_ESPERA",
                 "medico_id": cita.get("medico_id"),
@@ -202,6 +277,47 @@ def _sincronizar_citas_cola(clinica: Optional[int]) -> None:
             ).execute()
         except Exception:
             pass
+
+    # Higiene: los turnos vinculados a citas que ya no son de hoy (cita de
+    # "ayer", reprogramada o sin estado válido) salen de la cola activa. Solo
+    # se retiran los que están activos; el historial de ATENDIDO se conserva.
+    ids_citas_hoy = [c["id"] for c in citas]
+    try:
+        vinculadas = (
+            supabase.table("cola_pacientes")
+            .select("id, cita_uuid")
+            .eq("clinica_id", clinica)
+            .not_.is_("cita_uuid", "null")
+            .in_("estado", ["EN_ESPERA", "EN_CONSULTA"])
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        vinculadas = []
+    obsoletas = [
+        fila["id"]
+        for fila in vinculadas
+        if fila.get("cita_uuid") not in ids_citas_hoy
+    ]
+    if obsoletas:
+        try:
+            supabase.table("cola_pacientes").update({"estado": "CANCELADO"}).in_(
+                "id", obsoletas
+            ).execute()
+        except Exception:
+            pass
+
+    # La consulta activa es un estado efímero de la sesión del profesional: solo
+    # el botón «Atender paciente» coloca a alguien EN_CONSULTA. Cualquier turno
+    # que quedó «en consulta» de una sesión anterior regresa a la fila de espera
+    # al cargar la cola de nuevo.
+    try:
+        supabase.table("cola_pacientes").update(
+            {"estado": "EN_ESPERA", "iniciado_en": None}
+        ).eq("clinica_id", clinica).in_("estado", ["EN_CONSULTA"]).execute()
+    except Exception:
+        pass
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ColaItemSchema)
@@ -283,9 +399,15 @@ def registrar_checkin(
 @router.get("", response_model=ColaListaResponse)
 def listar_cola(
     clinica_id: Optional[int] = None,
+    medico_id: Optional[int] = None,
     usuario: dict = Depends(exigir_staff),
 ) -> ColaListaResponse:
-    """Cola de la clínica agrupada: espera (por prioridad), consulta y atendidos."""
+    """Cola de la clínica agrupada: espera (por prioridad), consulta y atendidos.
+
+    Si se pasa `medico_id`, los turnos originados en una cita del portal solo
+    aparecen cuando esa cita pertenece al médico; los check-ins manuales se
+    mantienen como triaje compartido del centro.
+    """
     clinica = clinica_id or _clinica_por_defecto(usuario)
     _sincronizar_citas_cola(clinica)
     try:
@@ -296,13 +418,16 @@ def listar_cola(
     except Exception:
         db_fail("consultar la cola")
 
+    def _activas(f: dict) -> bool:
+        return _visible_para_medico(f, medico_id)
+
     espera = sorted(
-        [f for f in filas if f.get("estado") == "EN_ESPERA"],
+        [f for f in filas if f.get("estado") == "EN_ESPERA" and _activas(f)],
         key=lambda f: (f.get("prioridad") or 3, f.get("creado_en") or ""),
     )
-    consulta = [f for f in filas if f.get("estado") == "EN_CONSULTA"]
+    consulta = [f for f in filas if f.get("estado") == "EN_CONSULTA" and _activas(f)]
     finalizado = sorted(
-        [f for f in filas if f.get("estado") == "ATENDIDO"],
+        [f for f in filas if f.get("estado") == "ATENDIDO" and _activas(f)],
         key=lambda f: f.get("atendido_en") or "",
         reverse=True,
     )[:20]

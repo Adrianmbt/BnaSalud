@@ -15,8 +15,9 @@ from app.schemas.schemas import (
     ConsultaDetalleResponse,
     HistoriaClinicaResponse,
     HistoriaClinicaUpdate,
-    MedicamentoItem,
+    InsumoAplicado,
     LaboratorioResultado,
+    MedicamentoItem,
     MedicoPacienteResponse,
     NotificacionItem,
     NotificarPacienteRequest,
@@ -98,6 +99,7 @@ def _a_consulta_detalle(fila: dict) -> ConsultaDetalleResponse:
         recetas=[MedicamentoItem(**m) for m in parse_json_list(fila.get("recetas"))],
         laboratorios=[LaboratorioResultado(**l) for l in parse_json_list(fila.get("laboratorios"))],
         estudios=parse_json_list(fila.get("estudios")),
+        insumos=[InsumoAplicado(**i) for i in parse_json_list(fila.get("insumos"))],
         ordenes_ids=[str(o) for o in (fila.get("ordenes_ids") or [])],
         comprobante_ref=fila.get("comprobante_ref", ""),
     )

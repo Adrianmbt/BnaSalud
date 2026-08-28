@@ -9,7 +9,11 @@ from app.api.v1.deps import exigir_staff
 from app.api.v1.errors import db_fail, fail, not_found
 from app.api.v1.utils import parse_json_list
 from app.core.database import supabase
-from app.schemas.schemas import ConsultaCargarRequest, ConsultaDetalleResponse
+from app.schemas.schemas import (
+    ConsultaCargarRequest,
+    ConsultaDetalleResponse,
+    InsumoAplicado,
+)
 
 router = APIRouter(tags=["Consultas"])
 
@@ -174,7 +178,7 @@ def crear_consulta(
         try:
             cita = (
                 supabase.table("citas")
-                .select("especialidad, estado")
+                .select("especialidad, estado, paciente_id")
                 .eq("codigo_confirmacion", payload.cita_id)
                 .execute()
                 .data
@@ -182,7 +186,14 @@ def crear_consulta(
         except Exception:
             db_fail("validar la cita asociada")
         if cita:
-            cita_especialidad = cita[0].get("especialidad")
+            cita_actual = cita[0]
+            cita_especialidad = cita_actual.get("especialidad")
+            cita_paciente = str(cita_actual.get("paciente_id") or "")
+            if cita_paciente and cita_paciente != str(payload.paciente_id):
+                fail(
+                    "La cita indicada no corresponde a este paciente.",
+                    status.HTTP_409_CONFLICT,
+                )
         else:
             fail("La cita asociada no existe.")
 
@@ -219,6 +230,7 @@ def crear_consulta(
         "recetas": [r.model_dump() for r in payload.recetas],
         "laboratorios": [l.model_dump() for l in payload.laboratorios],
         "estudios": [e.model_dump() for e in payload.estudios],
+        "insumos": [i.model_dump() for i in payload.insumos],
         "ordenes_ids": payload.ordenes_ids,
         "comprobante_ref": payload.comprobante_ref or _generar_comprobante(),
     }
@@ -284,6 +296,7 @@ def listar_consultas(
                 recetas=[{"nombre": m.get("nombre", ""), "posologia": m.get("posologia", "")} for m in parse_json_list(c.get("recetas"))],
                 laboratorios=[{"parametro": l.get("parametro", ""), "valor": l.get("valor", "")} for l in parse_json_list(c.get("laboratorios"))],
                 estudios=parse_json_list(c.get("estudios")),
+                insumos=[InsumoAplicado(**i) for i in parse_json_list(c.get("insumos"))],
                 ordenes_ids=[str(o) for o in (c.get("ordenes_ids") or [])],
                 comprobante_ref=c.get("comprobante_ref", ""),
             )

@@ -24,6 +24,9 @@ router = APIRouter(tags=["Farmacia"])
 ROLES_FARMACIA = ("jefe_farmacia", "farmaceutico", "superusuario")
 # Gestión de existencias (inventario/alertas): exclusiva de la jefatura.
 ROLES_STOCK_FARMACIA = ("jefe_farmacia", "superusuario")
+# Lectura del catálogo de inventario: la necesitan también los médicos y
+# enfermeros para registrar los medicamentos/insumos aplicados en la consulta.
+ROLES_INVENTARIO_LECTURA = (*ROLES_FARMACIA, "medico", "enfermero")
 
 
 def _formato_fecha(valor) -> Optional[str]:
@@ -340,7 +343,7 @@ def recibir_receta(
 def listar_inventario(
     q: str = Query(default="", description="Filtra por nombre del medicamento"),
     solo_alertas: bool = Query(default=False, description="Solo medicamentos bajo o sin stock"),
-    _: Dict[str, Any] = Depends(exigir_roles(*ROLES_STOCK_FARMACIA)),
+    _: Dict[str, Any] = Depends(exigir_roles(*ROLES_INVENTARIO_LECTURA)),
 ) -> List[InventarioItemSchema]:
     """Inventario de la farmacia para verificar disponibilidad de lo recetado."""
     try:

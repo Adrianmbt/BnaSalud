@@ -40,7 +40,7 @@
 | Jeferson Salazar | 1PM-7PM | — | 1PM-7PM | — | — |
 | Edmily Gómez | — | 7AM-1PM | — | — | 7AM-1PM |
 | Migdelia Arenas | — | — | 7AM-1PM | 7AM-1PM | — |
-| Carlos Ortiz | 7AM-1PM | — | 1PM-7PM | — | — |
+| Carlos Ortiz | 1PM-9PM | 1PM-9PM | 1PM-9PM | 1PM-9PM | 1PM-9PM |
 | Jose Rivero | 1PM-7PM | — | — | 1PM-7PM | — |
 | Maira Marín | — | 1PM-7PM | 1PM-7PM | — | — |
 | Adriana Ramírez | 7AM-1PM | — | — | — | 7AM-1PM |

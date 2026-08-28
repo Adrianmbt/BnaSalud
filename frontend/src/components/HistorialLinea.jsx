@@ -46,6 +46,7 @@ export default function HistorialLinea({ consultas = [], marcarActual = false, v
         const tratamientos = [c.tratamiento].filter(Boolean);
         const recetas = Array.isArray(c.recetas) ? c.recetas.filter((r) => r && r.nombre) : [];
         const estudios = Array.isArray(c.estudios) ? c.estudios : [];
+        const insumos = Array.isArray(c.insumos) ? c.insumos.filter((i) => i && i.nombre) : [];
 
         return (
           <li key={c.consulta_id || i} className="relative pl-12 md:pl-16 pb-6 last:pb-0 group">
@@ -211,7 +212,27 @@ export default function HistorialLinea({ consultas = [], marcarActual = false, v
                       </div>
                     </div>
                   )}
-                  {estudios.length > 0 && (
+{insumos.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pl-9">
+                    {insumos.map((i, ii) => (
+                      <span
+                        key={ii}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-outline-variant bg-surface text-xs font-semibold text-primary"
+                      >
+                        <Icon name="vaccines" className="text-sm text-doc" />
+                        {i.nombre}
+                        {(i.cantidad || i.tipo) && (
+                          <span className="font-mono text-[9px] text-on-surface-variant">
+                            {i.tipo}
+                            {i.cantidad ? ` · ${i.cantidad}${i.unidad ? ` ${i.unidad}` : ''}` : ''}
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {estudios.length > 0 && (
                     <div>
                       <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-on-surface-variant mb-1.5">
                         Estudios solicitados

@@ -2149,7 +2149,7 @@ export default function Paciente() {
                   ['Motivo de consulta', recetaAbierta.motivo_consulta],
                   ['Examen físico', recetaAbierta.examen_fisico],
                   ['Diagnóstico', recetaAbierta.cie10_codigo ? `${recetaAbierta.cie10_codigo} · ${recetaAbierta.cie10_descripcion}` : ''],
-                  ['Tratamiento', recetaAbierta.tratamiento],
+                  ['Medicinas e insumos aplicados', recetaAbierta.tratamiento],
                   ['Indicaciones médicas', recetaAbierta.recomendaciones],
                 ]
                   .filter(([, v]) => v)
@@ -2159,6 +2159,34 @@ export default function Paciente() {
                       <p className="text-primary font-medium">{v}</p>
                     </div>
                   ))}
+                {recetaAbierta.insumos && recetaAbierta.insumos.length > 0 && (
+                  <div>
+                    <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">
+                      Detalle de aplicación
+                    </p>
+                    <div className="space-y-2">
+                      {recetaAbierta.insumos.map((i, idx) => (
+                        <div key={idx} className="p-3 bg-surface-container-low rounded-xl flex items-start gap-2.5">
+                          <Icon name="vaccines" className="text-base text-doc mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-primary">
+                              {i.nombre}
+                              <span className="font-mono text-[10px] uppercase tracking-widest text-secondary ml-1.5">
+                                {i.tipo}
+                              </span>
+                            </p>
+                            {(i.cantidad || i.unidad) && (
+                              <p className="text-xs text-on-surface-variant">
+                                Cantidad: {i.cantidad || '—'}
+                                {i.unidad ? ` ${i.unidad}` : ''}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {recetaAbierta.recetas && recetaAbierta.recetas.length > 0 && (
                   <div>
                     <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">Recetas Emitidas</p>

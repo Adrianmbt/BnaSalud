@@ -36,7 +36,7 @@ function Estrellas({ valor }) {
 
 export default function Testimonials() {
   return (
-    <section className="py-16 md:py-24 bg-surface-container-lowest">
+    <section id="testimonios" className="py-16 md:py-24 bg-surface-container-lowest">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-14" data-aos="fade-up">
           <span className="inline-block px-4 py-1.5 rounded-full text-xs font-semibold bg-secondary/10 text-secondary mb-4 border border-secondary/20">Testimonios</span>

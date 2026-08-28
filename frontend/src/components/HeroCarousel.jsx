@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const CENTROS = [
-  { nombre: 'Clínica del Niño', logo: '/identidad visual/CliNiño.jpeg', color: '#00b4d8' },
-  { nombre: 'CITAB', logo: '/identidad visual/Citab.jpeg', color: '#1d52d8' },
-  { nombre: 'Clínica de la Mujer', logo: '/identidad visual/CliMujer.jpeg', color: '#541e8c' },
-  { nombre: 'Centro Oncológico', logo: '/identidad visual/Oncologico.jpeg', color: '#6f42c1' },
-  { nombre: 'Jornadas de Salud', logo: '/identidad visual/JornadasSaludBna.jpeg', color: '#0d9488' },
-  { nombre: 'Clínica Municipal', logo: '/identidad visual/ClinicaMunicipalJosePerezFernandez.jpeg', color: '#059669' },
+  { nombre: 'Clínica del Niño', logo: '/centros/cinica del niño.jpeg', color: '#00b4d8' },
+  { nombre: 'CITAB', logo: '/centros/citab.jpeg', color: '#1d52d8' },
+  { nombre: 'Clínica de la Mujer', logo: '/centros/clinica de la mujer.jpeg', color: '#541e8c' },
+  { nombre: 'Centro Oncológico', logo: '/centros/oncologico.jpeg', color: '#6f42c1' },
+  { nombre: 'Casa del Abuelo', logo: '/centros/casa del abuelo.jpeg', color: '#0d9488' },
+  { nombre: 'Clínica Municipal', logo: '/centros/clinica municipal.jpeg', color: '#059669' },
 ];
 
 const INTERVALO = 3200;
@@ -51,7 +51,7 @@ export default function HeroCarousel() {
               <img
                 src={centro.logo}
                 alt={centro.nombre}
-                className="w-full h-full object-contain p-6 sm:p-8"
+                className="w-full h-full object-cover"
                 loading={i === 0 ? 'eager' : 'lazy'}
               />
             </div>

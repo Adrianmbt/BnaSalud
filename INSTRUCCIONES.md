@@ -2,6 +2,21 @@
 
 Notas para retomar el trabajo desde otro equipo/lugar. Última actualización: 13/08/2026.
 
+## Versiones requeridas
+
+> Versiones validadas en el equipo de desarrollo y mínimas recomendadas para correr el proyecto.
+
+| Herramienta | Mínimo recomendado | Versión validada (este equipo) |
+| --- | --- | --- |
+| **Python** | 3.12+ | 3.14.4 |
+| **Node.js** | 20.19+ (Vite 8 / Tailwind v4 lo exigen) | v24.15.0 |
+| **npm** | 9+ (incluido con Node) | 11.12.1 |
+| **Git** | 2.40+ | 2.54.0.windows.1 |
+
+- **Python** se usa para el backend FastAPI (`venv`). Revisar `requirements.txt` instalará las dependencias compatibles.
+- **Node/npm** se usan para el frontend React + Vite y la app móvil.
+- **Git** solo para versionado; no hace falta una versión muy nueva.
+
 ## 1. Estado actual
 
 - **Seguridad implementada** (backend + frontend):

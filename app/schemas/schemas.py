@@ -39,6 +39,17 @@ class MedicamentoItem(BaseModel):
     nombre: str = Field(..., json_schema_extra={"example": "Amoxicilina 500mg"})
     posologia: str = Field(..., json_schema_extra={"example": "1 cápsula cada 8 horas por 7 días"})
 
+class InsumoAplicado(BaseModel):
+    """Medicina o insumo aplicado/administrado durante la consulta.
+
+    Inyectables, suturas, gasas y cualquier recurso que el médico utilice
+    durante la atención (diferente de las recetas que se despachan en farmacia).
+    """
+    nombre: str = Field(..., json_schema_extra={"example": "Diclofenaco 75mg IM"})
+    tipo: Optional[str] = Field(None, json_schema_extra={"example": "inyectable"})
+    cantidad: Optional[float] = Field(None, json_schema_extra={"example": 1})
+    unidad: Optional[str] = Field(None, json_schema_extra={"example": "ampolla"})
+
 class LaboratorioResultado(BaseModel):
     parametro: str = Field(..., json_schema_extra={"example": "Hemoglobina"})
     valor: str = Field(..., json_schema_extra={"example": "14.2 g/dL"})
@@ -261,6 +272,7 @@ class ConsultaCargarRequest(BaseModel):
     recetas: List[MedicamentoItem] = Field(default_factory=list)
     laboratorios: List[LaboratorioResultado] = Field(default_factory=list)
     estudios: List[EstudioResultado] = Field(default_factory=list)
+    insumos: List[InsumoAplicado] = Field(default_factory=list)
     ordenes_ids: List[str] = Field(default_factory=list, description="IDs de órdenes de estudios emitidas en esta consulta")
 
 class ConsultaDetalleResponse(BaseModel):
@@ -277,6 +289,7 @@ class ConsultaDetalleResponse(BaseModel):
     recetas: List[MedicamentoItem] = Field(default_factory=list)
     laboratorios: List[LaboratorioResultado] = Field(default_factory=list)
     estudios: List[EstudioResultado] = Field(default_factory=list)
+    insumos: List[InsumoAplicado] = Field(default_factory=list)
     ordenes_ids: List[str] = Field(default_factory=list)
     comprobante_ref: str = Field(..., json_schema_extra={"example": "ABH-99281"})
 
@@ -544,6 +557,10 @@ class ColaItemSchema(BaseModel):
     estado: str = "EN_ESPERA"
     medico_id: Optional[int] = None
     medico_nombre: str = ""
+    cita_id: Optional[str] = Field(
+        None,
+        description="Código de confirmación de la cita (si el turno proviene de una cita del portal)",
+    )
     creado_en: str = ""
     iniciado_en: Optional[str] = None
     atendido_en: Optional[str] = None

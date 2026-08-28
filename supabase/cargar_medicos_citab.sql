@@ -27,7 +27,8 @@ ON CONFLICT (nombre) DO NOTHING;
 -- 2. NUEVOS TURNOS
 -- ============================================================
 INSERT INTO public.turnos (nombre, hora_inicio, hora_fin) VALUES
-  ('Medianoche', '11:00:00', '11:00:00')
+  ('Medianoche', '11:00:00', '11:00:00'),
+  ('Tarde Extendida', '13:00:00', '21:00:00')
 ON CONFLICT (nombre) DO NOTHING;
 
 -- ============================================================
@@ -106,8 +107,6 @@ FROM (VALUES
   ('19190300', 2, 'Viernes'),
   ('19275238', 2, 'Miércoles'),
   ('19275238', 2, 'Jueves'),
-  ('24829475', 2, 'Lunes'),
-  ('24829475', 3, 'Miércoles'),
   ('8266233', 3, 'Lunes'),
   ('8266233', 3, 'Jueves'),
   ('13368680', 3, 'Martes'),
@@ -136,6 +135,26 @@ FROM (VALUES
 ) AS o(cedula, turno_id, dias)
 JOIN public.personal p ON p.cedula = o.cedula
 JOIN public.turnos t ON t.id = o.turno_id
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- 5b. DR. CARLOS ORTIZ (Ginecología): Lunes a Viernes 13:00 - 21:00
+-- ============================================================
+DELETE FROM public.personal_turnos
+WHERE clinica_id = 2
+  AND personal_id = (SELECT id FROM public.personal WHERE cedula = '24829475');
+
+INSERT INTO public.personal_turnos (personal_id, clinica_id, turno_id, fecha_asignacion, observaciones)
+SELECT p.id, 2, t.id, CURRENT_DATE + o.dia_offset, o.dia
+FROM (VALUES
+  (0, 'Lunes',     '24829475'),
+  (1, 'Martes',    '24829475'),
+  (2, 'Miércoles', '24829475'),
+  (3, 'Jueves',    '24829475'),
+  (4, 'Viernes',   '24829475')
+) AS o(dia_offset, dia, cedula)
+JOIN public.personal p ON p.cedula = o.cedula
+JOIN public.turnos t ON t.nombre = 'Tarde Extendida'
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

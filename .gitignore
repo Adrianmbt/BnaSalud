@@ -20,6 +20,9 @@ node_modules/
 dist/
 .vite/
 
+# Carpetas sueltas copiadas (imágenes provisionales, no referenciadas)
+Nueva carpeta/
+
 # Evolution API clonado localmente para pruebas (nunca se versiona)
 evolution-api/
 

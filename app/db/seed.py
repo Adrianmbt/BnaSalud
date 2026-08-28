@@ -59,6 +59,7 @@ TURNOS: list[dict[str, Any]] = [
     {"nombre": "Guardia 24h", "hora_inicio": "00:00:00", "hora_fin": "23:59:00"},
     {"nombre": "Mañana", "hora_inicio": "07:00:00", "hora_fin": "13:00:00"},
     {"nombre": "Tarde", "hora_inicio": "13:00:00", "hora_fin": "19:00:00"},
+    {"nombre": "Tarde Extendida", "hora_inicio": "13:00:00", "hora_fin": "21:00:00"},
 ]
 
 PACIENTES: list[dict[str, Any]] = [

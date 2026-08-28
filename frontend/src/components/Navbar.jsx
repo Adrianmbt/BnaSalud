@@ -1,35 +1,75 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from './Icon';
 
 const ENLACES = [
-  { href: '#servicios', etiqueta: 'Servicios' },
-  { href: '#sedes', etiqueta: 'Red de Centros' },
-  { href: '#impacto', etiqueta: 'Impacto Social' },
+  { href: '#inicio', etiqueta: 'Inicio', icono: 'home' },
+  { href: '#impacto', etiqueta: 'Impacto', icono: 'monitoring' },
+  { href: '#como-funciona', etiqueta: 'Cómo Funciona', icono: 'cached' },
+  { href: '#servicios', etiqueta: 'Servicios', icono: 'clinical_notes' },
+  { href: '#sedes', etiqueta: 'Red de Centros', icono: 'local_hospital' },
+  { href: '#testimonios', etiqueta: 'Testimonios', icono: 'reviews' },
 ];
 
 export default function Navbar() {
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [activo, setActivo] = useState('#inicio');
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const ids = ENLACES.map((e) => e.href.slice(1));
+
+    const actualizar = () => {
+      const pos = window.scrollY + 120;
+      let act = ids[0];
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el && el.offsetTop <= pos) act = id;
+      }
+      const finDePagina = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 8;
+      if (finDePagina) act = ids[ids.length - 1];
+      setActivo(`#${act}`);
+      setScrolled(window.scrollY > 12);
+    };
+
+    actualizar();
+    window.addEventListener('scroll', actualizar, { passive: true });
+    window.addEventListener('resize', actualizar);
+    return () => {
+      window.removeEventListener('scroll', actualizar);
+      window.removeEventListener('resize', actualizar);
+    };
+  }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass h-14" aria-label="Navegación principal">
+    <nav
+      className={`fixed top-0 left-0 right-0 z-50 glass transition-all duration-300 h-14 ${
+        scrolled ? 'shadow-lg shadow-primary/10' : ''
+      }`}
+      aria-label="Navegación principal"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-full flex justify-between items-center gap-3">
-        <div className="flex items-center min-w-0">
+        <a href="#inicio" className="flex items-center min-w-0 shrink-0" aria-label="Ir al inicio">
           <div className="h-10 w-auto shrink-0 flex items-center">
             <img src="/identidad visual/InstitutoSalud.jpeg" alt="Logo Instituto de Salud" className="h-full w-auto object-contain" loading="lazy" />
           </div>
-        </div>
+          <span className="hidden md:block ml-3 text-sm font-bold text-primary leading-tight">
+            Instituto de Salud
+            <span className="block text-[10px] font-medium text-on-surface-variant">Municipio Simón Bolívar</span>
+          </span>
+        </a>
 
-        <div className="hidden lg:flex items-center gap-8">
+        <div className="hidden lg:flex items-center gap-1">
           {ENLACES.map((e) => (
             <a
               key={e.href}
               href={e.href}
-              className={
-                e.href === '#servicios'
-                  ? 'text-sm font-semibold text-secondary border-b-2 border-secondary pb-1'
-                  : 'text-sm font-medium text-on-surface-variant hover:text-secondary transition-colors'
-              }
+              aria-current={activo === e.href ? 'true' : undefined}
+              className={`px-3 py-2 text-sm rounded-full transition-all duration-300 whitespace-nowrap ${
+                activo === e.href
+                  ? 'bg-secondary/10 text-secondary font-semibold'
+                  : 'text-on-surface-variant hover:text-secondary hover:bg-secondary/5'
+              }`}
             >
               {e.etiqueta}
             </a>
@@ -37,7 +77,7 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <div className="hidden lg:flex bg-error/10 text-error px-3 py-1.5 rounded-lg items-center gap-1.5 animate-pulse-slow">
+          <div className="hidden xl:flex bg-error/10 text-error px-3 py-1.5 rounded-lg items-center gap-1.5 animate-pulse-slow">
             <Icon name="emergency" filled className="text-base" />
             <span className="text-[11px] font-bold whitespace-nowrap">24/7 Emergencias</span>
           </div>
@@ -75,9 +115,11 @@ export default function Navbar() {
                   key={e.href}
                   href={e.href}
                   onClick={() => setMenuAbierto(false)}
-                  className="block py-2.5 text-sm font-semibold text-primary hover:text-secondary rounded-xl hover:bg-secondary/5 px-3"
+                  className={`flex items-center gap-3 py-2.5 px-3 text-sm font-semibold rounded-xl hover:bg-secondary/5 ${
+                    activo === e.href ? 'text-secondary' : 'text-primary hover:text-secondary'
+                  }`}
                 >
-                  {e.etiqueta}
+                  <Icon name={e.icono} className="text-lg" /> {e.etiqueta}
                 </a>
               ))}
               <div className="h-px bg-outline-variant/30 my-2"></div>

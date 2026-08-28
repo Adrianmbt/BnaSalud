@@ -194,8 +194,16 @@ export const API = {
     }),
 
   /* === Cola de pacientes (staff) === */
-  colaClinica: (clinicaId) =>
-    apiFetch(clinicaId ? `/cola?clinica_id=${clinicaId}` : '/cola', { tipo: 'staff' }),
+  colaClinica: (clinicaId, medicoid) =>
+    apiFetch(
+      `/cola${clinicaId || medicoid ? '?' : ''}${[
+        clinicaId ? `clinica_id=${clinicaId}` : '',
+        medicoid ? `medico_id=${medicoid}` : '',
+      ]
+        .filter(Boolean)
+        .join('&')}`,
+      { tipo: 'staff' }
+    ),
   registrarTurno: (payload) =>
     apiFetch('/cola', { method: 'POST', body: payload, tipo: 'staff' }),
   asignarPaciente: (colaId) =>

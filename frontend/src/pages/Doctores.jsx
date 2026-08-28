@@ -15,6 +15,8 @@ import Alert from '@mui/material/Alert';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Divider from '@mui/material/Divider';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
 import Icon from '../components/Icon';
 import HistorialLinea from '../components/HistorialLinea';
 import CapacityIndicator from '../components/CapacityIndicator';
@@ -36,6 +38,28 @@ const SECCIONES_FORM = [
   { id: 'recetas', etiqueta: 'Recetas', icono: 'prescriptions' },
   { id: 'estudios', etiqueta: 'Estudios', icono: 'monitor_heart' },
 ];
+
+const INSUMOS_TIPOS = [
+  'Medicamento',
+  'Inyectable',
+  'Insumo',
+  'Sutura',
+  'Dispositivo',
+  'Otro',
+];
+
+const ANTECEDENTES_COMUNES = [
+  'Diabetes',
+  'Hipertensión',
+  'Asma',
+  'Cardiopatía',
+  'Dislipidemia',
+  'EPOC',
+  'Gastritis',
+  'Hipotiroidismo',
+];
+
+const MOTIVO_POR_DEFECTO = 'cita solicitada desde el portal web';
 
 const GRADIENTES = [
   'linear-gradient(135deg, #00677d, #008ba3)',
@@ -142,7 +166,9 @@ export default function Doctores() {
   const aItemCola = (x) => ({
     id: x.token,
     colaId: x.id,
+    citaId: x.cita_id || null,
     nombre: x.paciente_nombre,
+    especialidad: x.especialidad || '',
     prioridad: x.prioridad <= 2 ? 'ALTA' : 'NORMAL',
     espera: 0,
     perfil: {
@@ -157,7 +183,7 @@ export default function Doctores() {
 
   const cargarCola = useCallback(async (username) => {
     try {
-      const res = await API.colaClinica();
+      const res = await API.colaClinica(null, MEDICO.id);
       setCola({
         espera: (res.espera || []).map(aItemCola),
         consulta: (res.consulta || []).map(aItemCola),
@@ -171,7 +197,7 @@ export default function Doctores() {
         setCola({ espera: [], consulta: [], finalizado: [] });
       }
     }
-  }, []);
+  }, [MEDICO.id]);
 
   const iniciarSesion = async (e) => {
     e.preventDefault();
@@ -187,7 +213,6 @@ export default function Doctores() {
         /* sin almacenamiento */
       }
       setSesion(res.usuario);
-      cargarCola(res.usuario.username);
     } catch (err) {
       setLoginError(err.message || 'No se pudo iniciar sesión.');
     } finally {
@@ -204,6 +229,7 @@ export default function Doctores() {
     }
     setSesion(null);
     setActivoId(null);
+    setCola({ espera: [], consulta: [], finalizado: [] });
     setHistorial(null);
     setLoginForm({ username: '', password: '' });
     setLoginError('');
@@ -221,13 +247,19 @@ export default function Doctores() {
       }
       if (guardada && guardada.username) {
         if (activo) setSesion(guardada);
-        cargarCola(guardada.username);
       }
     })();
     return () => {
       activo = false;
     };
   }, [cargarCola]);
+
+  // La cola se carga una sola vez, cuando la sesión ya está resuelta, para que
+  // `MEDICO.id` sea el del profesional autenticado (no el del estado anterior).
+  useEffect(() => {
+    if (!sesion || !sesion.username) return;
+    cargarCola(sesion.username);
+  }, [sesion, cargarCola]);
 
   const [tab, setTab] = useState('espera');
   const [queueAbierta, setQueueAbierta] = useState(false);
@@ -256,9 +288,11 @@ export default function Doctores() {
     examen: '',
     cie10_codigo: '',
     cie10_descripcion: '',
-    tratamiento: '',
-    recomendaciones: '',
+    indicaciones: '',
   });
+  const [insumos, setInsumos] = useState([]);
+  const [antecedentes, setAntecedentes] = useState(null);
+  const [nuevoAntecedente, setNuevoAntecedente] = useState('');
   const [cieBusqueda, setCieBusqueda] = useState('');
   const [cieAbierto, setCieAbierto] = useState(false);
   const [recetas, setRecetas] = useState([]);
@@ -284,7 +318,7 @@ export default function Doctores() {
 
   const activo = useMemo(() => {
     const lista = [...cola.espera, ...cola.consulta];
-    return lista.find((p) => p.id === activoId) || lista[0] || null;
+    return lista.find((p) => p.id === activoId) || null;
   }, [cola, activoId]);
 
   const centro = useMemo(
@@ -338,9 +372,21 @@ export default function Doctores() {
       edad: formatEdad(p.fecha_nacimiento),
       tipoSangre: p.tipo_sangre || '',
       alergias: formatAlergias(p.alergias),
-      antecedentes: formatAlergias(p.antecedentes_medicos),
+      antecedentes: formatAlergias(
+        Array.isArray(antecedentes) ? antecedentes : p.antecedentes_medicos
+      ),
     };
-  }, [historial]);
+  }, [historial, antecedentes]);
+
+  // Antecedentes editables por el médico: se precargan de la historia clínica
+  // y quedan disponibles para corregir/ampliar antes de finalizar la consulta.
+  useEffect(() => {
+    if (antecedentes !== null) return;
+    const p = historial?.paciente;
+    setAntecedentes(
+      Array.isArray(p?.antecedentes_medicos) ? [...p.antecedentes_medicos] : []
+    );
+  }, [historial, antecedentes]);
 
   const cargarOrdenesPaciente = useCallback(async () => {
     if (!perfilCedula) return;
@@ -369,13 +415,14 @@ export default function Doctores() {
     if (!activoId) return;
     setSeccion('consulta');
     setForm({
-      motivo: perfilMotivo || '',
+      motivo: perfilMotivo || MOTIVO_POR_DEFECTO,
       examen: '',
       cie10_codigo: '',
       cie10_descripcion: '',
-      tratamiento: '',
-      recomendaciones: '',
+      indicaciones: '',
     });
+    setInsumos([]);
+    setAntecedentes(null);
     setRecetas([]);
     setEstudios([]);
     setTabEstudio('laboratorio');
@@ -475,6 +522,45 @@ export default function Doctores() {
   }
   function quitarReceta(i) {
     setRecetas((r) => r.filter((_, j) => j !== i));
+  }
+
+  function agregarInsumo() {
+    setInsumos((l) => [
+      ...l,
+      { id: `I-${Date.now()}`, nombre: '', tipo: 'Medicamento', cantidad: '', unidad: '' },
+    ]);
+  }
+  function cambiarInsumo(id, campo, valor) {
+    setInsumos((l) => l.map((x) => (x.id === id ? { ...x, [campo]: valor } : x)));
+  }
+  function quitarInsumo(id) {
+    setInsumos((l) => l.filter((x) => x.id !== id));
+  }
+
+  function toggleAntecedente(valor) {
+    setAntecedentes((ant) => {
+      const lista = Array.isArray(ant) ? [...ant] : [];
+      return lista.includes(valor) ? lista.filter((x) => x !== valor) : [...lista, valor];
+    });
+  }
+  function agregarAntecedenteLibre() {
+    const valor = nuevoAntecedente.trim();
+    if (!valor) return;
+    setAntecedentes((ant) => {
+      const lista = Array.isArray(ant) ? [...ant] : [];
+      if (lista.includes(valor)) return lista;
+      return [...lista, valor];
+    });
+    setNuevoAntecedente('');
+  }
+
+  function resumenInsumos(lista) {
+    return (lista || [])
+      .map((i) => {
+        const q = i.cantidad ? `${i.cantidad}${i.unidad ? ` ${i.unidad}` : ''}` : '';
+        return q ? `${i.nombre} (${q})` : i.nombre;
+      })
+      .join(' · ');
   }
 
   function agregarEstudio() {
@@ -710,6 +796,7 @@ export default function Doctores() {
   }
 
   const recetasContables = recetas.filter((r) => r.nombre.trim());
+  const insumosContables = insumos.filter((i) => i.nombre.trim());
 
   function seleccionarPaciente(p) {
     setTab('consulta');
@@ -725,6 +812,10 @@ export default function Doctores() {
         consulta: [...c.consulta, p],
       };
     });
+  }
+
+  function verPaciente(p) {
+    setActivoId(p.id);
   }
 
   async function agregarPaciente(e) {
@@ -760,19 +851,37 @@ export default function Doctores() {
   }
 
   const puedeGuardar =
-    form.motivo.trim() && form.cie10_codigo.trim() && form.tratamiento.trim();
+    form.motivo.trim() &&
+    form.cie10_codigo.trim() &&
+    (insumosContables.length > 0 || form.indicaciones.trim());
+
+  const activoEnConsulta = activo
+    ? cola.consulta.some((x) => x.id === activo.id)
+    : false;
+
+  function aInsumosPayload() {
+    return insumosContables.map(({ id: _id, ...rest }) => {
+      const cantidad = Number(rest.cantidad);
+      return {
+        ...rest,
+        cantidad: Number.isFinite(cantidad) && cantidad > 0 ? cantidad : null,
+      };
+    });
+  }
 
   async function guardarConsulta() {
     if (!activo || !puedeGuardar) return null;
     setGuardando(true);
     setError('');
+    const resumen = resumenInsumos(insumosContables) || form.indicaciones.trim();
     const payload = {
       motivo_consulta: form.motivo,
       examen_fisico: form.examen,
       cie10_codigo: form.cie10_codigo,
       cie10_descripcion: form.cie10_descripcion,
-      tratamiento: form.tratamiento,
-      recomendaciones: form.recomendaciones,
+      tratamiento: resumen,
+      recomendaciones: form.indicaciones.trim() || null,
+      insumos: aInsumosPayload(),
       recetas: recetas.filter((r) => r.nombre.trim()),
       paciente_cedula: activo.perfil.cedula,
       paciente_nombre: activo.nombre,
@@ -787,8 +896,21 @@ export default function Doctores() {
       ordenes_ids: ordenesIdsConsulta,
       especialidad: MEDICO.especialidad,
       medico_nombre: MEDICO.nombre,
+      medico_id: MEDICO.id || undefined,
+      cita_id: activo.citaId || undefined,
     };
     try {
+      // Antecedentes editables: se actualizan en la historia clínica del paciente.
+      const antecedentesList = Array.isArray(antecedentes) ? antecedentes : [];
+      try {
+        await API.actualizarPaciente(
+          activo.perfil.cedula,
+          { antecedentes_medicos: antecedentesList },
+          'staff'
+        );
+      } catch {
+        /* si la actualización de antecedentes falla, no bloquea el cierre */
+      }
       const paciente = await API.buscarPaciente(activo.perfil.cedula, 'staff');
       const respuesta = await API.crearConsulta({ ...payload, paciente_id: paciente.id });
       setCola((c) => ({
@@ -810,36 +932,26 @@ export default function Doctores() {
   }
 
   function cerrarInforme() {
-    const proximo = informePaciente?.proximo || null;
     setInformePaciente(null);
-    if (proximo) {
-      setTab('espera');
-      setAviso(`Consulta registrada · Siguiente: ${proximo.nombre}`);
-      seleccionarPaciente(proximo);
-    } else {
-      setActivoId(null);
-      setTab('espera');
-    }
+    setActivoId(null);
+    setTab('espera');
+    setAviso('Consulta registrada · El paciente pasó a atendidos.');
   }
 
   function finalizarSiguiente() {
     if (!activo || guardando) return;
-    const siguiente =
-      cola.espera.find((p) => p.id !== activo.id) ||
-      cola.consulta.find((p) => p.id !== activo.id) ||
-      null;
     const conContenido = Boolean(
       form.motivo.trim() ||
         form.examen.trim() ||
         form.cie10_codigo.trim() ||
-        form.tratamiento.trim() ||
-        form.recomendaciones.trim() ||
+        form.indicaciones.trim() ||
         recetas.some((r) => r.nombre.trim()) ||
+        insumos.some((i) => i.nombre.trim()) ||
         estudios.length > 0
     );
     if (conContenido && !puedeGuardar) {
       setSeccion('consulta');
-      setError('La consulta tiene datos incompletos: complete motivo, diagnóstico CIE-10 y tratamiento para finalizar.');
+      setError('La consulta tiene datos incompletos: complete motivo, diagnóstico CIE-10 y registre medicinas/insumos aplicados o indicaciones para finalizar.');
       return;
     }
     if (conContenido) {
@@ -855,8 +967,10 @@ export default function Doctores() {
             examen: form.examen,
             cie10_codigo: form.cie10_codigo,
             cie10_descripcion: form.cie10_descripcion,
-            tratamiento: form.tratamiento,
-            recomendaciones: form.recomendaciones,
+            tratamiento:
+              resumenInsumos(insumosContables) || form.indicaciones.trim(),
+            recomendaciones: form.indicaciones.trim(),
+            insumos: aInsumosPayload(),
             recetas: recetas.filter((r) => r.nombre.trim()),
             estudios: estudios.map((e) => ({
               tipo: e.tipo,
@@ -866,7 +980,6 @@ export default function Doctores() {
               conclusion: e.conclusion || null,
             })),
           },
-          proximo: siguiente,
         });
       });
       return;
@@ -879,13 +992,9 @@ export default function Doctores() {
         ...c.finalizado,
       ],
     }));
-    setAviso(siguiente ? `Llamando a ${siguiente.nombre}` : `${activo.nombre} fue retirado de la fila sin registro.`);
-    if (siguiente) {
-      seleccionarPaciente(siguiente);
-    } else {
-      setActivoId(null);
-      setTab('espera');
-    }
+    setActivoId(null);
+    setTab('espera');
+    setAviso(`${activo.nombre} fue retirado de la fila sin registro.`);
   }
 
   const listaTab = cola[tab] || [];
@@ -1015,6 +1124,7 @@ export default function Doctores() {
         {listaTab.map((p, i) => {
           const esActivo = activo && activo.id === p.id;
           const esAlta = p.prioridad === 'ALTA';
+          const enConsulta = cola.consulta.some((x) => x.id === p.id);
           return (
             <div
               key={p.id}
@@ -1026,7 +1136,7 @@ export default function Doctores() {
               style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
             >
               <button
-                onClick={() => seleccionarPaciente(p)}
+                onClick={() => verPaciente(p)}
                 className="flex-1 min-w-0 flex items-center gap-2.5 p-3 text-left"
               >
                 <div className={`w-1 self-stretch rounded-full shrink-0 ${esAlta ? 'bg-error' : 'bg-success'}`} />
@@ -1071,27 +1181,32 @@ export default function Doctores() {
                       : tab === 'finalizado'
                         ? `Atendido: ${p.hora || '—'}`
                         : `Espera: ${p.espera} min`}
+                    {p.citaId && (
+                      <span className="text-secondary font-semibold">· Cita {p.citaId}</span>
+                    )}
+                    {p.especialidad && (
+                      <span className="opacity-60">· {p.especialidad}</span>
+                    )}
                     <span className="opacity-60">· {p.cedula || p.id}</span>
                   </div>
                 </div>
-                {esActivo && (
+                {enConsulta && (
                   <span className="font-mono text-[9px] uppercase tracking-widest text-secondary font-semibold whitespace-nowrap">
                     En consulta
                   </span>
                 )}
               </button>
-              {esActivo && (
+              {tab === 'espera' && !enConsulta && (
                 <div className="pr-2.5 shrink-0">
                   <button
-                    onClick={finalizarSiguiente}
-                    disabled={guardando}
-                    title="Finalizar consulta y llamar al siguiente paciente"
-                    aria-label={`Finalizar consulta de ${p.nombre} y pasar al siguiente`}
-                    className="flex items-center gap-1 rounded-full px-2.5 py-1 text-white text-[10px] font-bold shadow transition-all hover:brightness-110 active:scale-95 disabled:opacity-60"
+                    onClick={() => seleccionarPaciente(p)}
+                    title="Pasar a la consulta y atender a este paciente"
+                    aria-label={`Atender a ${p.nombre}`}
+                    className="flex items-center gap-1 rounded-full px-2.5 py-1 text-white text-[10px] font-bold shadow transition-all hover:brightness-110 active:scale-95 whitespace-nowrap"
                     style={{ background: temaCentro.gradient }}
                   >
-                    <Icon name="skip_next" className="text-sm" />
-                    Finalizar
+                    <Icon name="support_agent" className="text-sm" />
+                    Atender paciente
                   </button>
                 </div>
               )}
@@ -1411,6 +1526,11 @@ export default function Doctores() {
                           <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-surface border border-outline-variant text-on-surface-variant whitespace-nowrap">
                             HIS-V{activo.perfil.cedula}
                           </span>
+                          {activo.citaId && (
+                            <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-secondary/10 text-secondary whitespace-nowrap">
+                              Cita {activo.citaId}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           <Chip
@@ -1439,6 +1559,15 @@ export default function Doctores() {
                               sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.68rem', height: 24 }}
                             />
                           )}
+                          <Chip
+                            icon={<Icon name="edit_note" className="text-[0.7rem] !text-secondary" />}
+                            label="Editar antecedentes"
+                            onClick={() => setSeccion('consulta')}
+                            sx={{
+                              bgcolor: 'var(--color-secondary-container)', color: 'var(--color-on-secondary-container)',
+                              fontWeight: 700, fontSize: '0.68rem', height: 24, cursor: 'pointer',
+                            }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -1528,7 +1657,7 @@ export default function Doctores() {
                     {seccion === 'consulta' &&
                       (puedeGuardar
                         ? 'Diagnóstico completo · listo para registrar'
-                        : 'Pendiente: motivo · CIE-10 · tratamiento')}
+                        : 'Pendiente: motivo · CIE-10 · insumos/indicaciones')}
                     {seccion === 'recetas' && `${recetasContables.length} medicamento(s) para despacho`}
                     {seccion === 'estudios' &&
                       `${estudios.length} estudio(s) · ${ordenesPaciente.length} orden(es)`}
@@ -1601,12 +1730,14 @@ export default function Doctores() {
                           }}
                           onFocus={() => setCieAbierto(true)}
                           placeholder="Buscar código o descripción..."
-                          InputProps={{
-                            startAdornment: (
-                              <span className="mr-2 text-on-surface-variant">
-                                <Icon name="search" className="text-lg" />
-                              </span>
-                            ),
+                          slotProps={{
+                            input: {
+                              startAdornment: (
+                                <span className="mr-2 text-on-surface-variant">
+                                  <Icon name="search" className="text-lg" />
+                                </span>
+                              ),
+                            },
                           }}
                           sx={fieldSx}
                         />
@@ -1636,10 +1767,103 @@ export default function Doctores() {
                       )}
                     </section>
 
-                    {/* Tratamiento / Indicaciones */}
+                    {/* Medicinas e insumos aplicados en consulta */}
                     <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">04</span>
+                        <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                          <Icon name="vaccines" filled className="text-sm" />
+                        </span>
+                        <h3 className="text-sm font-bold text-primary">Medicinas e insumos aplicados</h3>
+                        <span className="flex-1 ledger-rule opacity-70" />
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant mb-2.5 -mt-1">
+                        Elementos administrados durante la atención (inyectables, suturas, dispositivos).
+                      </p>
+                      {insumos.length === 0 ? (
+                        <button
+                          type="button"
+                          onClick={agregarInsumo}
+                          className="w-full rounded-xl border-2 border-dashed border-secondary/30 text-secondary hover:bg-secondary/5 text-xs font-bold py-3 flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <Icon name="add" className="text-base" /> Registrar medicina o insumo aplicado
+                        </button>
+                      ) : (
+                        <div className="space-y-2">
+                          {insumos.map((ins, i) => (
+                            <div key={ins.id} className="rounded-xl bg-surface border border-outline-variant p-2 space-y-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-6 h-6 rounded-full bg-secondary/10 text-secondary text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                                  {i + 1}
+                                </span>
+                                <Select
+                                  size="small"
+                                  value={ins.tipo || 'Medicamento'}
+                                  onChange={(e) => cambiarInsumo(ins.id, 'tipo', e.target.value)}
+                                  sx={{
+                                    ...fieldSx,
+                                    minWidth: 130,
+                                    '& .MuiSelect-select': { py: 0.75, fontSize: '0.75rem', fontWeight: 700 },
+                                  }}
+                                >
+                                  {INSUMOS_TIPOS.map((t) => (
+                                    <MenuItem key={t} value={t} sx={{ fontSize: '0.8rem' }}>
+                                      {t}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => quitarInsumo(ins.id)}
+                                  aria-label="Eliminar insumo"
+                                  sx={{ ml: 'auto', color: 'var(--color-on-surface-variant)' }}
+                                >
+                                  <Icon name="delete" className="text-base" />
+                                </IconButton>
+                              </div>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                value={ins.nombre}
+                                onChange={(e) => cambiarInsumo(ins.id, 'nombre', e.target.value)}
+                                placeholder="Ej: Diclofenaco 75mg IM, Sutura Nylon 3-0, Gasas estériles..."
+                                sx={fieldSx}
+                              />
+                              <div className="flex gap-2">
+                                <TextField
+                                  size="small"
+                                  value={ins.cantidad}
+                                  onChange={(e) => cambiarInsumo(ins.id, 'cantidad', e.target.value)}
+                                  placeholder="Cant."
+                                  slotProps={{ htmlInput: { inputMode: 'decimal' } }}
+                                  sx={{ ...fieldSx, width: 110 }}
+                                />
+                                <TextField
+                                  fullWidth
+                                  size="small"
+                                  value={ins.unidad}
+                                  onChange={(e) => cambiarInsumo(ins.id, 'unidad', e.target.value)}
+                                  placeholder="Unidad / vía (ampolla, unidad, P.O.)"
+                                  sx={fieldSx}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={agregarInsumo}
+                            className="w-full rounded-xl border-2 border-dashed border-secondary/30 text-secondary hover:bg-secondary/5 text-xs font-bold py-2.5 flex items-center justify-center gap-1.5 transition-colors"
+                          >
+                            <Icon name="add" className="text-base" /> Agregar otro
+                          </button>
+                        </div>
+                      )}
+                    </section>
+
+                    {/* Tratamiento / Indicaciones */}
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-3 lg:col-span-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">05</span>
                         <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
                           <Icon name="medication" filled className="text-sm" />
                         </span>
@@ -1650,32 +1874,76 @@ export default function Doctores() {
                         fullWidth
                         multiline
                         minRows={2}
-                        value={form.tratamiento}
-                        onChange={(e) => setForm((f) => ({ ...f, tratamiento: e.target.value }))}
-                        placeholder="Medicación, dosis y frecuencia..."
+                        value={form.indicaciones}
+                        onChange={(e) => setForm((f) => ({ ...f, indicaciones: e.target.value }))}
+                        placeholder="Plan terapéutico, dosis, frecuencia, estilo de vida y seguimiento que el paciente debe seguir."
                         sx={fieldSx}
                       />
                     </section>
 
-                    {/* Recomendaciones generales */}
+                    {/* Antecedentes médicos editables */}
                     <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-3 lg:col-span-2">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">05</span>
+                        <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">06</span>
                         <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
-                          <Icon name="tips_and_updates" filled className="text-sm" />
+                          <Icon name="assignment_ind" filled className="text-sm" />
                         </span>
-                        <h3 className="text-sm font-bold text-primary">Recomendaciones Generales</h3>
+                        <h3 className="text-sm font-bold text-primary">Antecedentes médicos</h3>
                         <span className="flex-1 ledger-rule opacity-70" />
                       </div>
-                      <TextField
-                        fullWidth
-                        multiline
-                        minRows={2}
-                        value={form.recomendaciones}
-                        onChange={(e) => setForm((f) => ({ ...f, recomendaciones: e.target.value }))}
-                        placeholder="Estilo de vida, dieta o derivaciones..."
-                        sx={fieldSx}
-                      />
+                      <p className="text-[11px] text-on-surface-variant mb-2.5 -mt-1">
+                        Marque o escriba los antecedentes relevantes; se guardarán en la historia clínica del paciente.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mb-2.5">
+                        {ANTECEDENTES_COMUNES.map((ant) => {
+                          const activado = Array.isArray(antecedentes) && antecedentes.includes(ant);
+                          return (
+                            <Chip
+                              key={ant}
+                              label={ant}
+                              onClick={() => toggleAntecedente(ant)}
+                              icon={activado ? <Icon name="check" className="text-xs" /> : null}
+                              sx={{
+                                bgcolor: activado ? 'var(--color-secondary)' : 'var(--color-surface)',
+                                color: activado ? 'var(--color-on-secondary)' : 'var(--color-on-surface-variant)',
+                                fontWeight: 600, fontSize: '0.7rem', height: 28, cursor: 'pointer',
+                                border: '1px solid var(--color-outline-variant)',
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                      <div className="flex gap-2">
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={nuevoAntecedente}
+                          onChange={(e) => setNuevoAntecedente(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              agregarAntecedenteLibre();
+                            }
+                          }}
+                          placeholder="Otro antecedente (ej: epilepsia, cirugía previa)..."
+                          sx={fieldSx}
+                        />
+                        <Button
+                          variant="outlined"
+                          color="primary"
+                          size="small"
+                          onClick={agregarAntecedenteLibre}
+                          sx={{ borderRadius: '12px', textTransform: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}
+                        >
+                          Agregar
+                        </Button>
+                      </div>
+                      {(antecedentes?.length ?? 0) > 0 && (
+                        <p className="mt-2 text-[11px] text-success font-semibold flex items-center gap-1">
+                          <Icon name="verified" className="text-sm" />
+                          {antecedentes.length} antecedente(s) se actualizarán al registrar la consulta.
+                        </p>
+                      )}
                     </section>
                   </div>
                 )}
@@ -2152,7 +2420,7 @@ export default function Doctores() {
               {/* Barra de acciones inferior (desplazable en móvil, sin apilarse, con Finalizar destacado) */}
               <div className="shrink-0 border-t border-ink-line bg-paper/95 backdrop-blur-md px-3 md:px-6 py-2.5 md:py-3 z-30">
                 <div className="flex items-center gap-2 md:gap-3 flex-nowrap overflow-x-auto ledger-scroll scrollbar-hide py-0.5">
-                  {/* Botón Principal: Finalizar consulta y llamar al siguiente (Siempre visible y destacado con paciente activo) */}
+                  {/* Botón Principal: Finalizar consulta (solo con paciente en consulta) */}
                   <Button
                     variant="contained"
                     size="small"
@@ -2160,11 +2428,16 @@ export default function Doctores() {
                       guardando ? (
                         <Icon name="sync" className="animate-spin text-base" />
                       ) : (
-                        <Icon name="skip_next" className="text-base" />
+                        <Icon name="check_circle" className="text-base" />
                       )
                     }
                     onClick={finalizarSiguiente}
-                    disabled={guardando}
+                    disabled={guardando || !activoEnConsulta}
+                    title={
+                      activoEnConsulta
+                        ? 'Guardar la consulta y cerrar la atención de este paciente'
+                        : 'Primero pase al paciente a consulta con el botón Atender paciente'
+                    }
                     className="shrink-0 font-extrabold shadow-md active:scale-95 transition-all"
                     sx={{
                       background: temaCentro.gradient,
@@ -2176,9 +2449,10 @@ export default function Doctores() {
                       px: 2.5,
                       py: 1,
                       fontSize: '0.82rem',
+                      opacity: activoEnConsulta ? 1 : 0.55,
                     }}
                   >
-                    {guardando ? 'Guardando...' : 'Finalizar y Siguiente'}
+                    {guardando ? 'Guardando...' : 'Finalizar consulta'}
                   </Button>
 
                   <div className="w-px h-6 bg-ink-line shrink-0" aria-hidden="true" />
@@ -2620,12 +2894,14 @@ export default function Doctores() {
               value={ordenBusqueda}
               onChange={(e) => setOrdenBusqueda(e.target.value)}
               placeholder={`Buscar examen de ${ordenCategoria}...`}
-              InputProps={{
-                startAdornment: (
-                  <span className="mr-2 text-on-surface-variant">
-                    <Icon name="search" className="text-lg" />
-                  </span>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <span className="mr-2 text-on-surface-variant">
+                      <Icon name="search" className="text-lg" />
+                    </span>
+                  ),
+                },
               }}
               sx={fieldSx}
             />
@@ -2829,12 +3105,33 @@ export default function Doctores() {
                     </p>
                   </div>
                   <div>
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Tratamiento / Indicaciones</p>
-                    <p className="text-sm text-primary whitespace-pre-wrap">{informePaciente.registro.tratamiento}</p>
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Medicinas e insumos aplicados</p>
+                    <p className="text-sm text-primary whitespace-pre-wrap">
+                      {informePaciente.registro.tratamiento || 'Sin medicinas o insumos registrados.'}
+                    </p>
                   </div>
+                  {informePaciente.registro.insumos.length > 0 && (
+                    <div>
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">Detalle aplicado</p>
+                      <ol className="space-y-1">
+                        {informePaciente.registro.insumos.map((i, idx) => (
+                          <li key={idx} className="flex items-start gap-3">
+                            <span className="font-mono text-xs text-on-surface-variant w-5">
+                              {(idx + 1).toString().padStart(2, '0')}
+                            </span>
+                            <span className="font-mono text-[10px] uppercase tracking-widest text-secondary w-24 shrink-0">{i.tipo || '—'}</span>
+                            <span className="text-sm font-semibold text-primary">{i.nombre}</span>
+                            <span className="text-sm text-on-surface-variant">
+                              {i.cantidad ? `${i.cantidad}${i.unidad ? ` ${i.unidad}` : ''}` : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
                   {informePaciente.registro.recomendaciones && (
                     <div>
-                      <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Recomendaciones</p>
+                      <p className="font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Tratamiento / Indicaciones</p>
                       <p className="text-sm text-primary whitespace-pre-wrap">{informePaciente.registro.recomendaciones}</p>
                     </div>
                   )}
