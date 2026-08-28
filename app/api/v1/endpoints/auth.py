@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
 from app.api.v1.errors import db_fail, fail
 from app.api.v1.endpoints.pacientes import _a_historia, _buscar_paciente
@@ -25,6 +25,7 @@ from app.core.security import (
     crear_token,
     generar_codigo,
     hash_secreto,
+    pin_ya_utilizado,
     verificar_secreto,
 )
 from app.schemas.schemas import (
@@ -222,6 +223,12 @@ def reset_pin(datos: ResetPinRequest) -> HistoriaClinicaResponse:
             break
     if not valido:
         fail("Código inválido o expirado. Solicite uno nuevo.")
+
+    if pin_ya_utilizado(datos.pin_nuevo):
+        fail(
+            "El PIN elegido ya está en uso por otro paciente. Elija otro.",
+            status.HTTP_409_CONFLICT,
+        )
 
     try:
         supabase.table("recuperacion_pacientes").update({"usado": True}).eq(

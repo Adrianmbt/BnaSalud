@@ -137,6 +137,7 @@ def _aplicar_catalogo(fila: dict) -> CentroSaludResponse:
     extras = CATALOGO.get(fila.get("codigo", ""), {})
     base = {
         "id": fila.get("id"),
+        "codigo": fila.get("codigo", ""),
         "nombre": fila.get("nombre", ""),
         "subtitulo": extras.get("subtitulo", fila.get("nombre", "")),
         "tipo": extras.get("tipo", "Aliado"),

@@ -7,6 +7,7 @@ con estado 'demo'.
 """
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -18,6 +19,7 @@ from app.core.mail import (
     enviar_resultados_disponibles,
     smtp_habilitado,
 )
+from app.services.whatsapp import (enviar_recordatorio_whatsapp, evolution_habilitado)
 
 TIPO_RECETA_ENTREGADA = "receta_entregada"
 TIPO_RECORDATORIO_CITA = "recordatorio_cita"
@@ -60,10 +62,19 @@ def registrar(
     detalle: str = "",
     referencia: str = "",
     estado_forzado: Optional[str] = None,
+    canal: str = "correo",
 ) -> bool:
     """Guarda la notificación en la bitácora. Nunca interrumpe el flujo principal."""
     if estado_forzado:
         estado = estado_forzado
+    elif canal == "whatsapp":
+        if not evolution_habilitado():
+            estado = "demo"
+            detalle = detalle or "Evolution API no configurado (modo demo)"
+        elif enviado:
+            estado = "enviado"
+        else:
+            estado = "error"
     elif not smtp_habilitado():
         estado = "demo"
         detalle = detalle or "SMTP no configurado (modo demo)"
@@ -74,7 +85,7 @@ def registrar(
     fila = {
         "paciente_id": paciente_id,
         "tipo": tipo,
-        "canal": "correo",
+        "canal": canal,
         "asunto": asunto[:200],
         "destinatario": destinatario or None,
         "estado": estado,
@@ -96,7 +107,7 @@ def _pacientes_por_id(ids: List[Any]) -> Dict[str, dict]:
     try:
         filas = (
             supabase.table("historias_clinicas")
-            .select("id, cedula, nombre_completo, email")
+            .select("id, cedula, nombre_completo, email, telefono")
             .in_("id", limpios)
             .execute()
             .data
@@ -253,15 +264,15 @@ def procesar_recordatorios(horas_antes: int = 24) -> int:
     pacientes = _pacientes_por_id([c.get("paciente_id") for c in candidatas])
     enviadas = 0
     for cita in candidatas:
-        referencia = f"cita:{cita['id']}"
-        if ya_notificada(TIPO_RECORDATORIO_CITA, referencia):
-            continue
         paciente = pacientes.get(str(cita.get("paciente_id"))) or {}
-        email = (paciente.get("email") or "").strip()
         nombre = paciente.get("nombre_completo") or "paciente"
         fecha_larga = momentolargo(cita)
         hora = str(cita["hora_inicio"])[:5]
         asunto = "Recordatorio de tu cita médica — BNA Salud"
+
+        # Canal correo (comportamiento original)
+        email = (paciente.get("email") or "").strip()
+        referencia = f"cita:{cita['id']}"
         if not email:
             registrar(
                 cita.get("paciente_id"),
@@ -271,25 +282,55 @@ def procesar_recordatorios(horas_antes: int = 24) -> int:
                 referencia=referencia,
                 estado_forzado="omitido",
             )
-            continue
-        enviado = enviar_recordatorio_cita(
-            nombre.split(" ")[0],
-            fecha_larga,
-            hora,
-            cita.get("centro_salud") or "",
-            cita.get("especialidad") or "",
-            email,
-        )
-        registrar(
-            cita.get("paciente_id"),
-            TIPO_RECORDATORIO_CITA,
-            asunto,
-            destinatario=email,
-            enviado=enviado,
-            detalle=f"Cita {cita['id']} del {cita['fecha_cita']} {hora}",
-            referencia=referencia,
-        )
-        enviadas += 1 if enviado else 0
+        elif not ya_notificada(TIPO_RECORDATORIO_CITA, referencia):
+            enviado = enviar_recordatorio_cita(
+                nombre.split(" ")[0],
+                fecha_larga,
+                hora,
+                cita.get("centro_salud") or "",
+                cita.get("especialidad") or "",
+                email,
+            )
+            registrar(
+                cita.get("paciente_id"),
+                TIPO_RECORDATORIO_CITA,
+                asunto,
+                destinatario=email,
+                enviado=enviado,
+                detalle=f"Cita {cita['id']} del {cita['fecha_cita']} {hora}",
+                referencia=referencia,
+            )
+            enviadas += 1 if enviado else 0
+
+        # Canal WhatsApp (Evolution API)
+        telefono = (paciente.get("telefono") or "").strip()
+        referencia_wa = f"{referencia}:whatsapp"
+        if (
+            telefono
+            and evolution_habilitado()
+            and not ya_notificada(TIPO_RECORDATORIO_CITA, referencia_wa)
+        ):
+            enviado = asyncio.run(
+                enviar_recordatorio_whatsapp(
+                    telefono=telefono,
+                    nombre=nombre.split(" ")[0],
+                    fecha_larga=fecha_larga,
+                    hora=hora,
+                    centro=cita.get("centro_salud") or "",
+                    especialidad=cita.get("especialidad") or "",
+                )
+            )
+            registrar(
+                cita.get("paciente_id"),
+                TIPO_RECORDATORIO_CITA,
+                asunto,
+                canal="whatsapp",
+                destinatario=telefono,
+                enviado=enviado,
+                detalle=f"Cita {cita['id']} del {cita['fecha_cita']} {hora}",
+                referencia=referencia_wa,
+            )
+            enviadas += 1 if enviado else 0
     return enviadas
 
 

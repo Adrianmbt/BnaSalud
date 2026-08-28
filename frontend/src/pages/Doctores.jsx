@@ -17,11 +17,10 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Divider from '@mui/material/Divider';
 import Icon from '../components/Icon';
 import HistorialLinea from '../components/HistorialLinea';
-import DemoSwitcher from '../components/DemoSwitcher';
 import CapacityIndicator from '../components/CapacityIndicator';
 import PrescripcionInput from '../components/PrescripcionInput';
 import { API, cerrarSesion, marcarUltimaSesion } from '../api';
-import { DEMO, CIE10_DEMO, CATALOGO_EXAMENES, CATEGORIA_ESTILO, GRUPOS_ESTILO, CENTROS_DEMO, getPersonaDemo, PIN_POR_DEFECTO } from '../clinical/demo';
+import { DEMO, CIE10_DEMO, CATALOGO_EXAMENES, CATEGORIA_ESTILO, GRUPOS_ESTILO, CENTROS_DEMO } from '../clinical/demo';
 import { getCentroTheme } from '../centroTheme';
 
 const MEDICO_DEFECTO = { nombre: 'Dra. Laura Fernández', id: 1043, especialidad: 'Medicina General' };
@@ -58,7 +57,8 @@ const fieldSx = {
   '& .MuiOutlinedInput-root': {
     backgroundColor: 'var(--color-card)',
     borderRadius: 2,
-    fontSize: '0.9rem',
+    fontSize: '0.85rem',
+    py: 0.5,
     '& fieldset': { borderColor: 'var(--color-ink-line)' },
     '&:hover fieldset': { borderColor: 'var(--color-secondary)' },
     '&.Mui-focused fieldset': { borderColor: 'var(--color-secondary)', borderWidth: 2 },
@@ -89,6 +89,31 @@ function iniciales(nombre = '') {
 
 function horaActual() {
   return new Date().toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function calcularEdad(fechaNacimiento) {
+  if (!fechaNacimiento) return null;
+  const nac = new Date(fechaNacimiento);
+  if (Number.isNaN(nac.getTime())) return null;
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const m = hoy.getMonth() - nac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad -= 1;
+  return edad >= 0 ? edad : null;
+}
+
+function formatEdad(fechaNacimiento) {
+  const edad = calcularEdad(fechaNacimiento);
+  return edad == null ? '—' : `${edad} años`;
+}
+
+function formatAlergias(alergias) {
+  try {
+    const lista = Array.isArray(alergias) ? alergias : JSON.parse(alergias || '[]');
+    return lista.map((a) => (typeof a === 'string' ? a : a?.nombre || a?.alergia || '')).filter(Boolean).join(', ');
+  } catch {
+    return '';
+  }
 }
 
 function gradiente(nombre = '', t = null) {
@@ -153,12 +178,7 @@ export default function Doctores() {
     setLoginEntrando(true);
     setLoginError('');
     try {
-      let res;
-      try {
-        res = await API.login(loginForm.username, loginForm.password);
-      } catch {
-        res = await DEMO.login({ username: loginForm.username, password: loginForm.password });
-      }
+      const res = await API.login(loginForm.username, loginForm.password);
       try {
         localStorage.setItem('bna_token', res.token);
         localStorage.setItem('bna_sesion_doctor', JSON.stringify(res.usuario));
@@ -189,30 +209,10 @@ export default function Doctores() {
     setLoginError('');
   };
 
-  // Restaurar sesión (o la persona activa del modo demo) al montar.
+  // Restaurar sesión guardada al montar.
   useEffect(() => {
     let activo = true;
     (async () => {
-      const persona = getPersonaDemo();
-      if (persona && persona.tipo === 'doctor') {
-        try {
-          const res = await DEMO.login({ username: persona.username, password: PIN_POR_DEFECTO });
-          if (activo) {
-            try {
-              localStorage.setItem('bna_token', res.token);
-              localStorage.setItem('bna_sesion_doctor', JSON.stringify(res.usuario));
-              marcarUltimaSesion('staff');
-            } catch {
-              /* sin almacenamiento */
-            }
-            setSesion(res.usuario);
-            setCola(await DEMO.colaDoctor(persona.username));
-          }
-        } catch {
-          /* persona inválida: seguir con la sesión normal */
-        }
-        return;
-      }
       let guardada = null;
       try {
         guardada = JSON.parse(localStorage.getItem('bna_sesion_doctor') || 'null');
@@ -235,7 +235,6 @@ export default function Doctores() {
   const [historial, setHistorial] = useState(null);
   const [historialCargando, setHistorialCargando] = useState(false);
   const [historialAbierto, setHistorialAbierto] = useState(false);
-  const [medicoRel, setMedicoRel] = useState(null);
   const [recetaAbierto, setRecetaAbierto] = useState(false);
   const [formNuevo, setFormNuevo] = useState(false);
   const [aviso, setAviso] = useState('');
@@ -243,11 +242,11 @@ export default function Doctores() {
   const [listadoAbierto, setListadoAbierto] = useState(false);
 
   const [centros, setCentros] = useState([]);
-  const [centroId] = useState(() => {
+  const [centroId, setCentroId] = useState(() => {
     try {
-      return localStorage.getItem('bna_centro_activo') || 'CLN-NINO';
+      return localStorage.getItem('bna_centro_activo') || 'CLN-CITAB';
     } catch {
-      return 'CLN-NINO';
+      return 'CLN-CITAB';
     }
   });
   const [seccion, setSeccion] = useState('consulta');
@@ -330,14 +329,27 @@ export default function Doctores() {
   const perfilCedula = activo?.perfil?.cedula;
   const perfilMotivo = activo?.perfil?.motivo;
 
+  // Datos clínicos del paciente (ficha médica) cargados del historial.
+  // Salen de historias_clinicas en el backend: fecha de nacimiento (edad),
+  // tipo de sangre, alergias y antecedentes médicos.
+  const datosClinicos = useMemo(() => {
+    const p = historial?.paciente || {};
+    return {
+      edad: formatEdad(p.fecha_nacimiento),
+      tipoSangre: p.tipo_sangre || '',
+      alergias: formatAlergias(p.alergias),
+      antecedentes: formatAlergias(p.antecedentes_medicos),
+    };
+  }, [historial]);
+
   const cargarOrdenesPaciente = useCallback(async () => {
     if (!perfilCedula) return;
     setOrdenesCargando(true);
     try {
       let ordenes;
       try {
-        const paciente = await API.buscarPaciente(perfilCedula);
-        ordenes = await API.ordenesPaciente(paciente.id);
+        const paciente = await API.buscarPaciente(perfilCedula, 'staff');
+        ordenes = await API.ordenesPaciente(paciente.id, 'staff');
       } catch {
         ordenes = await DEMO.ordenesPaciente(perfilCedula);
       }
@@ -378,8 +390,7 @@ export default function Doctores() {
     setOrdenesIdsConsulta([]);
     setHistorial(null);
     setHistorialCargando(true);
-    setMedicoRel(null);
-    API.historialPaciente(perfilCedula)
+    API.historialPaciente(perfilCedula, 'staff')
       .then((h) => setHistorial(h))
       .catch(async () => {
         try {
@@ -389,15 +400,6 @@ export default function Doctores() {
         }
       })
       .finally(() => setHistorialCargando(false));
-    API.medicoTratante(perfilCedula)
-      .then(setMedicoRel)
-      .catch(async () => {
-        try {
-          setMedicoRel(await DEMO.medicoTratante(perfilCedula));
-        } catch {
-          setMedicoRel(null);
-        }
-      });
     cargarOrdenesPaciente();
   }, [activoId, perfilCedula, perfilMotivo, cargarOrdenesPaciente]);
 
@@ -415,6 +417,21 @@ export default function Doctores() {
       vivo = false;
     };
   }, []);
+
+  // La identidad del módulo sigue a la clínica del doctor autenticado
+  // (p. ej. CITAB), no al último centro navegado en el módulo paciente.
+  useEffect(() => {
+    if (!sesion || !centros.length) return;
+    if (sesion.clinica_id == null) return;
+    const propio = centros.find((c) => c.id === sesion.clinica_id);
+    if (!propio?.codigo || propio.codigo === centroId) return;
+    setCentroId(propio.codigo);
+    try {
+      localStorage.setItem('bna_centro_activo', propio.codigo);
+    } catch {
+      /* sin almacenamiento */
+    }
+  }, [sesion, centros, centroId]);
 
   useEffect(() => {
     function cerrar(e) {
@@ -580,7 +597,7 @@ export default function Doctores() {
     const ordenGuardada = nuevos.map(({ id: _ignorado, ...rest }) => ({ ...rest, estado: 'solicitado' }));
     const persistir = async () => {
       try {
-        const paciente = await API.buscarPaciente(activo.perfil.cedula);
+        const paciente = await API.buscarPaciente(activo.perfil.cedula, 'staff');
         const orden = await API.crearOrdenEstudios({
           paciente_id: paciente.id,
           consulta_id: null,
@@ -772,13 +789,8 @@ export default function Doctores() {
       medico_nombre: MEDICO.nombre,
     };
     try {
-      let respuesta;
-      try {
-        const paciente = await API.buscarPaciente(activo.perfil.cedula);
-        respuesta = await API.crearConsulta({ ...payload, paciente_id: paciente.id });
-      } catch {
-        respuesta = await DEMO.crearConsulta(payload);
-      }
+      const paciente = await API.buscarPaciente(activo.perfil.cedula, 'staff');
+      const respuesta = await API.crearConsulta({ ...payload, paciente_id: paciente.id });
       setCola((c) => ({
         espera: c.espera.filter((x) => x.id !== activo.id),
         consulta: c.consulta.filter((x) => x.id !== activo.id),
@@ -790,7 +802,7 @@ export default function Doctores() {
       if (activo.colaId) API.finalizarPaciente(activo.colaId).catch(() => {});
       return respuesta;
     } catch (e) {
-      setError(e.message);
+      setError(e.message || 'No se pudo guardar la consulta en el historial clínico.');
       return null;
     } finally {
       setGuardando(false);
@@ -884,7 +896,7 @@ export default function Doctores() {
     <>
       {/* Identidad del centro de salud */}
       <div
-        className="relative overflow-hidden px-5 py-4 text-white shrink-0"
+        className="relative overflow-hidden px-4 py-3 text-white shrink-0"
         style={{ background: temaCentro.gradient }}
       >
         <div
@@ -915,8 +927,8 @@ export default function Doctores() {
       </div>
 
       {/* Cabecera de turnos */}
-      <div className="px-4 md:px-5 pt-5 pb-4 border-b border-outline-variant bg-surface-container-low/60 shrink-0">
-        <div className="flex items-center justify-between mb-3.5">
+      <div className="px-3 md:px-4 pt-3 pb-3 border-b border-outline-variant bg-surface-container-low/60 shrink-0">
+        <div className="flex items-center justify-between mb-2.5">
           <div className="flex items-center gap-2.5">
             <span className="w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
               <Icon name="groups" filled className="text-base" />
@@ -938,7 +950,7 @@ export default function Doctores() {
         </div>
 
         {/* Indicador de capacidad del turno del médico */}
-        <div className="mb-3.5">
+        <div className="mb-2.5">
           <CapacityIndicator
             ocupados={(cola.espera || []).length + (cola.consulta || []).length + atendidosHoy}
             maximo={15}
@@ -1089,7 +1101,7 @@ export default function Doctores() {
       </div>
 
       {/* Registrar paciente */}
-      <div className="p-3 md:p-4 border-t border-outline-variant bg-surface-container-low/60 shrink-0">
+      <div className="p-3 border-t border-outline-variant bg-surface-container-low/60 shrink-0">
         {formNuevo ? (
           <form onSubmit={agregarPaciente} className="space-y-2.5 bg-surface border border-outline-variant rounded-2xl p-3.5">
             <p className="font-mono text-[9px] uppercase tracking-widest text-on-surface-variant">
@@ -1170,37 +1182,45 @@ export default function Doctores() {
   if (!sesion) {
     return (
       <div className="min-h-screen bg-paper paper-noise text-ink font-ui" style={varsCentro}>
-        <div className="min-h-screen flex items-center justify-center p-4 md:p-6">
+        <div className="min-h-screen flex items-center justify-center p-4 md:p-6 py-10">
           <div className="w-full max-w-md">
-            <div className="bg-card border border-ink-line rounded-lg corner-tick shadow-[0_1px_2px_rgba(20,35,47,0.05)] p-6 md:p-8 relative overflow-hidden">
-              <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
+            <div className="bg-card border border-ink-line rounded-2xl shadow-xl p-6 md:p-8 relative overflow-hidden">
+              <div
+                className="absolute top-0 inset-x-0 h-1.5"
+                style={{ background: temaCentro.gradient }}
+                aria-hidden="true"
+              />
+              <div className="absolute -top-20 -right-20 w-56 h-56 bg-secondary/10 rounded-full pointer-events-none" />
+              <div className="absolute -bottom-24 -left-16 w-48 h-48 bg-secondary/10 rounded-full pointer-events-none" />
               <div className="relative">
-                <div className="w-14 h-14 rounded-xl flex items-center justify-center text-white shadow-lg mb-5" style={{ background: temaCentro.gradient }}>
-                  <Icon name="stethoscope" filled className="text-2xl" />
+                <div className="w-full max-w-[240px] mx-auto mb-5 rounded-2xl bg-white border border-ink-line shadow-md px-3 py-2.5 flex items-center justify-center overflow-hidden">
+                  <img src="/identidad visual/Citab.jpeg" alt="Logo CITAB" loading="lazy" className="w-full h-auto max-h-16 object-contain" />
                 </div>
-                <h2 className="font-display text-2xl font-bold text-ink">Acceso del personal de salud</h2>
-                <p className="text-sm text-ink-soft mt-1">
-                  Ingresa con tu usuario y contraseña institucional para atender la cola y registrar consultas.
+                <h2 className="font-display text-2xl font-bold text-center" style={{ color: temaCentro.primary }}>
+                  Portal de los Médicos
+                </h2>
+                <p className="text-sm text-center mt-1.5" style={{ color: temaCentro.onSurfaceVariant }}>
+                  Acceso del personal de la Clínica de los Trabajadores (CITAB) · Médicos y especialistas.
                 </p>
 
                 {loginError && (
-                  <div className="mt-5 p-3 bg-blood-soft rounded-md border border-blood/30 flex items-center gap-2" role="alert">
+                  <div className="mt-5 p-3 bg-blood-soft rounded-xl border border-blood/30 flex items-center gap-2" role="alert">
                     <Icon name="error" className="text-blood text-lg" />
                     <p className="text-xs font-semibold text-blood">{loginError}</p>
                   </div>
                 )}
 
-                <form className="mt-5 space-y-4" onSubmit={iniciarSesion}>
+                <form className="mt-6" onSubmit={iniciarSesion}>
                   <TextField
                     fullWidth
                     label="Usuario"
-                    placeholder="lfernandez"
+                    placeholder="rosmaryhernandez"
                     value={loginForm.username}
                     onChange={(e) => {
                       setLoginForm((f) => ({ ...f, username: e.target.value }));
                       setLoginError('');
                     }}
-                    sx={fieldSx}
+                    sx={{ ...fieldSx, marginBottom: '1.75rem' }}
                     autoFocus
                     autoComplete="username"
                   />
@@ -1214,7 +1234,7 @@ export default function Doctores() {
                       setLoginForm((f) => ({ ...f, password: e.target.value }));
                       setLoginError('');
                     }}
-                    sx={fieldSx}
+                    sx={{ ...fieldSx, marginBottom: '1.75rem' }}
                     autoComplete="current-password"
                   />
                   <Button
@@ -1228,23 +1248,12 @@ export default function Doctores() {
                       py: 1.4,
                       fontWeight: 700,
                       textTransform: 'none',
+                      boxShadow: `0 8px 20px -8px ${temaCentro.shadow}`,
                     }}
                   >
                     {loginEntrando ? 'Verificando...' : 'Iniciar sesión'}
                   </Button>
                 </form>
-
-                <div className="mt-5 pt-4 border-t border-ink-line">
-                  <p className="text-[11px] text-ink-faint text-center">
-                    Modo demostración: use cualquier usuario de la semilla con clave{' '}
-                    <span className="font-mono font-bold text-doc">1234</span>
-                    <br />
-                    (ej. <span className="font-mono">lfernandez</span> ·{' '}
-                    <span className="font-mono">avalera</span> ·{' '}
-                    <span className="font-mono">mgonzalez</span> ·{' '}
-                    <span className="font-mono">psanchez</span>)
-                  </p>
-                </div>
               </div>
             </div>
             <p className="text-center mt-4">
@@ -1257,7 +1266,6 @@ export default function Doctores() {
             </p>
           </div>
         </div>
-        <DemoSwitcher />
       </div>
     );
   }
@@ -1372,84 +1380,65 @@ export default function Doctores() {
         <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
           {activo ? (
             <>
-              <div className="flex-1 overflow-y-auto ledger-scroll px-3 md:px-6 py-4 md:py-5 space-y-4 md:space-y-5">
+              <div className="flex-1 overflow-y-auto ledger-scroll px-3 md:px-5 py-3 space-y-3">
                 {/* Cabecera paciente */}
-                <section className="bg-card border border-ink-line rounded-lg corner-tick p-4 md:p-6 relative overflow-hidden">
+                <section className="bg-card border border-ink-line rounded-lg corner-tick p-3 md:p-4 relative overflow-hidden">
                   <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
-                  <div className="relative flex flex-col md:flex-row gap-4 md:items-center">
-                    <div className="flex items-center gap-3.5 md:gap-5 min-w-0">
+                  <div className="relative flex flex-col md:flex-row gap-3 md:items-center">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="relative shrink-0">
                         <Avatar
                           sx={{
-                            width: { xs: 60, md: 76 },
-                            height: { xs: 60, md: 76 },
+                            width: { xs: 52, md: 60 },
+                            height: { xs: 52, md: 60 },
                             background: gradiente(activo.nombre, temaCentro),
                             fontWeight: 800,
-                            fontSize: { xs: '1.2rem', md: '1.6rem' },
+                            fontSize: { xs: '1.1rem', md: '1.3rem' },
                             boxShadow: '0 12px 28px -10px rgba(15,37,55,0.4)',
                           }}
                         >
                           {iniciales(activo.nombre)}
                         </Avatar>
-                        <span className="absolute -bottom-1 -right-1 bg-success text-on-secondary w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center border-2 border-surface shadow">
-                          <Icon name="check" className="text-xs md:text-sm" />
+                        <span className="absolute -bottom-1 -right-1 bg-success text-on-secondary w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center border-2 border-surface shadow">
+                          <Icon name="check" className="text-xs md:text-xs" />
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h2 className="font-display text-lg md:text-[26px] font-bold text-primary tracking-tight truncate">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <h2 className="font-display text-base md:text-xl font-bold text-primary tracking-tight truncate">
                             {activo.nombre}
                           </h2>
                           <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-surface border border-outline-variant text-on-surface-variant whitespace-nowrap">
                             HIS-V{activo.perfil.cedula}
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        <div className="flex flex-wrap gap-1.5 mt-1">
                           <Chip
-                            icon={<Icon name="cake" className="text-xs md:text-sm !text-secondary" />}
-                            label={activo.perfil.edad}
-                            sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.72rem', height: 26 }}
+                            icon={<Icon name="cake" className="text-xs !text-secondary" />}
+                            label={datosClinicos.edad}
+                            sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.68rem', height: 24 }}
                           />
-                          {activo.perfil.alergia && (
+                          {datosClinicos.tipoSangre && (
                             <Chip
-                              icon={<Icon name="warning" className="text-xs md:text-sm !text-on-error-container" />}
-                              label={`Alergia: ${activo.perfil.alergia}`}
-                              sx={{ bgcolor: 'var(--color-error-container)', color: 'var(--color-on-error-container)', fontWeight: 700, fontSize: '0.72rem', height: 26 }}
+                              icon={<Icon name="bloodtype" className="text-xs !text-error" />}
+                              label={`Sangre ${datosClinicos.tipoSangre}`}
+                              sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 700, fontSize: '0.68rem', height: 24 }}
                             />
                           )}
-                          <Chip
-                            icon={<Icon name="assignment_ind" className="text-xs md:text-sm !text-tertiary" />}
-                            label={activo.perfil.antecedente}
-                            sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.72rem', height: 26 }}
-                          />
-                          {medicoRel && medicoRel.nombre ? (
+                          {datosClinicos.alergias && (
                             <Chip
-                              icon={
-                                <Icon
-                                  name={medicoRel.nombre === MEDICO.nombre ? 'verified_user' : 'stethoscope'}
-                                  className={`text-xs md:text-sm ${medicoRel.nombre === MEDICO.nombre ? '!text-on-secondary' : '!text-doc'}`}
-                                />
-                              }
-                              label={
-                                medicoRel.nombre === MEDICO.nombre
-                                  ? 'Paciente asignado a ti'
-                                  : `Médico: ${medicoRel.nombre}`
-                              }
-                              sx={{
-                                bgcolor:
-                                  medicoRel.nombre === MEDICO.nombre
-                                    ? 'var(--color-fx)'
-                                    : 'var(--color-doc-soft)',
-                                color:
-                                  medicoRel.nombre === MEDICO.nombre
-                                    ? '#fff'
-                                    : 'var(--color-doc-deep)',
-                                fontWeight: 700,
-                                fontSize: '0.7rem',
-                                height: 26,
-                              }}
+                              icon={<Icon name="warning" className="text-xs !text-on-error-container" />}
+                              label={`Alergias: ${datosClinicos.alergias}`}
+                              sx={{ bgcolor: 'var(--color-error-container)', color: 'var(--color-on-error-container)', fontWeight: 700, fontSize: '0.68rem', height: 24 }}
                             />
-                          ) : null}
+                          )}
+                          {datosClinicos.antecedentes && (
+                            <Chip
+                              icon={<Icon name="assignment_ind" className="text-xs !text-tertiary" />}
+                              label={`Antecedentes: ${datosClinicos.antecedentes}`}
+                              sx={{ bgcolor: 'var(--color-surface)', color: 'var(--color-on-surface-variant)', fontWeight: 600, fontSize: '0.68rem', height: 24 }}
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1459,7 +1448,7 @@ export default function Doctores() {
                         variant="outlined"
                         size="small"
                         className="flex-1 md:flex-initial"
-                        startIcon={<Icon name="history" className="text-base" />}
+                        startIcon={<Icon name="history" className="text-sm" />}
                         onClick={() => setHistorialAbierto(true)}
                         sx={{
                           borderColor: 'var(--color-ink-line)',
@@ -1467,8 +1456,8 @@ export default function Doctores() {
                           textTransform: 'none',
                           borderRadius: 2.5,
                           fontWeight: 600,
-                          fontSize: '0.8rem',
-                          py: 0.8,
+                          fontSize: '0.76rem',
+                          py: 0.6,
                         }}
                       >
                         Historial
@@ -1477,7 +1466,7 @@ export default function Doctores() {
                         variant="outlined"
                         size="small"
                         className="flex-1 md:flex-initial"
-                        startIcon={<Icon name="print" className="text-base" />}
+                        startIcon={<Icon name="print" className="text-sm" />}
                         onClick={() => setRecetaAbierto(true)}
                         sx={{
                           borderColor: 'var(--color-ink-line)',
@@ -1485,8 +1474,8 @@ export default function Doctores() {
                           textTransform: 'none',
                           borderRadius: 2.5,
                           fontWeight: 600,
-                          fontSize: '0.8rem',
-                          py: 0.8,
+                          fontSize: '0.76rem',
+                          py: 0.6,
                         }}
                       >
                         Imprimir Receta
@@ -1516,7 +1505,7 @@ export default function Doctores() {
                           role="tab"
                           aria-selected={activado}
                           onClick={() => setSeccion(s.id)}
-                          className={`px-3.5 md:px-4 py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${
+                          className={`px-3 md:px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${
                             activado ? 'bg-surface text-secondary shadow-sm' : 'text-on-surface-variant hover:text-secondary'
                           }`}
                         >
@@ -1547,10 +1536,10 @@ export default function Doctores() {
                 </div>
 
                 {seccion === 'consulta' && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     {/* Motivo de consulta */}
-                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
-                      <div className="flex items-center gap-2.5 mb-3">
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">01</span>
                         <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
                           <Icon name="description" filled className="text-sm" />
@@ -1561,7 +1550,7 @@ export default function Doctores() {
                       <TextField
                         fullWidth
                         multiline
-                        minRows={3}
+                        minRows={2}
                         value={form.motivo}
                         onChange={(e) => setForm((f) => ({ ...f, motivo: e.target.value }))}
                         placeholder="Síntoma principal y duración..."
@@ -1570,8 +1559,8 @@ export default function Doctores() {
                     </section>
 
                     {/* Examen físico */}
-                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
-                      <div className="flex items-center gap-2.5 mb-3">
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">02</span>
                         <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
                           <Icon name="stethoscope" filled className="text-sm" />
@@ -1582,7 +1571,7 @@ export default function Doctores() {
                       <TextField
                         fullWidth
                         multiline
-                        minRows={3}
+                        minRows={2}
                         value={form.examen}
                         onChange={(e) => setForm((f) => ({ ...f, examen: e.target.value }))}
                         placeholder="Hallazgos en exploración física..."
@@ -1591,8 +1580,8 @@ export default function Doctores() {
                     </section>
 
                     {/* Diagnóstico CIE-10 */}
-                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
-                      <div className="flex items-center gap-2.5 mb-3">
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">03</span>
                         <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
                           <Icon name="medical_information" filled className="text-sm" />
@@ -1648,8 +1637,8 @@ export default function Doctores() {
                     </section>
 
                     {/* Tratamiento / Indicaciones */}
-                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
-                      <div className="flex items-center gap-2.5 mb-3">
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">04</span>
                         <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
                           <Icon name="medication" filled className="text-sm" />
@@ -1660,7 +1649,7 @@ export default function Doctores() {
                       <TextField
                         fullWidth
                         multiline
-                        minRows={3}
+                        minRows={2}
                         value={form.tratamiento}
                         onChange={(e) => setForm((f) => ({ ...f, tratamiento: e.target.value }))}
                         placeholder="Medicación, dosis y frecuencia..."
@@ -1669,8 +1658,8 @@ export default function Doctores() {
                     </section>
 
                     {/* Recomendaciones generales */}
-                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 lg:col-span-2">
-                      <div className="flex items-center gap-2.5 mb-3">
+                    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-3 lg:col-span-2">
+                      <div className="flex items-center gap-2 mb-2">
                         <span className="font-mono text-[10px] font-semibold text-on-surface-variant w-5">05</span>
                         <span className="w-7 h-7 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
                           <Icon name="tips_and_updates" filled className="text-sm" />
@@ -2212,25 +2201,6 @@ export default function Doctores() {
                     }}
                   >
                     Orden Laboratorio
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<Icon name="image_search" className="text-base !text-doc" />}
-                    onClick={() => abrirOrden('imagen')}
-                    className="shrink-0"
-                    sx={{
-                      borderColor: 'var(--color-ink-line)',
-                      color: 'var(--color-ink-soft)',
-                      textTransform: 'none',
-                      borderRadius: 2.5,
-                      fontWeight: 600,
-                      whiteSpace: 'nowrap',
-                      fontSize: '0.8rem',
-                      py: 0.9,
-                    }}
-                  >
-                    Orden Imagen
                   </Button>
                   <Button
                     variant="outlined"
@@ -3027,8 +2997,6 @@ export default function Doctores() {
           {aviso}
         </Alert>
       </Snackbar>
-
-      <DemoSwitcher />
     </div>
   );
 }

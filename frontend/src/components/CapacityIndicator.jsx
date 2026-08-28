@@ -78,7 +78,7 @@ export default function CapacityIndicator({
 
   return (
     <div
-      className={`rounded-2xl border p-4 transition-all ${configColor.fondo} ${className}`}
+      className={`rounded-2xl border p-3 transition-all ${configColor.fondo} ${className}`}
       role="region"
       aria-label="Indicador de capacidad del turno médico"
     >

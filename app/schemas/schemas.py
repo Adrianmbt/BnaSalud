@@ -206,6 +206,8 @@ class CitaDetalleResponse(BaseModel):
     centro_salud: str
     especialidad_id: int
     especialidad: str
+    medico_id: Optional[int] = Field(None, description="ID del médico asignado a la cita")
+    medico_nombre: str = Field(default="", description="Nombre del médico asignado (unido desde personal)")
     fecha_cita: date
     hora_inicio: time
     motivo: Optional[str] = None
@@ -225,6 +227,10 @@ class CitaEstadoUpdate(BaseModel):
     """Actualización de estado de una cita por el médico o personal autorizado."""
     estado: EstadoCita = Field(..., description="Nuevo estado de la cita")
     observaciones: Optional[str] = Field(None, max_length=500, description="Notas u observaciones del médico")
+
+class CitaCancelar(BaseModel):
+    """Cancelación de una cita iniciada por el paciente."""
+    motivo: Optional[str] = Field(None, max_length=300, description="Motivo de la cancelación, visible para el personal")
 
 class TurnoColaResponse(BaseModel):
     cita_id: str
@@ -326,6 +332,7 @@ class EspecialidadResponse(BaseModel):
 
 class CentroSaludResponse(BaseModel):
     id: int
+    codigo: Optional[str] = Field(default=None, description="Código del centro (CLN-CITAB, CLN-NINO...)")
     nombre: str
     subtitulo: str
     tipo: str = Field(description="Aliado, Especializado, Comunitario...")

@@ -5,6 +5,7 @@ import TextField from '@mui/material/TextField';
 import Avatar from '@mui/material/Avatar';
 import Badge from '@mui/material/Badge';
 import IconButton from '@mui/material/IconButton';
+import Popover from '@mui/material/Popover';
 import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -46,6 +47,28 @@ const fieldSx = {
     '&.Mui-focused fieldset': { borderColor: 'var(--color-secondary)', borderWidth: 2 },
   },
   '& .MuiInputLabel-root.Mui-focused': { color: 'var(--color-secondary)' },
+};
+
+const accessFieldSx = {
+  '& .MuiOutlinedInput-root': {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: '0.85rem',
+    fontSize: '0.95rem',
+    transition: 'box-shadow 200ms ease, border-color 200ms ease, background-color 200ms ease',
+    '&:hover': { backgroundColor: '#ffffff' },
+    '& fieldset': { borderColor: 'var(--color-outline-variant)', transition: 'border-color 200ms ease' },
+    '&:hover fieldset': { borderColor: 'var(--color-secondary)' },
+    '&.Mui-focused': {
+      backgroundColor: '#ffffff',
+      boxShadow: '0 0 0 4px rgba(59,152,212,0.14)',
+    },
+    '&.Mui-focused fieldset': { borderColor: 'var(--color-secondary)', borderWidth: 2 },
+  },
+  '& .MuiInputLabel-root': {
+    fontSize: '0.9rem',
+    '&.Mui-focused': { color: 'var(--color-secondary)', fontWeight: 600 },
+  },
+  '& .MuiFormHelperText-root': { marginTop: 6 },
 };
 
 function iniciales(nombre = '') {
@@ -147,10 +170,10 @@ function EtiquetaEstado({ estado, mapa }) {
   };
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold capitalize"
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold capitalize"
       style={{ color: colorMap[conf.tono], background: `${colorMap[conf.tono]}14` }}
     >
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: colorMap[conf.tono] }} />
+      <span className="w-1 h-1 rounded-full" style={{ background: colorMap[conf.tono] }} />
       {conf.etiqueta}
     </span>
   );
@@ -184,6 +207,7 @@ export default function Paciente() {
   const [citaModal, setCitaModal] = useState(null);
   const [aviso, setAviso] = useState('');
   const [recetaAbierta, setRecetaAbierta] = useState(null);
+  const [anchorNotif, setAnchorNotif] = useState(null);
 
   const [perfilForm, setPerfilForm] = useState(null);
   const [perfilGuardando, setPerfilGuardando] = useState(false);
@@ -199,6 +223,11 @@ export default function Paciente() {
   const [slotsPosponer, setSlotsPosponer] = useState([]);
   const [consultandoSlotsPosponer, setConsultandoSlotsPosponer] = useState(false);
   const [slotMsgPosponer, setSlotMsgPosponer] = useState('');
+
+  const [citaACancelar, setCitaACancelar] = useState(null);
+  const [cancelando, setCancelando] = useState(false);
+  const [cancelarError, setCancelarError] = useState('');
+  const [motivoCancelar, setMotivoCancelar] = useState('');
 
   useEffect(() => {
     if (!citaAPosponer || !nuevaFechaPosponer) {
@@ -268,6 +297,26 @@ export default function Paciente() {
     }
   }
 
+  async function handleCancelarCita(e) {
+    e.preventDefault();
+    if (!citaACancelar) return;
+    setCancelando(true);
+    setCancelarError('');
+    try {
+      const resp = await API.cancelarCita(citaACancelar.id, {
+        motivo: motivoCancelar || 'Cancelación solicitada desde el portal del paciente',
+      });
+      setCitas((prev) => prev.map((c) => (c.id === resp.id ? resp : c)));
+      setCitaACancelar(null);
+      setMotivoCancelar('');
+      setAviso('Cita cancelada. Se liberó tu cupo y recibirás la confirmación por WhatsApp.');
+    } catch (err) {
+      setCancelarError(err.message || 'No se pudo cancelar la cita.');
+    } finally {
+      setCancelando(false);
+    }
+  }
+
   const temaCentro = useMemo(() => getCentroTheme({ codigo: 'CLN-CITAB', nombre: '' }), []);
 
   const varsCentro = useMemo(
@@ -295,6 +344,32 @@ export default function Paciente() {
     }),
     [temaCentro]
   );
+
+  const instVars = {
+    '--color-primary': '#3B98D4',
+    '--color-primary-light': '#6BB6E4',
+    '--color-primary-dark': '#2174A6',
+    '--color-secondary': '#1A4B7C',
+    '--color-secondary-light': '#2E6BA8',
+    '--color-secondary-dark': '#0F2F4D',
+    '--color-secondary-container': '#E3EEF7',
+    '--color-on-secondary': '#ffffff',
+    '--color-on-secondary-container': '#1A4B7C',
+    '--color-surface': '#F8FAFC',
+    '--color-surface-container': '#EAF2F9',
+    '--color-surface-container-low': '#FFFFFF',
+    '--color-surface-container-high': '#DCE8F2',
+    '--color-surface-container-highest': '#DCE8F2',
+    '--color-on-surface-variant': '#4A6478',
+    '--color-outline': '#9DB8CC',
+    '--color-outline-variant': '#D3E2EE',
+    '--color-doc': '#3B98D4',
+    '--color-doc-deep': '#1A4B7C',
+    '--color-doc-soft': '#E8F3FB',
+    '--color-accent': '#38B000',
+    '--color-error': '#D90429',
+    '--color-error-container': '#FDE8E8',
+  };
 
   const entrar = useCallback(async (cedula, pin) => {
     setEntrando(true);
@@ -594,7 +669,7 @@ export default function Paciente() {
   const contenidoNav = (
     <>
       <div
-        className="relative overflow-hidden px-5 py-5 text-white shrink-0 border-b border-white/10"
+        className="relative overflow-hidden px-4 py-3 text-white shrink-0 border-b border-white/10"
         style={{ background: temaCentro.gradient }}
       >
         <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-white/10 pointer-events-none" />
@@ -607,20 +682,20 @@ export default function Paciente() {
           }}
         />
         <div className="relative">
-          <div className="bg-white/95 rounded-xl px-3 py-2 shadow-md ring-1 ring-black/5 mb-4">
+          <div className="bg-white/95 rounded-lg px-3 py-1.5 shadow-md ring-1 ring-black/5 mb-3">
             <img
               src={centroCITAB.logo}
               alt="Instituto de Salud"
               loading="lazy"
-              className="h-9 w-full object-contain mx-auto"
+              className="h-7 w-full object-contain mx-auto"
             />
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="inline-flex w-9 h-9 rounded-lg bg-white/15 border border-white/25 items-center justify-center shrink-0">
-              <Icon name="badge" filled className="text-lg" />
+            <span className="inline-flex w-8 h-8 rounded-lg bg-white/15 border border-white/25 items-center justify-center shrink-0">
+              <Icon name="badge" filled className="text-base" />
             </span>
             <div className="min-w-0">
-              <p className="text-[13px] font-extrabold leading-tight truncate">Portal del Paciente</p>
+              <p className="text-xs font-extrabold leading-tight truncate">Portal del Paciente</p>
               <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/75 truncate">
                 {temaCentro.lema}
               </p>
@@ -629,11 +704,8 @@ export default function Paciente() {
         </div>
       </div>
 
-      <div className="px-5 pt-5 pb-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mb-3 px-1">
-          Navegación
-        </p>
-        <ul className="space-y-1.5">
+      <div className="px-4 pt-4 pb-2">
+        <ul className="space-y-1">
           {SECCIONES.map((s) => {
             const activado = seccion === s.id;
             return (
@@ -644,22 +716,17 @@ export default function Paciente() {
                     setNavAbierta(false);
                   }}
                   aria-current={activado ? 'page' : undefined}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-left transition-colors ${
                     activado
                       ? 'bg-surface-container-high text-primary shadow-sm'
                       : 'text-on-surface-variant hover:bg-surface-container'
                   }`}
                 >
-                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${activado ? 'bg-secondary text-on-secondary' : 'bg-surface-container text-on-surface-variant'}`}>
-                    <Icon name={s.icono} filled={activado} className="text-lg" />
+                  <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${activado ? 'bg-secondary text-on-secondary' : 'bg-surface-container text-on-surface-variant'}`}>
+                    <Icon name={s.icono} filled={activado} className="text-base" />
                   </span>
-                  <span className="min-w-0">
-                    <span className={`block text-sm font-semibold leading-tight ${activado ? 'text-primary' : ''}`}>
-                      {s.etiqueta}
-                    </span>
-                    <span className="block font-mono text-[9px] uppercase tracking-widest text-on-surface-variant/70 mt-0.5">
-                      {s.detalle}
-                    </span>
+                  <span className={`block text-sm font-semibold leading-tight truncate ${activado ? 'text-primary' : ''}`}>
+                    {s.etiqueta}
                   </span>
                 </button>
               </li>
@@ -668,33 +735,26 @@ export default function Paciente() {
         </ul>
       </div>
 
-      <div className="px-5 py-4">
+      <div className="px-4 py-3">
         <button
           onClick={() => {
             setCitaModal(centroCITAB);
             setNavAbierta(false);
           }}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold text-white shadow-md active:scale-[0.98] transition-all"
+          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white shadow-md active:scale-[0.98] transition-all"
           style={{ background: temaCentro.gradient }}
         >
-          <Icon name="add_circle" className="text-lg" /> Nueva Consulta
+          <Icon name="add_circle" className="text-base" /> Nueva Consulta
         </button>
       </div>
 
-      <div className="mt-auto px-5 py-5 space-y-1.5 border-t border-outline-variant">
+      <div className="mt-auto px-4 py-3 border-t border-outline-variant">
         <Link
           to="/"
           onClick={() => setNavAbierta(false)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors text-sm font-medium"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors text-sm font-medium"
         >
-          <Icon name="home" className="text-xl" /> Portal de la Comunidad
-        </Link>
-        <Link
-          to="/"
-          onClick={() => setNavAbierta(false)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-on-surface-variant hover:bg-surface-container transition-colors text-sm font-medium"
-        >
-          <Icon name="logout" className="text-xl" /> Cerrar sesión
+          <Icon name="home" className="text-lg" /> Portal de la Comunidad
         </Link>
       </div>
     </>
@@ -702,8 +762,9 @@ export default function Paciente() {
 
   return (
     <div className="h-dvh overflow-hidden flex flex-col bg-surface text-primary font-ui" style={varsCentro}>
+      {paciente && (
       <header className="relative z-40 shrink-0 bg-surface/90 backdrop-blur-md">
-        <div className="flex items-center gap-4 px-4 md:px-6 h-16 border-b border-outline-variant">
+        <div className="flex items-center gap-3 px-4 md:px-6 h-14 border-b border-outline-variant">
           <button
             onClick={() => setNavAbierta((v) => !v)}
             className="p-2 -ml-2 rounded-full text-on-surface-variant hover:bg-surface-container lg:ring-1 lg:ring-outline-variant transition-colors"
@@ -717,7 +778,7 @@ export default function Paciente() {
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
               {paciente ? 'Portal del Paciente' : 'Acceso'}
             </p>
-            <h1 className="font-display text-xl font-semibold text-primary leading-tight truncate">
+            <h1 className="text-lg font-semibold text-primary leading-tight truncate">
               {paciente ? `¡Hola, ${paciente.nombre_completo.split(' ')[0]}!` : 'Portal del Paciente'}
             </h1>
           </div>
@@ -731,13 +792,19 @@ export default function Paciente() {
                   Demo
                 </span>
               )}
-              <IconButton aria-label="Notificaciones" sx={{ color: 'var(--color-on-surface-variant)' }}>
-                <Badge badgeContent={citas.filter((c) => c.estado === 'pendiente').length} color="error">
+              <IconButton
+                aria-label="Notificaciones"
+                aria-haspopup="true"
+                aria-expanded={Boolean(anchorNotif)}
+                onClick={(e) => setAnchorNotif(e.currentTarget)}
+                sx={{ color: 'var(--color-on-surface-variant)' }}
+              >
+                <Badge badgeContent={notificaciones.length} color="error">
                   <Icon name="notifications" className="text-xl" />
                 </Badge>
               </IconButton>
               <div className="flex items-center gap-2.5 pl-1">
-                <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 38, height: 38, fontWeight: 700, fontSize: '0.8rem' }}>
+                <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 32, height: 32, fontWeight: 700, fontSize: '0.75rem' }}>
                   {iniciales(paciente.nombre_completo)}
                 </Avatar>
                 <div className="hidden xl:block">
@@ -751,7 +818,7 @@ export default function Paciente() {
               <Link
                 to="/"
                 onClick={cerrarSesionPaciente}
-                className="flex items-center justify-center w-10 h-10 rounded-full text-on-surface-variant hover:text-error hover:bg-error/5 transition-colors"
+                className="flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant hover:text-error hover:bg-error/5 transition-colors"
                 aria-label="Cerrar sesión y volver al portal"
                 title="Cerrar sesión"
               >
@@ -761,30 +828,114 @@ export default function Paciente() {
           )}
         </div>
       </header>
+      )}
+
+      <Popover
+        open={Boolean(anchorNotif)}
+        anchorEl={anchorNotif}
+        onClose={() => setAnchorNotif(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{
+          paper: { sx: { borderRadius: '0.9rem', boxShadow: '0 18px 50px -12px rgba(0,0,0,0.25)', mt: 1, width: 380, maxWidth: '92vw' } },
+        }}
+      >
+        <div className="overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-outline-variant">
+            <div>
+              <p className="text-sm font-bold text-primary">Notificaciones</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
+                Últimas {Math.min(notificaciones.length, 5)}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setSeccion('notificaciones');
+                setAnchorNotif(null);
+              }}
+              className="flex items-center gap-1 text-xs font-bold text-secondary hover:text-secondary-light transition-colors"
+            >
+              Ver todas <Icon name="arrow_forward" className="text-sm" />
+            </button>
+          </div>
+
+          <div className="max-h-[340px] overflow-y-auto ledger-scroll">
+            {notificaciones.length === 0 ? (
+              <div className="px-4 py-8 text-center text-on-surface-variant space-y-2">
+                <Icon name="notifications_off" className="text-3xl opacity-40" />
+                <p className="text-xs font-medium">No tienes notificaciones todavía.</p>
+              </div>
+            ) : (
+              notificaciones.slice(0, 5).map((n) => {
+                const conf = TIPOS_NOTIFICACION[n.tipo] || { icono: 'notifications', etiqueta: n.tipo };
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => {
+                      setSeccion('notificaciones');
+                      setAnchorNotif(null);
+                    }}
+                    className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-surface-container transition-colors border-b border-outline-variant/40 last:border-b-0"
+                  >
+                    <span className="w-8 h-8 rounded-lg bg-doc-soft text-doc flex items-center justify-center shrink-0 mt-0.5">
+                      <Icon name={conf.icono} className="text-base" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-bold text-primary leading-snug line-clamp-1">{n.asunto}</span>
+                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant mt-0.5">
+                        {conf.etiqueta}
+                      </span>
+                      {n.detalle && (
+                        <span className="block text-[11px] text-on-surface-variant mt-1 line-clamp-2">{n.detalle}</span>
+                      )}
+                      <span className="flex items-center justify-between gap-2 mt-1.5">
+                        <span className="font-mono text-[10px] text-on-surface-variant/70">
+                          {n.enviado_en
+                            ? `${formatoFecha(n.enviado_en)} ${String(n.enviado_en).slice(11, 16)}`
+                            : String(n.creado_en || '').slice(0, 10)}
+                        </span>
+                        <EtiquetaEstado estado={n.estado} mapa={ESTADOS_NOTIFICACION} />
+                      </span>
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </Popover>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
+        {paciente && (
         <aside
-          className={`shrink-0 w-[min(320px,85vw)] bg-surface border-r border-outline-variant flex flex-col transition-all duration-300 ease-out ${
-            navAbierta ? 'ml-0' : '-ml-[min(320px,85vw)]'
+          className={`shrink-0 w-[min(280px,85vw)] bg-surface border-r border-outline-variant flex flex-col transition-all duration-300 ease-out ${
+            navAbierta ? 'ml-0' : '-ml-[min(280px,85vw)]'
           }`}
           aria-label="Navegación del portal"
         >
           {contenidoNav}
         </aside>
+        )}
 
         <main className="flex-1 min-w-0 flex flex-col bg-surface overflow-hidden">
           {!paciente ? (
-            <div className="flex-1 overflow-y-auto ledger-scroll flex items-center justify-center p-6">
+            <div className="flex-1 overflow-y-auto ledger-scroll flex items-center justify-center p-6" style={{ background: '#F8FAFC', ...instVars }}>
               <div className="w-full max-w-md">
-                <div className="bg-surface-container-low border border-outline-variant rounded-3xl p-8 relative overflow-hidden">
-                  <div className="absolute -top-16 -right-16 w-48 h-48 bg-secondary-container/20 rounded-full pointer-events-none" />
+                <div className="bg-surface-container-low border border-outline-variant rounded-3xl p-8 relative overflow-hidden shadow-xl">
+                  <div
+                    className="absolute top-0 inset-x-0 h-1.5"
+                    style={{ background: 'linear-gradient(90deg, #3B98D4 0%, #1A4B7C 45%, #38B000 78%, #D90429 100%)' }}
+                    aria-hidden="true"
+                  />
+                  <div className="absolute -top-20 -right-20 w-56 h-56 bg-primary/10 rounded-full pointer-events-none" />
+                  <div className="absolute -bottom-24 -left-16 w-48 h-48 bg-secondary/10 rounded-full pointer-events-none" />
                   <div className="relative">
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg mb-5" style={{ background: temaCentro.gradient }}>
-                      <Icon name="badge" filled className="text-2xl" />
+                    <div className="w-full max-w-[240px] mx-auto mb-5 rounded-2xl bg-white border border-outline-variant shadow-md px-3 py-2.5 flex items-center justify-center overflow-hidden">
+                      <img src="/identidad visual/InstitutoSalud.jpeg" alt="Logo Instituto de Salud Barcelona" loading="lazy" className="w-full h-auto max-h-16 object-contain" />
                     </div>
-                    <h2 className="font-display text-2xl font-bold text-primary">Bienvenido</h2>
-                    <p className="text-sm text-on-surface-variant mt-1">
-                      Ingresa tu cédula de identidad para acceder a tu historial clínico, citas y estudios.
+                    <h2 className="font-display text-2xl font-bold text-center text-secondary">Portal del Paciente</h2>
+                    <p className="text-sm text-on-surface-variant text-center mt-1.5">
+                      Ingresa tu cédula y tu PIN para consultar tu historial clínico, citas y estudios.
                     </p>
 
                     {errorEntrada && (
@@ -802,7 +953,7 @@ export default function Paciente() {
 
                     {flujoAcceso === 'login' && (
                       <form
-                        className="mt-5 space-y-4"
+                        className="mt-6 flex flex-col gap-6"
                         onSubmit={(e) => {
                           e.preventDefault();
                           const ident = parseCedula(cedulaEntrada);
@@ -826,7 +977,7 @@ export default function Paciente() {
                             setCedulaEntrada(e.target.value);
                             setErrorEntrada('');
                           }}
-                          sx={fieldSx}
+                          sx={accessFieldSx}
                           autoFocus
                         />
                         <TextField
@@ -839,7 +990,7 @@ export default function Paciente() {
                             setPinEntrada(e.target.value.replace(/\D/g, '').slice(0, 8));
                             setErrorEntrada('');
                           }}
-                          sx={fieldSx}
+                          sx={accessFieldSx}
                           slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'current-password' } }}
                           helperText="Tu PIN fue creado al registrarte en tu primera cita."
                         />
@@ -849,11 +1000,12 @@ export default function Paciente() {
                           disabled={entrando}
                           variant="contained"
                           sx={{
-                            background: temaCentro.gradient,
+                            background: 'linear-gradient(135deg, #3B98D4 0%, #1A4B7C 100%)',
                             borderRadius: 2,
                             py: 1.4,
                             fontWeight: 700,
                             textTransform: 'none',
+                            boxShadow: '0 8px 20px -8px rgba(26, 75, 124, 0.5)',
                           }}
                         >
                           {entrando ? 'Verificando...' : 'Entrar al portal'}
@@ -863,7 +1015,7 @@ export default function Paciente() {
 
                     {flujoAcceso === 'recuperar' && (
                       <form
-                        className="mt-5 space-y-4"
+                        className="mt-5 flex flex-col gap-5"
                         onSubmit={solicitarRecuperacion}
                       >
                         <div className="flex items-center gap-2">
@@ -881,7 +1033,7 @@ export default function Paciente() {
                           onChange={(e) =>
                             setRecuperarForm((f) => ({ ...f, cedula: e.target.value }))
                           }
-                          sx={fieldSx}
+                          sx={accessFieldSx}
                           autoFocus
                         />
                         <TextField
@@ -893,7 +1045,7 @@ export default function Paciente() {
                           onChange={(e) =>
                             setRecuperarForm((f) => ({ ...f, email: e.target.value }))
                           }
-                          sx={fieldSx}
+                          sx={accessFieldSx}
                         />
                         <Button
                           type="submit"
@@ -925,7 +1077,7 @@ export default function Paciente() {
                     )}
 
                     {flujoAcceso === 'reset' && (
-                      <form className="mt-5 space-y-4" onSubmit={restablecerPin}>
+                      <form className="mt-5 flex flex-col gap-5" onSubmit={restablecerPin}>
                         <div className="flex items-center gap-2">
                           <Icon name="password" className="text-doc" />
                           <p className="text-sm font-bold text-primary">Crear un PIN nuevo</p>
@@ -938,7 +1090,7 @@ export default function Paciente() {
                           label="Cédula"
                           value={recuperarForm.cedula}
                           disabled
-                          sx={fieldSx}
+                          sx={accessFieldSx}
                         />
                         <TextField
                           fullWidth
@@ -951,7 +1103,7 @@ export default function Paciente() {
                               codigo: e.target.value.replace(/\D/g, '').slice(0, 6),
                             }))
                           }
-                          sx={fieldSx}
+                          sx={accessFieldSx}
                           autoFocus
                         />
                         <TextField
@@ -966,7 +1118,7 @@ export default function Paciente() {
                               pinNuevo: e.target.value.replace(/\D/g, '').slice(0, 8),
                             }))
                           }
-                          sx={fieldSx}
+                          sx={accessFieldSx}
                         />
                         <Button
                           type="submit"
@@ -1033,20 +1185,21 @@ export default function Paciente() {
             <>
               {/* ====== DASHBOARD ====== */}
               {seccion === 'dashboard' && (
-                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-5 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div>
-                      <h2 className="font-display text-2xl md:text-3xl font-bold text-primary">
-                        ¡Hola, {paciente.nombre_completo.split(' ')[0]}!
+                      <h2 className="text-lg font-bold text-primary">
+                        Resumen de salud, {paciente.nombre_completo.split(' ')[0]}
                       </h2>
-                      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-0.5">
                         C.I. {paciente.tipo_cedula || 'V'}-{paciente.cedula} · {calcularEdad(paciente.fecha_nacimiento) || 'Edad no registrada'}
                       </p>
                     </div>
                     <Button
                       onClick={abrirPerfil}
                       variant="outlined"
-                      startIcon={<Icon name="edit" className="text-lg" />}
+                      size="small"
+                      startIcon={<Icon name="edit" className="text-base" />}
                       sx={{
                         borderRadius: 2,
                         textTransform: 'none',
@@ -1060,31 +1213,31 @@ export default function Paciente() {
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                     {/* Hero: Próxima cita */}
-                    <section className="xl:col-span-2 relative overflow-hidden rounded-3xl text-white p-6 md:p-7 shadow-lg min-h-[220px] flex flex-col justify-between" style={{ background: temaCentro.gradient }}>
+                    <section className="xl:col-span-2 relative overflow-hidden rounded-3xl text-white p-5 shadow-lg min-h-[150px] flex flex-col justify-between" style={{ background: temaCentro.gradient }}>
                       <div className="absolute inset-0 opacity-15 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(-45deg, rgba(255,255,255,0.35) 0 10px, transparent 10px 26px)' }} />
                       <div className="relative flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-                            <Icon name="calendar_month" filled className="text-2xl" />
+                          <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                            <Icon name="calendar_month" filled className="text-lg" />
                           </div>
                           <div>
-                            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/75">Próxima Cita</p>
-                            <p className="text-lg font-extrabold leading-tight">
+                            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/75">Próxima Cita</p>
+                            <p className="text-base font-extrabold leading-tight">
                               {proximaCita ? proximaCita.especialidad : 'Sin citas programadas'}
                             </p>
                           </div>
                         </div>
                         {proximaCita && (
-                          <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur text-[11px] font-bold uppercase tracking-wider">
+                          <span className="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur text-[10px] font-bold uppercase tracking-wider">
                             {proximaCita.estado}
                           </span>
                         )}
                       </div>
 
                       {proximaCita ? (
-                        <div className="relative grid sm:grid-cols-2 gap-4 mt-6">
+                        <div className="relative grid sm:grid-cols-2 gap-4 mt-4">
                           <div className="space-y-1">
                             <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">Fecha</p>
                             <p className="text-sm font-bold capitalize">{formatoFechaLarga(proximaCita.fecha_cita)}</p>
@@ -1103,132 +1256,25 @@ export default function Paciente() {
                           </div>
                         </div>
                       ) : (
-                        <div className="relative mt-6">
+                        <div className="relative mt-4">
                           <p className="text-sm text-white/85">
                             Reserva tu próxima consulta médica y mantenla al día desde tu portal.
                           </p>
                           <button
                             onClick={() => setCitaModal(centroCITAB)}
-                            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-primary font-bold text-sm shadow hover:shadow-lg transition-shadow"
+                            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-primary font-bold text-sm shadow hover:shadow-lg transition-shadow"
                           >
-                            <Icon name="event_available" className="text-lg" /> Agendar Cita
+                            <Icon name="event_available" className="text-base" /> Agendar Cita
                           </button>
                         </div>
                       )}
                     </section>
 
-                    {/* Accesos rápidos */}
-                    <section className="space-y-4">
-                      <button
-                        onClick={() => setCitaModal(centroCITAB)}
-                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
-                      >
-                        <span className="w-11 h-11 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center group-hover:bg-secondary group-hover:text-on-secondary transition-colors">
-                          <Icon name="event_repeat" filled className="text-xl" />
-                        </span>
-                        <span>
-                          <span className="block text-sm font-bold text-primary">Reagendar Cita</span>
-                          <span className="block text-[11px] text-on-surface-variant mt-0.5">Cambia fecha u horario</span>
-                        </span>
-                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setSeccion('historial');
-                          setHistorialVista('actual');
-                        }}
-                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
-                      >
-                        <span className="w-11 h-11 rounded-xl bg-doc-soft text-doc flex items-center justify-center group-hover:bg-doc group-hover:text-paper transition-colors">
-                          <Icon name="schedule" filled className="text-xl" />
-                        </span>
-                        <span>
-                          <span className="block text-sm font-bold text-primary">Cita y Tratamiento Actual</span>
-                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
-                            {proximaCita
-                              ? `${formatoFecha(proximaCita.fecha_cita)} · ${horaCorta(proximaCita.hora_inicio)}`
-                              : 'Tu próxima cita y tratamiento vigente'}
-                          </span>
-                        </span>
-                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
-                      </button>
-
-                      <button
-                        onClick={() => setSeccion('historial')}
-                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
-                      >
-                        <span className="w-11 h-11 rounded-xl bg-fx-soft text-fx flex items-center justify-center group-hover:bg-fx group-hover:text-paper transition-colors">
-                          <Icon name="timeline" filled className="text-xl" />
-                        </span>
-                        <span>
-                          <span className="block text-sm font-bold text-primary">Historial Médico</span>
-                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
-                            {historial ? `${historial.total_consultas} consultas · evolución de tratamientos` : 'Todas tus consultas'}
-                          </span>
-                        </span>
-                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
-                      </button>
-
-                      <button
-                        onClick={() => setSeccion('misalud')}
-                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
-                      >
-                        <span className="w-11 h-11 rounded-xl bg-fx-soft text-fx flex items-center justify-center group-hover:bg-fx group-hover:text-paper transition-colors">
-                          <Icon name="favorite" filled className="text-xl" />
-                        </span>
-                        <span>
-                          <span className="block text-sm font-bold text-primary">Mi Salud</span>
-                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
-                            Sangre, alergias y antecedentes
-                          </span>
-                        </span>
-                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
-                      </button>
-
-                      <button
-                        onClick={() => setSeccion('estudios')}
-                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
-                      >
-                        <span className="w-11 h-11 rounded-xl bg-doc-soft text-doc flex items-center justify-center group-hover:bg-doc group-hover:text-paper transition-colors">
-                          <Icon name="monitor_heart" filled className="text-xl" />
-                        </span>
-                        <span>
-                          <span className="block text-sm font-bold text-primary">Mis Estudios</span>
-                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
-                            Órdenes y resultados de laboratorio
-                          </span>
-                        </span>
-                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
-                      </button>
-
-                      <button
-                        onClick={() => setSeccion('medicamentos')}
-                        className="w-full flex items-center gap-4 p-5 bg-surface-container-low border border-outline-variant rounded-3xl text-left hover:border-secondary/50 hover:shadow-md transition-all group"
-                      >
-                        <span className="w-11 h-11 rounded-xl bg-fx-soft text-fx flex items-center justify-center group-hover:bg-fx group-hover:text-paper transition-colors">
-                          <Icon name="medication" filled className="text-xl" />
-                        </span>
-                        <span>
-                          <span className="block text-sm font-bold text-primary">Mis Medicamentos</span>
-                          <span className="block text-[11px] text-on-surface-variant mt-0.5">
-                            {recetas.some((r) => r.estado === 'ENTREGADA')
-                              ? 'Tienes una receta por confirmar'
-                              : 'Recetas y estado en farmacia'}
-                          </span>
-                        </span>
-                        {recetas.some((r) => r.estado === 'ENTREGADA') && (
-                          <Badge color="error" variant="dot" sx={{ mr: 1 }} />
-                        )}
-                        <Icon name="chevron_right" className="ml-auto text-on-surface-variant" />
-                      </button>
-                    </section>
-
                     {/* Historial de consultas */}
-                    <section className="xl:col-span-2 bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
-                      <div className="flex items-center justify-between mb-4">
+                    <section className="xl:col-span-3 bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-3">
                         <div>
-                          <h3 className="font-display text-lg font-bold text-primary">Historial de Consultas</h3>
+                          <h3 className="text-base font-bold text-primary">Historial de Consultas</h3>
                           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
                             {historial ? `${historial.total_consultas} consultas registradas` : 'Historial clínico'}
                           </p>
@@ -1242,12 +1288,12 @@ export default function Paciente() {
                       </div>
 
                       {cargando ? (
-                        <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">
+                        <div className="py-8 text-center text-on-surface-variant text-sm animate-pulse">
                           Cargando historial...
                         </div>
                       ) : !historial || historial.historial.length === 0 ? (
                         <div className="py-10 text-center text-on-surface-variant space-y-2">
-                          <Icon name="history" className="text-5xl opacity-40" />
+                          <Icon name="history" className="text-4xl opacity-40" />
                           <p className="text-sm font-medium">Aún no tienes consultas registradas.</p>
                         </div>
                       ) : (
@@ -1255,24 +1301,24 @@ export default function Paciente() {
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b border-outline-variant text-left">
-                                <th className="py-2 pr-4 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Fecha</th>
-                                <th className="py-2 pr-4 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Especialidad</th>
-                                <th className="py-2 pr-4 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Diagnóstico (CIE-10)</th>
-                                <th className="py-2 pr-4 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Médico</th>
-                                <th className="py-2 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
+                                <th className="py-1.5 pr-3 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Fecha</th>
+                                <th className="py-1.5 pr-3 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Especialidad</th>
+                                <th className="py-1.5 pr-3 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Diagnóstico (CIE-10)</th>
+                                <th className="py-1.5 pr-3 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant">Médico</th>
+                                <th className="py-1.5 font-mono text-[10px] uppercase tracking-wider text-on-surface-variant text-right">Acciones</th>
                               </tr>
                             </thead>
                             <tbody>
                               {historial.historial.slice(0, 5).map((c) => (
                                 <tr key={c.consulta_id} className="border-b border-outline-variant/50 hover:bg-surface transition-colors">
-                                  <td className="py-3 pr-4 text-on-surface-variant whitespace-nowrap">{formatoFecha(c.fecha)}</td>
-                                  <td className="py-3 pr-4 font-semibold text-primary">{c.especialidad}</td>
-                                  <td className="py-3 pr-4">
+                                  <td className="py-2 pr-3 text-on-surface-variant whitespace-nowrap">{formatoFecha(c.fecha)}</td>
+                                  <td className="py-2 pr-3 font-semibold text-primary">{c.especialidad}</td>
+                                  <td className="py-2 pr-3">
                                     <span className="font-mono text-[11px] font-bold text-secondary">{c.cie10_codigo}</span>
                                     <span className="text-on-surface-variant"> · {c.cie10_descripcion}</span>
                                   </td>
-                                  <td className="py-3 pr-4 text-on-surface-variant">{c.medico_nombre}</td>
-                                  <td className="py-3 text-right">
+                                  <td className="py-2 pr-3 text-on-surface-variant">{c.medico_nombre}</td>
+                                  <td className="py-2 text-right">
                                     <button
                                       onClick={() => setRecetaAbierta(c)}
                                       className="inline-flex items-center gap-1 text-xs font-bold text-secondary hover:text-secondary-light transition-colors"
@@ -1290,8 +1336,8 @@ export default function Paciente() {
                     </section>
 
                     {/* Resumen de perfil clínico */}
-                    <section className="bg-card border border-ink-line rounded-3xl p-5 md:p-6">
-                      <h3 className="font-display text-lg font-bold text-primary mb-4">Ficha de Salud</h3>
+                    <section className="bg-card border border-ink-line rounded-2xl p-4">
+                      <h3 className="text-base font-bold text-primary mb-3">Ficha de Salud</h3>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs text-on-surface-variant">Tipo de sangre</span>
@@ -1333,131 +1379,16 @@ export default function Paciente() {
                         </button>
                       </div>
                     </section>
-
-                    {/* Última consulta detalle */}
-                    {ultimaConsulta && (
-                      <section className="xl:col-span-2 bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h3 className="font-display text-lg font-bold text-primary">Detalles de Última Consulta</h3>
-                            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
-                              {formatoFechaLarga(ultimaConsulta.fecha)} · {ultimaConsulta.especialidad}
-                            </p>
-                          </div>
-                          {ultimaConsulta.comprobante_ref && (
-                            <span className="font-mono text-[11px] font-bold text-on-surface-variant px-3 py-1.5 rounded-lg bg-surface-container-high">
-                              Ref. {ultimaConsulta.comprobante_ref}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="grid sm:grid-cols-2 gap-4">
-                          <div className="bg-surface rounded-2xl border border-outline-variant/40 p-4">
-                            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">Motivo de consulta</p>
-                            <p className="text-sm text-primary">{ultimaConsulta.motivo_consulta || '—'}</p>
-                          </div>
-                          <div className="bg-surface rounded-2xl border border-outline-variant/40 p-4">
-                            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">Diagnóstico</p>
-                            <p className="text-sm text-primary">
-                              <span className="font-mono font-bold text-secondary">{ultimaConsulta.cie10_codigo}</span> · {ultimaConsulta.cie10_descripcion}
-                            </p>
-                          </div>
-                          {ultimaConsulta.tratamiento && (
-                            <div className="bg-surface rounded-2xl border border-outline-variant/40 p-4">
-                              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">Tratamiento</p>
-                              <p className="text-sm text-primary">{ultimaConsulta.tratamiento}</p>
-                            </div>
-                          )}
-                          {ultimaConsulta.recomendaciones && (
-                            <div className="bg-surface rounded-2xl border border-outline-variant/40 p-4">
-                              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">Indicaciones Médicas</p>
-                              <p className="text-sm text-primary">{ultimaConsulta.recomendaciones}</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {ultimaConsulta.recetas && ultimaConsulta.recetas.length > 0 && (
-                          <div className="mt-4 bg-surface rounded-2xl border border-outline-variant/40 p-4">
-                            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant mb-2">Recetas Emitidas</p>
-                            <div className="space-y-2">
-                              {ultimaConsulta.recetas.map((r, i) => (
-                                <div key={i} className="flex items-start gap-2.5">
-                                  <Icon name="medication" className="text-base text-fx mt-0.5" />
-                                  <div>
-                                    <p className="text-sm font-semibold text-primary">{r.nombre}</p>
-                                    {r.posologia && <p className="text-xs text-on-surface-variant">{r.posologia}</p>}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </section>
-                    )}
-
-                    {/* Comprobante oficial */}
-                    {ultimaConsulta && (
-                      <section className="relative overflow-hidden bg-card border border-ink-line rounded-3xl p-5 md:p-6 flex flex-col">
-                        <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: temaCentro.gradient }} />
-                        <div className="flex items-center gap-3 mb-4">
-                          <img src={centroCITAB.logo} alt="Instituto de Salud" className="h-8 w-auto max-w-[168px] rounded-lg object-contain p-1 bg-white border border-ink-line" />
-                          <div>
-                            <p className="text-sm font-extrabold text-primary leading-tight">Comprobante Oficial</p>
-                            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-on-surface-variant">Consulta médica</p>
-                          </div>
-                        </div>
-
-                        <dl className="space-y-2 text-xs">
-                          {[
-                            ['Paciente', paciente.nombre_completo],
-                            ['Cédula', `${paciente.tipo_cedula || 'V'}-${paciente.cedula}`],
-                            ['Especialidad', ultimaConsulta.especialidad],
-                            ['Fecha', formatoFecha(ultimaConsulta.fecha)],
-                          ].map(([k, v]) => (
-                            <div key={k} className="flex justify-between gap-4">
-                              <dt className="text-on-surface-variant">{k}</dt>
-                              <dd className="font-semibold text-primary text-right">{v}</dd>
-                            </div>
-                          ))}
-                        </dl>
-
-                        <div className="my-4 border-t border-dashed border-ink-line-strong relative">
-                          <span className="absolute -left-2 -top-2 w-4 h-4 rounded-full bg-surface" />
-                          <span className="absolute -right-2 -top-2 w-4 h-4 rounded-full bg-surface" />
-                        </div>
-
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-on-surface-variant">Referencia</p>
-                            <p className="font-mono text-sm font-bold text-primary tracking-wider">
-                              {ultimaConsulta.comprobante_ref || 'ABH-00000'}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-white border border-ink-line rounded-lg flex items-center justify-center">
-                              <Icon name="qr_code_2" className="text-3xl text-ink" />
-                            </div>
-                            <button
-                              onClick={() => setRecetaAbierta(ultimaConsulta)}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white shadow-sm active:scale-[0.98] transition-all"
-                              style={{ background: temaCentro.gradient }}
-                            >
-                              <Icon name="download" className="text-base" /> Descargar Comprobante
-                            </button>
-                          </div>
-                        </div>
-                      </section>
-                    )}
                   </div>
                 </div>
               )}
 
               {/* ====== CITAS ====== */}
               {seccion === 'citas' && (
-                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-5 py-4 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h2 className="font-display text-2xl font-bold text-primary">Mis Citas</h2>
+                      <h2 className="font-display text-xl font-bold text-primary">Mis Citas</h2>
                       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
                         Agenda y estado de tus consultas
                       </p>
@@ -1473,18 +1404,18 @@ export default function Paciente() {
                   </div>
 
                   {cargando ? (
-                    <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">Cargando citas...</div>
+                    <div className="py-8 text-center text-on-surface-variant text-sm animate-pulse">Cargando citas...</div>
                   ) : citas.length === 0 ? (
-                    <div className="py-16 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
-                      <Icon name="event_busy" className="text-6xl opacity-40" />
+                    <div className="py-6 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
+                      <Icon name="event_busy" className="text-4xl opacity-40" />
                       <p className="text-sm font-medium">No tienes citas registradas.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {citas.map((c) => (
-                        <div key={c.id} className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div key={c.id} className="bg-surface-container-low border border-outline-variant rounded-xl p-3 md:p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                           <div className="flex items-center gap-4 sm:w-56 shrink-0">
-                            <div className="w-12 h-12 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center">
+                            <div className="w-9 h-9 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center">
                               <Icon name="event" filled className="text-xl" />
                             </div>
                             <div>
@@ -1495,6 +1426,12 @@ export default function Paciente() {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-primary">{c.especialidad}</p>
                             <p className="text-xs text-on-surface-variant truncate">{c.centro_salud}</p>
+                            {c.medico_nombre && (
+                              <p className="text-[11px] font-semibold text-secondary truncate mt-0.5">
+                                <Icon name="stethoscope" className="text-[11px] text-secondary mr-1 align-[-1px]" />
+                                {c.medico_nombre}
+                              </p>
+                            )}
                             {c.motivo && <p className="text-xs text-on-surface-variant mt-0.5 italic">"{c.motivo}"</p>}
                           </div>
                           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -1502,6 +1439,20 @@ export default function Paciente() {
                             <span className="hidden md:block font-mono text-[10px] text-on-surface-variant">
                               {c.codigo_confirmacion}
                             </span>
+                            {c.estado !== 'cancelada' && c.estado !== 'completada' && (
+                              <Button
+                                size="small"
+                                onClick={() => {
+                                  setCitaACancelar(c);
+                                  setMotivoCancelar('');
+                                  setCancelarError('');
+                                }}
+                                startIcon={<Icon name="close" className="text-sm" />}
+                                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, color: 'var(--color-error)' }}
+                              >
+                                Cancelar cita
+                              </Button>
+                            )}
                             {c.estado !== 'cancelada' && c.estado !== 'completada' && (
                               <Button
                                 size="small"
@@ -1527,29 +1478,29 @@ export default function Paciente() {
 
               {/* ====== ESTUDIOS ====== */}
               {seccion === 'estudios' && (
-                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-5 py-4 space-y-4">
                   <div>
-                    <h2 className="font-display text-2xl font-bold text-primary">Mis Estudios</h2>
+                    <h2 className="font-display text-xl font-bold text-primary">Mis Estudios</h2>
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
                       Órdenes de laboratorio, imágenes y estudios funcionales
                     </p>
                   </div>
 
                   {cargando ? (
-                    <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">Cargando estudios...</div>
+                    <div className="py-8 text-center text-on-surface-variant text-sm animate-pulse">Cargando estudios...</div>
                   ) : ordenes.length === 0 ? (
-                    <div className="py-16 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
-                      <Icon name="science" className="text-6xl opacity-40" />
+                    <div className="py-6 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
+                      <Icon name="science" className="text-4xl opacity-40" />
                       <p className="text-sm font-medium">No tienes órdenes de estudios.</p>
                       <p className="text-xs">Cuando tu médico emita una orden, aparecerá aquí.</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {ordenes.map((o) => (
-                        <div key={o.id} className="bg-surface-container-low border border-outline-variant rounded-2xl p-5">
+                        <div key={o.id} className="bg-surface-container-low border rounded-xl p-4">
                           <div className="flex flex-wrap items-center gap-3 justify-between mb-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-xl bg-doc-soft text-doc flex items-center justify-center">
+                              <div className="w-9 h-9 rounded-xl bg-doc-soft text-doc flex items-center justify-center">
                                 <Icon name="lab_profile" filled className="text-xl" />
                               </div>
                               <div>
@@ -1584,21 +1535,21 @@ export default function Paciente() {
 
               {/* ====== MIS MEDICAMENTOS ====== */}
               {seccion === 'medicamentos' && (
-                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-5 py-4 space-y-4">
                   <div>
-                    <h2 className="font-display text-2xl font-bold text-primary">Mis Medicamentos</h2>
+                    <h2 className="font-display text-xl font-bold text-primary">Mis Medicamentos</h2>
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
                       Recetas emitidas y su estado en la farmacia
                     </p>
                   </div>
 
                   {cargando ? (
-                    <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">
+                    <div className="py-8 text-center text-on-surface-variant text-sm animate-pulse">
                       Cargando recetas...
                     </div>
                   ) : recetas.length === 0 ? (
-                    <div className="py-16 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
-                      <Icon name="medication" className="text-6xl opacity-40" />
+                    <div className="py-6 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
+                      <Icon name="medication" className="text-4xl opacity-40" />
                       <p className="text-sm font-medium">No tienes recetas registradas.</p>
                       <p className="text-xs">Cuando tu médico emita una receta, aparecerá aquí con su estado.</p>
                     </div>
@@ -1608,10 +1559,10 @@ export default function Paciente() {
                         const estado = rx.estado || 'PENDIENTE';
                         const porConfirmar = estado === 'ENTREGADA';
                         return (
-                          <div key={rx.id} className="bg-surface-container-low border border-outline-variant rounded-2xl p-5">
+                          <div key={rx.id} className="bg-surface-container-low border rounded-xl p-4">
                             <div className="flex flex-wrap items-center gap-3 justify-between mb-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-fx-soft text-fx flex items-center justify-center">
+                                <div className="w-9 h-9 rounded-xl bg-fx-soft text-fx flex items-center justify-center">
                                   <Icon name="prescriptions" filled className="text-xl" />
                                 </div>
                                 <div>
@@ -1704,21 +1655,21 @@ export default function Paciente() {
 
               {/* ====== NOTIFICACIONES (Fase 5) ====== */}
               {seccion === 'notificaciones' && (
-                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-5 py-4 space-y-4">
                   <div>
-                    <h2 className="font-display text-2xl font-bold text-primary">Notificaciones</h2>
+                    <h2 className="font-display text-xl font-bold text-primary">Notificaciones</h2>
                     <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
                       Historial de correos enviados a tu correo registrado
                     </p>
                   </div>
 
                   {cargando ? (
-                    <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">
+                    <div className="py-8 text-center text-on-surface-variant text-sm animate-pulse">
                       Cargando notificaciones...
                     </div>
                   ) : notificaciones.length === 0 ? (
-                    <div className="py-16 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
-                      <Icon name="notifications_off" className="text-6xl opacity-40" />
+                    <div className="py-6 text-center text-on-surface-variant space-y-2 bg-surface-container-low rounded-3xl border border-outline-variant">
+                      <Icon name="notifications_off" className="text-4xl opacity-40" />
                       <p className="text-sm font-medium">No tienes notificaciones todavía.</p>
                       <p className="text-xs">
                         Los avisos de recetas y recordatorios de citas aparecerán aquí.
@@ -1736,7 +1687,7 @@ export default function Paciente() {
                             key={n.id}
                             className="bg-surface-container-low border border-outline-variant rounded-2xl p-4 flex items-start gap-4"
                           >
-                            <div className="w-10 h-10 rounded-xl bg-doc-soft text-doc flex items-center justify-center shrink-0">
+                            <div className="w-9 h-9 rounded-xl bg-doc-soft text-doc flex items-center justify-center shrink-0">
                               <Icon name={conf.icono} className="text-xl" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -1773,10 +1724,10 @@ export default function Paciente() {
 
               {/* ====== HISTORIAL MÉDICO ====== */}
               {seccion === 'historial' && (
-                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-5 py-4 space-y-4">
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <h2 className="font-display text-2xl font-bold text-primary">Historial Médico</h2>
+                      <h2 className="font-display text-xl font-bold text-primary">Historial Médico</h2>
                       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
                         {historial ? `${historial.total_consultas} consultas registradas · Cédula ${paciente.tipo_cedula || 'V'}-${paciente.cedula}` : 'Consultas y atenciones'}
                       </p>
@@ -1816,21 +1767,21 @@ export default function Paciente() {
                             <span className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center mb-2">
                               <Icon name={s.icono} filled className="text-base" />
                             </span>
-                            <p className="font-display text-2xl font-bold text-primary leading-none">{s.valor}</p>
+                            <p className="font-display text-xl font-bold text-primary leading-none">{s.valor}</p>
                             <p className="text-[11px] text-on-surface-variant mt-1">{s.etiqueta}</p>
                           </div>
                         ))}
                       </section>
 
                       {cargando ? (
-                        <div className="py-10 text-center text-on-surface-variant text-sm animate-pulse">
+                        <div className="py-8 text-center text-on-surface-variant text-sm animate-pulse">
                           Cargando historial...
                         </div>
                       ) : (
-                        <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
-                          <div className="flex items-center justify-between gap-3 mb-5">
+                        <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                          <div className="flex items-center justify-between gap-3 mb-3">
                             <div>
-                              <h3 className="font-display text-lg font-bold text-primary">Todas tus consultas</h3>
+                              <h3 className="text-base font-bold text-primary">Todas tus consultas</h3>
                               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
                                 De la más reciente a la más antigua · la primera es tu estado actual
                               </p>
@@ -1843,18 +1794,18 @@ export default function Paciente() {
                   ) : (
                     <>
                       {/* ===== VISTA ACTUAL: cita + tratamiento vigente + médico tratante ===== */}
-                      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+                      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                         {/* Cita médica actual */}
-                        <section className="xl:col-span-2 relative overflow-hidden rounded-3xl text-white p-6 md:p-7 shadow-lg min-h-[220px] flex flex-col justify-between" style={{ background: temaCentro.gradient }}>
+                        <section className="xl:col-span-2 relative overflow-hidden rounded-3xl text-white p-5 shadow-lg min-h-[150px] flex flex-col justify-between" style={{ background: temaCentro.gradient }}>
                           <div className="absolute inset-0 opacity-15 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(-45deg, rgba(255,255,255,0.35) 0 10px, transparent 10px 26px)' }} />
                           <div className="relative flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-                                <Icon name="event_available" filled className="text-2xl" />
+                              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                                <Icon name="event_available" filled className="text-lg" />
                               </div>
                               <div>
                                 <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/75">Cita Médica Actual</p>
-                                <p className="text-lg font-extrabold leading-tight">
+                                <p className="text-base font-extrabold leading-tight">
                                   {proximaCita ? proximaCita.especialidad : 'Sin citas programadas'}
                                 </p>
                               </div>
@@ -1865,7 +1816,7 @@ export default function Paciente() {
                           </div>
 
                           {proximaCita ? (
-                            <div className="relative grid sm:grid-cols-2 gap-4 mt-6">
+<div className="relative grid sm:grid-cols-2 gap-4 mt-4">
                               <div className="space-y-1">
                                 <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">Fecha</p>
                                 <p className="text-sm font-bold capitalize">{formatoFechaLarga(proximaCita.fecha_cita)}</p>
@@ -1890,29 +1841,29 @@ export default function Paciente() {
                               )}
                             </div>
                           ) : (
-                            <div className="relative mt-6">
+                            <div className="relative mt-4">
                               <p className="text-sm text-white/85">
                                 No tienes citas próximas. Reserva tu consulta y mantenla al día desde tu portal.
                               </p>
                               <button
                                 onClick={() => setCitaModal(centroCITAB)}
-                                className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-primary font-bold text-sm shadow hover:shadow-lg transition-shadow"
+                                className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-primary font-bold text-sm shadow hover:shadow-lg transition-shadow"
                               >
-                                <Icon name="event_available" className="text-lg" /> Agendar Cita
+                                <Icon name="event_available" className="text-base" /> Agendar Cita
                               </button>
                             </div>
                           )}
                         </section>
 
                         {/* Médico tratante */}
-                        <section className="bg-card border border-ink-line rounded-3xl p-6 flex flex-col relative overflow-hidden">
+                        <section className="bg-card border border-ink-line rounded-2xl p-4 flex flex-col relative overflow-hidden">
                           <div className="absolute inset-x-0 top-0 h-1.5" style={{ background: temaCentro.gradient }} />
-                          <div className="flex items-center gap-3 mb-5">
-                            <span className="w-10 h-10 rounded-xl bg-doc-soft text-doc flex items-center justify-center">
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="w-9 h-9 rounded-xl bg-doc-soft text-doc flex items-center justify-center">
                               <Icon name="stethoscope" filled className="text-xl" />
                             </span>
                             <div>
-                              <h3 className="font-display text-lg font-bold text-primary leading-tight">Médico Tratante</h3>
+                              <h3 className="text-base font-bold text-primary leading-tight">Médico Tratante</h3>
                               <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-on-surface-variant">
                                 El médico que registra tu evolución
                               </p>
@@ -1922,7 +1873,7 @@ export default function Paciente() {
                           {medicoTratante ? (
                             <>
                               <div className="flex items-center gap-3 pb-4 border-b border-ink-line">
-                                <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 46, height: 46, fontWeight: 800, fontSize: '0.9rem' }}>
+                                <Avatar sx={{ bgcolor: 'var(--color-secondary)', width: 40, height: 40, fontWeight: 800, fontSize: '0.82rem' }}>
                                   {iniciales(medicoTratante.nombre)}
                                 </Avatar>
                                 <div className="min-w-0">
@@ -1958,7 +1909,7 @@ export default function Paciente() {
                             </>
                           ) : (
                             <div className="py-8 text-center text-on-surface-variant space-y-2">
-                              <Icon name="stethoscope" className="text-5xl opacity-40" />
+                              <Icon name="stethoscope" className="text-4xl opacity-40" />
                               <p className="text-sm font-medium">Aún no tienes médico asignado.</p>
                               <p className="text-xs">Se asignará automáticamente en tu próxima consulta.</p>
                             </div>
@@ -1967,11 +1918,11 @@ export default function Paciente() {
 
                         {/* Tratamiento actual */}
                         {ultimaConsulta && (
-                          <section className="xl:col-span-2 bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6 relative overflow-hidden">
+                          <section className="xl:col-span-2 bg-surface-container-low border border-outline-variant rounded-2xl p-4 relative overflow-hidden">
                             <div className="absolute -top-14 -right-14 w-44 h-44 bg-fx-soft/50 rounded-full pointer-events-none" />
-                            <div className="relative flex items-start justify-between gap-3 mb-4">
+                            <div className="relative flex items-start justify-between gap-3 mb-3">
                               <div>
-                                <h3 className="font-display text-lg font-bold text-primary">Tratamiento Actual</h3>
+                                <h3 className="text-base font-bold text-primary">Tratamiento Actual</h3>
                                 <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
                                   Registrado el {formatoFechaLarga(ultimaConsulta.fecha)} · {ultimaConsulta.especialidad}
                                 </p>
@@ -2023,13 +1974,13 @@ export default function Paciente() {
                         )}
 
                         {/* Evolución de tratamientos */}
-                        <section className="bg-surface-container-low border border-outline-variant rounded-3xl p-5 md:p-6">
+                        <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-4">
                           <div className="flex items-center gap-2.5 mb-4">
                             <span className="w-9 h-9 rounded-xl bg-amber-soft text-amber flex items-center justify-center">
                               <Icon name="history_edu" filled className="text-lg" />
                             </span>
                             <div>
-                              <h3 className="font-display text-lg font-bold text-primary leading-tight">Evolución de Tratamientos</h3>
+                              <h3 className="text-base font-bold text-primary leading-tight">Evolución de Tratamientos</h3>
                               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant">
                                 Anteriores y presente
                               </p>
@@ -2038,7 +1989,7 @@ export default function Paciente() {
 
                           {evolucionTratamientos.length === 0 ? (
                             <div className="py-8 text-center text-on-surface-variant space-y-2">
-                              <Icon name="medication" className="text-5xl opacity-40" />
+                              <Icon name="medication" className="text-4xl opacity-40" />
                               <p className="text-sm font-medium">Sin tratamientos registrados.</p>
                             </div>
                           ) : (
@@ -2082,10 +2033,10 @@ export default function Paciente() {
 
               {/* ====== MI SALUD ====== */}
               {seccion === 'misalud' && (
-                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-6 py-5 space-y-5">
+                <div className="flex-1 overflow-y-auto ledger-scroll px-4 md:px-5 py-4 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h2 className="font-display text-2xl font-bold text-primary">Mi Salud</h2>
+                      <h2 className="font-display text-xl font-bold text-primary">Mi Salud</h2>
                       <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mt-1">
                         Datos que tu médico ve en cada consulta
                       </p>
@@ -2100,9 +2051,9 @@ export default function Paciente() {
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <section className="md:col-span-2 bg-surface-container-low border border-outline-variant rounded-3xl p-6">
-                      <h3 className="font-display text-lg font-bold text-primary mb-4">Información del paciente</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <section className="md:col-span-2 bg-surface-container-low border border-outline-variant rounded-2xl p-4">
+                      <h3 className="text-base font-bold text-primary mb-4">Información del paciente</h3>
                       <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
                         {[
                           ['Nombre completo', paciente.nombre_completo],
@@ -2121,8 +2072,8 @@ export default function Paciente() {
                       </dl>
                     </section>
 
-                    <section className="bg-card border border-ink-line rounded-3xl p-6">
-                      <h3 className="font-display text-lg font-bold text-primary mb-4">Datos clínicos</h3>
+                    <section className="bg-card border border-ink-line rounded-2xl p-4">
+                      <h3 className="text-base font-bold text-primary mb-4">Datos clínicos</h3>
                       <div className="space-y-4">
                         <div>
                           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-on-surface-variant mb-2">Tipo de sangre</p>
@@ -2387,6 +2338,10 @@ export default function Paciente() {
                   <p className="text-xs text-on-surface-variant font-normal">
                     {citaAPosponer.especialidad} · {citaAPosponer.centro_salud}
                   </p>
+                  <p className="text-[11px] font-semibold text-secondary mt-0.5">
+                    <Icon name="stethoscope" className="text-[11px] mr-1 align-[-1px]" />
+                    {citaAPosponer.medico_nombre || 'Asignación automática de médico'}
+                  </p>
                 </div>
               </div>
               <IconButton onClick={() => setCitaAPosponer(null)} size="small">
@@ -2397,6 +2352,13 @@ export default function Paciente() {
               {posponerError && (
                 <Alert severity="error" className="mb-2">
                   {posponerError}
+                </Alert>
+              )}
+              {citaAPosponer.medico_nombre && (
+                <Alert severity="info" variant="outlined" sx={{ fontSize: '0.8rem' }}>
+                  Solo se muestran los horarios de consulta de{' '}
+                  <strong>{citaAPosponer.medico_nombre}</strong>. Podrás posponer solo dentro de su
+                  disponibilidad.
                 </Alert>
               )}
               <div>
@@ -2483,6 +2445,72 @@ export default function Paciente() {
                 sx={{ background: temaCentro.gradient, borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
               >
                 {posponiendo ? 'Solicitando...' : 'Confirmar Posposición'}
+              </Button>
+            </DialogActions>
+          </form>
+        )}
+      </Dialog>
+
+      {/* ====== DIÁLOGO CANCELAR CITA ====== */}
+      <Dialog open={!!citaACancelar} onClose={() => setCitaACancelar(null)} maxWidth="xs" fullWidth>
+        {citaACancelar && (
+          <form onSubmit={handleCancelarCita}>
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Icon name="event_busy" className="text-error text-2xl" />
+                <div>
+                  <h3 className="text-base font-bold text-primary">Cancelar Cita</h3>
+                  <p className="text-xs text-on-surface-variant font-normal">
+                    {citaACancelar.especialidad} · {citaACancelar.centro_salud}
+                  </p>
+                </div>
+              </div>
+              <IconButton onClick={() => setCitaACancelar(null)} size="small">
+                <Icon name="close" />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent dividers className="space-y-3">
+              {cancelarError && (
+                <Alert severity="error" className="mb-2">
+                  {cancelarError}
+                </Alert>
+              )}
+              <Alert severity="warning" variant="outlined" sx={{ fontSize: '0.82rem' }}>
+                Esta acción no se puede deshacer. Se cancelará tu cita del{' '}
+                <strong>{formatoFechaLarga(citaACancelar.fecha_cita)}</strong> a las{' '}
+                <strong>{horaCorta(citaACancelar.hora_inicio)}</strong> y tu cupo se liberará.
+              </Alert>
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1">
+                  Motivo de la Cancelación (Opcional)
+                </label>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  size="small"
+                  placeholder="Ej: No podré asistir ese día"
+                  value={motivoCancelar}
+                  onChange={(e) => setMotivoCancelar(e.target.value)}
+                  sx={fieldSx}
+                />
+              </div>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, py: 2 }}>
+              <Button
+                onClick={() => setCitaACancelar(null)}
+                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, color: 'var(--color-on-surface-variant)' }}
+              >
+                Volver
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={cancelando}
+                startIcon={cancelando ? <Icon name="sync" className="text-lg animate-spin" /> : <Icon name="close" className="text-lg" />}
+                sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none', bgcolor: 'var(--color-error)', '&:hover': { bgcolor: 'var(--color-error-dark, var(--color-error))' } }}
+              >
+                {cancelando ? 'Cancelando...' : 'Sí, cancelar cita'}
               </Button>
             </DialogActions>
           </form>

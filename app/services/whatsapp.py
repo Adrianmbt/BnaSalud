@@ -16,6 +16,11 @@ import httpx
 from app.core.config import settings
 
 
+def evolution_habilitado() -> bool:
+    """True si Evolution API está configurada (URL + clave + instancia)."""
+    return bool(settings.EVOLUTION_API_KEY and settings.EVOLUTION_INSTANCE_NAME)
+
+
 def _normalizar_numero(telefono: str) -> str:
     """Normaliza un número venezolano al formato E.164 sin el '+'.
 
@@ -108,6 +113,38 @@ async def enviar_bienvenida_cita(
     return await enviar_mensaje(telefono, mensaje)
 
 
+def mensaje_recordatorio(
+    nombre: str, fecha_larga: str, hora: str, centro: str, especialidad: str
+) -> str:
+    """Texto del recordatorio de cita ~24 horas antes (Fase 5, canal WhatsApp)."""
+    return (
+        f"*Recordatorio de cita — BNA Salud*\n"
+        f"Hola {nombre},\n"
+        f"Mañana tienes tu cita médica:\n\n"
+        f"*Fecha:* {fecha_larga}\n"
+        f"*Hora:* {hora}\n"
+        f"*Especialidad:* {especialidad}\n"
+        f"*Centro:* {centro}\n\n"
+        f"Llega 15 minutos antes con tu cédula. Si no puedes asistir, "
+        f"cancela o reprograma desde *bnasalud.gob.ve/paciente*."
+    )
+
+
+async def enviar_recordatorio_whatsapp(
+    telefono: str,
+    nombre: str,
+    fecha_larga: str,
+    hora: str,
+    centro: str,
+    especialidad: str,
+) -> bool:
+    """Envía el recordatorio de cita por WhatsApp (tarea programada)."""
+    return await enviar_mensaje(
+        telefono,
+        mensaje_recordatorio(nombre, fecha_larga, hora, centro, especialidad),
+    )
+
+
 async def enviar_notificacion_postergacion(
     telefono: str,
     nombre: str,
@@ -127,5 +164,27 @@ async def enviar_notificacion_postergacion(
         f"*Nueva Hora:* {nueva_hora}\n"
         f"*Código:* {codigo_confirmacion}\n\n"
         f"Si tienes dudas, visita *bnasalud.gob.ve/paciente*."
+    )
+    return await enviar_mensaje(telefono, mensaje)
+
+
+async def enviar_notificacion_cancelacion(
+    telefono: str,
+    nombre: str,
+    centro: str,
+    especialidad: str,
+    fecha: str,
+    hora: str,
+    codigo_confirmacion: str,
+) -> bool:
+    """Notifica al paciente que su cita fue cancelada por él o por el personal."""
+    mensaje = (
+        f"*Cita Cancelada*\n"
+        f"Hola {nombre}, tu cita en *{centro}* fue cancelada.\n\n"
+        f"*Especialidad:* {especialidad}\n"
+        f"*Fecha:* {fecha}\n"
+        f"*Hora:* {hora}\n"
+        f"*Código:* {codigo_confirmacion}\n\n"
+        f"Si deseas reagendar una nueva fecha, visita *bnasalud.gob.ve/paciente*."
     )
     return await enviar_mensaje(telefono, mensaje)

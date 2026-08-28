@@ -18,8 +18,18 @@ export function marcarUltimaSesion(tipo) {
   }
 }
 
-function tokenActivo() {
+function tokenActivo(tipo) {
   try {
+    // Un módulo staff (médico/farmacia/enfermería/admin) siempre usa el token
+    // del personal, sin importar qué sesión entró en último lugar (en caso
+    // contrario, abrir el portal del paciente después rompía las llamadas
+    // staff-only porque el token del paciente las rechazaba con 403).
+    if (tipo === 'staff') {
+      return localStorage.getItem(CLAVES_SESION.staff) || '';
+    }
+    if (tipo === 'paciente') {
+      return localStorage.getItem(CLAVES_SESION.paciente) || '';
+    }
     const ultima = localStorage.getItem(CLAVE_ULTIMA_SESION);
     if (ultima === 'paciente') {
       return (
@@ -61,7 +71,7 @@ async function apiFetch(endpoint, options = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-  const token = tokenActivo();
+  const token = tokenActivo(options.tipo);
   const config = {
     method: options.method || 'GET',
     headers: {
@@ -111,45 +121,47 @@ export const API = {
     apiFetch(`/citas/medicos?centro_id=${centroId}&especialidad_id=${especialidadId}`),
   crearCita: (payload) => apiFetch('/citas', { method: 'POST', body: payload }),
 
-  /* === Módulo Farmacia === */
+  /* === Módulo Farmacia (staff) === */
   buscarReceta: (codigoOcedula) =>
-    apiFetch(`/farmacia/recetas/${encodeURIComponent(codigoOcedula)}`),
+    apiFetch(`/farmacia/recetas/${encodeURIComponent(codigoOcedula)}`, { tipo: 'staff' }),
   despacharReceta: (payload) =>
-    apiFetch('/farmacia/despachar', { method: 'POST', body: payload }),
+    apiFetch('/farmacia/despachar', { method: 'POST', body: payload, tipo: 'staff' }),
   recetasPendientes: () =>
-    apiFetch('/farmacia/recetas/pendientes'),
-  recetasPaciente: (cedula) =>
-    apiFetch(`/farmacia/recetas/paciente/${encodeURIComponent(cedula)}`),
+    apiFetch('/farmacia/recetas/pendientes', { tipo: 'staff' }),
+  recetasPaciente: (cedula, tipo) =>
+    apiFetch(`/farmacia/recetas/paciente/${encodeURIComponent(cedula)}`, tipo ? { tipo } : {}),
   entregarReceta: (recetaId, payload) =>
-    apiFetch(`/farmacia/recetas/${recetaId}/entregar`, { method: 'POST', body: payload }),
+    apiFetch(`/farmacia/recetas/${recetaId}/entregar`, { method: 'POST', body: payload, tipo: 'staff' }),
   recibirReceta: (recetaId) =>
-    apiFetch(`/farmacia/recetas/${recetaId}/recibir`, { method: 'POST' }),
+    apiFetch(`/farmacia/recetas/${recetaId}/recibir`, { method: 'POST', tipo: 'paciente' }),
   getInventario: () =>
-    apiFetch('/farmacia/inventario'),
+    apiFetch('/farmacia/inventario', { tipo: 'staff' }),
 
-  /* === Módulo Doctores === */
-  buscarPaciente: (cedula) =>
-    apiFetch(`/pacientes/${encodeURIComponent(cedula)}`),
-  actualizarPaciente: (cedula, payload) =>
-    apiFetch(`/pacientes/${encodeURIComponent(cedula)}`, { method: 'PATCH', body: payload }),
+  /* === Módulo Doctores (staff) === */
+  buscarPaciente: (cedula, tipo) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}`, tipo ? { tipo } : {}),
+  actualizarPaciente: (cedula, payload, tipo) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}`, tipo ? { method: 'PATCH', body: payload, tipo } : { method: 'PATCH', body: payload }),
   crearConsulta: (payload) =>
-    apiFetch('/consultas', { method: 'POST', body: payload }),
-  historialPaciente: (cedula) =>
-    apiFetch(`/pacientes/${encodeURIComponent(cedula)}/historial`),
-  medicoTratante: (cedula) =>
-    apiFetch(`/pacientes/${encodeURIComponent(cedula)}/medico`),
-  citasPaciente: (cedula) =>
-    apiFetch(`/citas?cedula=${encodeURIComponent(cedula)}`),
+    apiFetch('/consultas', { method: 'POST', body: payload, tipo: 'staff' }),
+  historialPaciente: (cedula, tipo) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}/historial`, tipo ? { tipo } : {}),
+  medicoTratante: (cedula, tipo) =>
+    apiFetch(`/pacientes/${encodeURIComponent(cedula)}/medico`, tipo ? { tipo } : {}),
+  citasPaciente: (cedula, tipo) =>
+    apiFetch(`/citas?cedula=${encodeURIComponent(cedula)}`, tipo ? { tipo } : {}),
   buscarCita: (codigo) =>
     apiFetch(`/citas/${encodeURIComponent(codigo)}`),
 
   // Gestión de citas — médico (staff)
   actualizarEstadoCita: (citaId, payload) =>
-    apiFetch(`/citas/${citaId}/estado`, { method: 'PATCH', body: payload }),
+    apiFetch(`/citas/${citaId}/estado`, { method: 'PATCH', body: payload, tipo: 'staff' }),
 
   // Gestión de citas — paciente
   posponerCita: (citaId, payload) =>
     apiFetch(`/citas/${citaId}/posponer`, { method: 'PATCH', body: payload }),
+  cancelarCita: (citaId, payload) =>
+    apiFetch(`/citas/${citaId}/cancelar`, { method: 'PATCH', body: payload }),
 
   /* === Notificaciones al paciente (Fase 5) === */
   notificacionesPaciente: (cedula) =>
@@ -158,47 +170,51 @@ export const API = {
     apiFetch(`/pacientes/${encodeURIComponent(cedula)}/notificar`, {
       method: 'POST',
       body: payload,
+      tipo: 'staff',
     }),
 
-  /* === Estudios médicos / OCR === */
+  /* === Estudios médicos / OCR (staff) === */
   procesarEstudio: (payload) =>
-    apiFetch('/estudios/procesar', { method: 'POST', body: payload }),
+    apiFetch('/estudios/procesar', { method: 'POST', body: payload, tipo: 'staff' }),
 
   /* === Órdenes de estudios === */
   crearOrdenEstudios: (payload) =>
-    apiFetch('/estudios/ordenes', { method: 'POST', body: payload }),
-  ordenesPaciente: (pacienteId) =>
-    apiFetch(`/estudios/ordenes/paciente/${encodeURIComponent(pacienteId)}`),
+    apiFetch('/estudios/ordenes', { method: 'POST', body: payload, tipo: 'staff' }),
+  ordenesPaciente: (pacienteId, tipo) =>
+    apiFetch(`/estudios/ordenes/paciente/${encodeURIComponent(pacienteId)}`, tipo ? { tipo } : {}),
   ordenesTodas: (estado) =>
-    apiFetch(estado ? `/estudios/ordenes?estado=${encodeURIComponent(estado)}` : '/estudios/ordenes'),
+    apiFetch(estado ? `/estudios/ordenes?estado=${encodeURIComponent(estado)}` : '/estudios/ordenes', {
+      tipo: 'staff',
+    }),
   registrarResultadosOrden: (ordenId, payload) =>
     apiFetch(`/estudios/ordenes/${encodeURIComponent(ordenId)}/resultados`, {
       method: 'POST',
       body: payload,
+      tipo: 'staff',
     }),
 
-  /* === Cola de pacientes (check-in / médico de turno) === */
+  /* === Cola de pacientes (staff) === */
   colaClinica: (clinicaId) =>
-    apiFetch(clinicaId ? `/cola?clinica_id=${clinicaId}` : '/cola'),
+    apiFetch(clinicaId ? `/cola?clinica_id=${clinicaId}` : '/cola', { tipo: 'staff' }),
   registrarTurno: (payload) =>
-    apiFetch('/cola', { method: 'POST', body: payload }),
+    apiFetch('/cola', { method: 'POST', body: payload, tipo: 'staff' }),
   asignarPaciente: (colaId) =>
-    apiFetch(`/cola/${colaId}/asignar`, { method: 'POST' }),
+    apiFetch(`/cola/${colaId}/asignar`, { method: 'POST', tipo: 'staff' }),
   finalizarPaciente: (colaId) =>
-    apiFetch(`/cola/${colaId}/finalizar`, { method: 'POST' }),
+    apiFetch(`/cola/${colaId}/finalizar`, { method: 'POST', tipo: 'staff' }),
   cancelarTurno: (colaId) =>
-    apiFetch(`/cola/${colaId}/cancelar`, { method: 'POST' }),
+    apiFetch(`/cola/${colaId}/cancelar`, { method: 'POST', tipo: 'staff' }),
 
-  /* === Panel de administración (trazabilidad) === */
+  /* === Panel de administración (staff) === */
   trazabilidadRecetas: () =>
-    apiFetch('/admin/trazabilidad'),
+    apiFetch('/admin/trazabilidad', { tipo: 'staff' }),
   resumenAdmin: () =>
-    apiFetch('/admin/resumen'),
+    apiFetch('/admin/resumen', { tipo: 'staff' }),
   bitacoraAcciones: (filtros = {}) => {
     const qs = new URLSearchParams(
       Object.entries(filtros).filter(([, v]) => v !== '' && v != null),
     ).toString();
-    return apiFetch(qs ? `/admin/bitacora?${qs}` : '/admin/bitacora');
+    return apiFetch(qs ? `/admin/bitacora?${qs}` : '/admin/bitacora', { tipo: 'staff' });
   },
 
   /* === Autenticación === */

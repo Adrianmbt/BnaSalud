@@ -101,6 +101,109 @@ def _leer_fila(cola_id: int) -> dict:
     return filas[0]
 
 
+def _sincronizar_citas_cola(clinica: Optional[int]) -> None:
+    """Ingesta idempotente de las citas del día a la cola del centro.
+
+    Las citas reservadas por el portal entran a la cola como turnos en espera
+    (token determinístico derivado del UUID de la cita), de modo que el médico
+    las vea sin necesidad de check-in manual. Una cita cancelada de hoy retira
+    su turno en espera de la cola.
+    """
+    if not clinica:
+        return
+    hoy = datetime.now().strftime("%Y-%m-%d")
+
+    def _token(cita_id: str) -> str:
+        return f"A-{(cita_id or '').replace('-', '')[:10]}"
+
+    try:
+        citas = (
+            supabase.table("citas")
+            .select(
+                "id, paciente_id, especialidad, motivo, medico_id, estado"
+            )
+            .eq("centro_id", clinica)
+            .eq("fecha_cita", hoy)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return
+    if not citas:
+        return
+
+    tokens = [_token(c["id"]) for c in citas]
+    try:
+        existentes = (
+            supabase.table("cola_pacientes")
+            .select("id, token, estado")
+            .in_("token", tokens)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return
+    por_token = {e["token"]: e for e in existentes}
+
+    ids_pacientes = [c["paciente_id"] for c in citas if c.get("paciente_id")]
+    try:
+        pacientes = (
+            supabase.table("historias_clinicas")
+            .select("id, nombre_completo, cedula, tipo_cedula")
+            .in_("id", ids_pacientes)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        pacientes = []
+    datos_pacientes = {p["id"]: p for p in pacientes}
+
+    to_insert = []
+    to_cancelar = []
+    for cita in citas:
+        token = _token(cita["id"])
+        fila_existente = por_token.get(token)
+        if cita.get("estado") == "cancelada":
+            if fila_existente and fila_existente.get("estado") == "EN_ESPERA":
+                to_cancelar.append(fila_existente["id"])
+            continue
+        if fila_existente:
+            continue
+        px = datos_pacientes.get(cita.get("paciente_id"))
+        if not px:
+            continue
+        tipo = (px.get("tipo_cedula") or "V").upper()
+        to_insert.append(
+            {
+                "token": token,
+                "paciente_id": px["id"],
+                "paciente_cedula": f"{tipo}-{px.get('cedula', '')}",
+                "paciente_nombre": px.get("nombre_completo", "Paciente"),
+                "clinica_id": clinica,
+                "especialidad": cita.get("especialidad"),
+                "motivo": cita.get("motivo"),
+                "prioridad": 3,
+                "estado": "EN_ESPERA",
+                "medico_id": cita.get("medico_id"),
+            }
+        )
+    if to_insert:
+        try:
+            supabase.table("cola_pacientes").insert(to_insert).execute()
+        except Exception:
+            pass
+    for cola_id in to_cancelar:
+        try:
+            supabase.table("cola_pacientes").update({"estado": "CANCELADO"}).eq(
+                "id", cola_id
+            ).execute()
+        except Exception:
+            pass
+
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ColaItemSchema)
 def registrar_checkin(
     payload: CheckInRequest,
@@ -184,6 +287,7 @@ def listar_cola(
 ) -> ColaListaResponse:
     """Cola de la clínica agrupada: espera (por prioridad), consulta y atendidos."""
     clinica = clinica_id or _clinica_por_defecto(usuario)
+    _sincronizar_citas_cola(clinica)
     try:
         query = supabase.table("cola_pacientes").select("*")
         if clinica:

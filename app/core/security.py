@@ -26,6 +26,27 @@ def verificar_secreto(valor: str, hash_: str | None) -> bool:
         return False
 
 
+def pin_ya_utilizado(pin: str) -> bool:
+    """True si algún paciente ya tiene asignado el PIN (4-8 dígitos)."""
+    from app.core.database import supabase
+
+    try:
+        filas = (
+            supabase.table("historias_clinicas")
+            .select("pin_hash")
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return False
+    return any(
+        verificar_secreto(pin, fila.get("pin_hash"))
+        for fila in filas
+        if fila.get("pin_hash")
+    )
+
+
 def crear_token(payload: Dict[str, Any], minutos: int | None = None) -> str:
     """Emite un JWT con expiración (default: configuración global)."""
     data = dict(payload)
