@@ -1,0 +1,11 @@
+{
+  "appId": "ve.bnasalud.citab",
+  "appName": "CITAB BnaSalud",
+  "webDir": "dist",
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DARK"
+    }
+  }
+}

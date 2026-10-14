@@ -1,11 +1,21 @@
-# Entorno
+# ============================================================
+#  BnaSalud – .gitignore raíz (cubre portal público e interno)
+# ============================================================
+
+# Entorno virtual Python
 venv/
+.venv/
+.venv*/
+
+# Variables de entorno / secretos
 .env
 .env.*
 !.env.example
 
 # Credenciales locales
 Cred_hash.txt
+CREDENCIALES.md
+interno/CREDENCIALES.md
 
 # Python
 __pycache__/
@@ -19,30 +29,43 @@ __pycache__/
 node_modules/
 dist/
 .vite/
+.expo/
 
-# Carpetas sueltas copiadas (imágenes provisionales, no referenciadas)
-Nueva carpeta/
+# Build Android (Capacitor) — no versionar assets compilados
+interno/frontend/android/
 
-# Evolution API clonado localmente para pruebas (nunca se versiona)
-evolution-api/
+# Volcados de base de datos y exportaciones locales
+dump-bnasalud-*.sql
+interno/dump-bnasalud-*.sql
+*.xlsx
+*.csv
+*.db
+*.sqlite3
+
+# Scripts y artefactos de QA local
+qa-e2e.ps1
+QA-E2E-log.json
+interno/qa-e2e.ps1
+interno/QA-E2E-log.json
+
+# Logs
+*.log
 
 # IDE
 .vscode/
 .idea/
 
-# Sistema
+# Sistema operativo
 .DS_Store
 Thumbs.db
 
-# Base de datos / logs
-*.log
-*.db
-*.sqlite3
+# Evolution API clonado localmente (no se versiona)
+evolution-api/
 
-# Configuraci�n del agente
+# Carpetas sueltas de imágenes provisionales
+Nueva carpeta/
+
+# Tooling de agentes (configuración local)
 .agents/
 skills-lock.json
 .kiro/
-
-# Expo
-.expo/
