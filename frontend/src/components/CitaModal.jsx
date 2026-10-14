@@ -250,10 +250,6 @@ export default function CitaModal({ centro, paciente, onClose }) {
         month: 'long',
       })
     : '';
-  const identRegistro = parseCedula(form.cedula);
-  const numeroHistoria = identRegistro.cedula
-    ? `HIS-${identRegistro.tipo_cedula}${identRegistro.cedula}`
-    : '';
 
   return (
     <div

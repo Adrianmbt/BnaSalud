@@ -49,6 +49,7 @@ class InsumoAplicado(BaseModel):
     tipo: Optional[str] = Field(None, json_schema_extra={"example": "inyectable"})
     cantidad: Optional[float] = Field(None, json_schema_extra={"example": 1})
     unidad: Optional[str] = Field(None, json_schema_extra={"example": "ampolla"})
+    insumo_id: Optional[str] = Field(None, description="ID del item en inventario_medicamentos (para descuento de stock)")
 
 class LaboratorioResultado(BaseModel):
     parametro: str = Field(..., json_schema_extra={"example": "Hemoglobina"})
@@ -295,6 +296,35 @@ class ConsultaDetalleResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class ConsultaHoyItemResponse(BaseModel):
+    """Fila del listado de pacientes atendidos en el día (para la datatable del médico de urgencias)."""
+    consulta_id: str
+    comprobante_ref: str = ""
+    paciente_id: str = ""
+    paciente_nombre: str = ""
+    paciente_cedula: str = ""
+    especialidad: str = ""
+    medico_nombre: str = ""
+    cie10_codigo: str = ""
+    cie10_descripcion: str = ""
+    motivo_consulta: str = ""
+    examen_fisico: Optional[str] = None
+    tratamiento: str = ""
+    recomendaciones: Optional[str] = None
+    creado_en: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class ConsultaUpdateRequest(BaseModel):
+    """Actualización de los campos clínicos de una consulta existente."""
+    motivo_consulta: Optional[str] = None
+    examen_fisico: Optional[str] = None
+    cie10_codigo: Optional[str] = None
+    cie10_descripcion: Optional[str] = None
+    tratamiento: Optional[str] = None
+    recomendaciones: Optional[str] = None
 
 class ProgresoPacienteResponse(BaseModel):
     paciente: HistoriaClinicaResponse

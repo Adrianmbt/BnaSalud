@@ -188,8 +188,6 @@ export default function Paciente() {
   const [flujoAcceso, setFlujoAcceso] = useState('login'); // login | recuperar | reset
   const [recuperarForm, setRecuperarForm] = useState({ cedula: '', email: '', codigo: '', pinNuevo: '' });
   const [recuperando, setRecuperando] = useState(false);
-  const [codigoDemo, setCodigoDemo] = useState('');
-  const [modoDemo, setModoDemo] = useState(false);
   const [paciente, setPaciente] = useState(null);
   const [historial, setHistorial] = useState(null);
   const [citas, setCitas] = useState([]);
@@ -787,11 +785,6 @@ export default function Paciente() {
 
           {paciente && (
             <>
-              {modoDemo && (
-                <span className="font-mono text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-amber/10 text-amber border border-amber/30 hidden sm:inline">
-                  Demo
-                </span>
-              )}
               <IconButton
                 aria-label="Notificaciones"
                 aria-haspopup="true"

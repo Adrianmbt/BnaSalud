@@ -116,7 +116,7 @@ export default function Specialties() {
 
             {/* Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-              {servicios.map((serv, i) => (
+              {servicios.map((serv) => (
                 <div
                   key={`${centroActual.id}-${serv}`}
                   className="group bg-white rounded-xl p-3 border border-outline-variant/15 hover:shadow-md transition-all duration-200"

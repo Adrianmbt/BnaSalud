@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.v1.deps import exigir_staff
 from app.api.v1.errors import db_fail, fail, not_found
@@ -12,7 +12,10 @@ from app.core.database import supabase
 from app.schemas.schemas import (
     ConsultaCargarRequest,
     ConsultaDetalleResponse,
+    ConsultaHoyItemResponse,
+    ConsultaUpdateRequest,
     InsumoAplicado,
+    InventarioItemSchema,
 )
 
 router = APIRouter(tags=["Consultas"])
@@ -150,6 +153,92 @@ def _crear_receta_farmacia(
     return codigo
 
 
+def _validar_insumos(insumos: List[InsumoAplicado]):
+    """Resuelve cada insumo aplicado contra el inventario y valida el stock.
+
+    Devuelve una lista de pares (insumo, fila_inventario) listas para descontar.
+    """
+    aplicables = [i for i in insumos if i.nombre and i.cantidad and i.cantidad > 0]
+    if not aplicables:
+        return []
+
+    try:
+        todo = (
+            supabase.table("inventario_medicamentos")
+            .select("id, nombre, stock_actual, unidad")
+            .eq("activo", True)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("consultar el inventario de insumos")
+    por_id = {str(m["id"]): m for m in todo}
+    por_nombre = {m.get("nombre", "").strip().lower(): m for m in todo}
+
+    resueltos = []
+    for insumo in aplicables:
+        m = None
+        if insumo.insumo_id:
+            m = por_id.get(str(insumo.insumo_id))
+        m = m or por_nombre.get(insumo.nombre.strip().lower())
+        if not m:
+            fail(f"El insumo o medicamento '{insumo.nombre}' no existe en el inventario.")
+        disponible = m.get("stock_actual") or 0
+        if disponible < insumo.cantidad:
+            fail(
+                f"Stock insuficiente de {m.get('nombre', insumo.nombre)}: disponible {disponible}.",
+                status.HTTP_409_CONFLICT,
+            )
+        resueltos.append((insumo, m))
+    return resueltos
+
+
+def _descontar_insumos(resueltos) -> None:
+    """Descuenta del inventario los insumos/medicamentos ya validados."""
+    if not resueltos:
+        return
+    try:
+        for insumo, m in resueltos:
+            nuevo = (m.get("stock_actual") or 0) - insumo.cantidad
+            supabase.table("inventario_medicamentos").update(
+                {"stock_actual": nuevo}
+            ).eq("id", m["id"]).execute()
+    except Exception:
+        db_fail("descontar los insumos aplicados")
+
+
+@router.get("/inventario", response_model=List[InventarioItemSchema])
+def catalogo_inventario(
+    q: str = Query(default="", description="Filtra por nombre del medicamento/insumo"),
+    _: dict = Depends(exigir_staff),
+) -> List[InventarioItemSchema]:
+    """Catálogo del inventario para que el médico de urgencias seleccione
+    tratamientos (medicamentos/insumos) y verifique el stock disponible."""
+    try:
+        query = supabase.table("inventario_medicamentos").select("*").eq("activo", True)
+        if q:
+            query = query.ilike("nombre", f"%{q}%")
+        filas = query.order("nombre").execute().data or []
+    except Exception:
+        db_fail("consultar el inventario")
+
+    return [
+        InventarioItemSchema(
+            id=m["id"],
+            nombre=m.get("nombre", ""),
+            presentacion=m.get("presentacion"),
+            concentracion=m.get("concentracion"),
+            stock_actual=m.get("stock_actual") or 0,
+            stock_minimo=m.get("stock_minimo"),
+            unidad=m.get("unidad", "unidad"),
+            categoria=m.get("categoria"),
+            vencimiento=m.get("vencimiento"),
+        )
+        for m in filas
+    ]
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def crear_consulta(
@@ -234,12 +323,14 @@ def crear_consulta(
         "ordenes_ids": payload.ordenes_ids,
         "comprobante_ref": payload.comprobante_ref or _generar_comprobante(),
     }
+    insumos_validados = _validar_insumos(payload.insumos)
     try:
         creado = supabase.table("consultas").insert(registro).execute()
     except Exception:
         db_fail("registrar la consulta")
 
     fila = creado.data[0]
+    _descontar_insumos(insumos_validados)
     if payload.cita_id:
         try:
             supabase.table("citas").update({"estado": "completada"}).eq(
@@ -254,6 +345,121 @@ def crear_consulta(
         "comprobante_ref": fila["comprobante_ref"],
         "receta_codigo": codigo_receta,
     }
+
+
+@router.get("/hoy", response_model=List[ConsultaHoyItemResponse])
+def consultas_hoy(
+    _: dict = Depends(exigir_staff),
+) -> List[ConsultaHoyItemResponse]:
+    """Lista los pacientes atendidos hoy (consultas registradas en la fecha actual)."""
+    hoy_inicio = datetime.now().strftime("%Y-%m-%dT00:00:00")
+    try:
+        filas = (
+            supabase.table("consultas")
+            .select("*")
+            .gte("created_at", hoy_inicio)
+            .order("created_at", desc=True)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("listar los pacientes atendidos hoy")
+
+    paciente_ids = list({c.get("paciente_id") for c in filas if c.get("paciente_id")})
+    nombres = {}
+    if paciente_ids:
+        try:
+            pac = (
+                supabase.table("historias_clinicas")
+                .select("id, nombre_completo, cedula, tipo_cedula")
+                .in_("id", paciente_ids)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:
+            pac = []
+        tipo = {p.get("id"): (p.get("tipo_cedula") or "V").upper() for p in pac}
+        for p in pac:
+            nombres[p["id"]] = {
+                "nombre": p.get("nombre_completo", ""),
+                "cedula": f"{tipo[p['id']]}-{p.get('cedula', '')}" if p.get("cedula") else "",
+            }
+
+    medico_ids = [c.get("medico_id") for c in filas if c.get("medico_id")]
+    med_nombres = _nombres_personal(medico_ids)
+
+    resultado: List[ConsultaHoyItemResponse] = []
+    for c in filas:
+        info = nombres.get(c.get("paciente_id"), {"nombre": "", "cedula": ""})
+        resultado.append(
+            ConsultaHoyItemResponse(
+                consulta_id=c["id"],
+                comprobante_ref=c.get("comprobante_ref", ""),
+                paciente_id=c.get("paciente_id", ""),
+                paciente_nombre=info["nombre"],
+                paciente_cedula=info["cedula"],
+                especialidad=c.get("especialidad", ""),
+                medico_nombre=c.get("medico_nombre") or med_nombres.get(c.get("medico_id"), ""),
+                cie10_codigo=c.get("cie10_codigo", ""),
+                cie10_descripcion=c.get("cie10_descripcion", ""),
+                motivo_consulta=c.get("motivo_consulta", ""),
+                examen_fisico=c.get("examen_fisico"),
+                tratamiento=c.get("tratamiento", ""),
+                recomendaciones=c.get("recomendaciones"),
+                creado_en=c.get("created_at"),
+            )
+        )
+    return resultado
+
+
+def _obtener_consulta(consulta_id: str) -> dict:
+    try:
+        filas = (
+            supabase.table("consultas")
+            .select("*")
+            .eq("id", consulta_id)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("consultar el registro de la consulta")
+    if not filas:
+        not_found("Consulta")
+    return filas[0]
+
+
+@router.patch("/{consulta_id}")
+def actualizar_consulta(
+    consulta_id: str,
+    payload: ConsultaUpdateRequest,
+    _: dict = Depends(exigir_staff),
+) -> dict:
+    """Actualiza los campos clínicos editables de una consulta existente."""
+    _obtener_consulta(consulta_id)
+    cambios = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not cambios:
+        return {"id": consulta_id, "actualizado": False}
+    try:
+        supabase.table("consultas").update(cambios).eq("id", consulta_id).execute()
+    except Exception:
+        db_fail("actualizar la consulta")
+    return {"id": consulta_id, "actualizado": True}
+
+
+@router.delete("/{consulta_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_consulta(
+    consulta_id: str,
+    _: dict = Depends(exigir_staff),
+) -> None:
+    """Elimina una consulta del día."""
+    _obtener_consulta(consulta_id)
+    try:
+        supabase.table("consultas").delete().eq("id", consulta_id).execute()
+    except Exception:
+        db_fail("eliminar la consulta")
 
 
 @router.get("/{paciente_id}", response_model=List[ConsultaDetalleResponse])

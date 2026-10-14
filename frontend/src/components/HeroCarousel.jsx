@@ -13,10 +13,8 @@ const INTERVALO = 3200;
 
 export default function HeroCarousel() {
   const [activa, setActiva] = useState(0);
-  const [dir, setDir] = useState(1);
 
   const avanzar = useCallback(() => {
-    setDir(1);
     setActiva((p) => (p + 1) % CENTROS.length);
   }, []);
 
@@ -26,7 +24,6 @@ export default function HeroCarousel() {
   }, [avanzar]);
 
   const ir = (i) => {
-    setDir(i > activa ? 1 : -1);
     setActiva(i);
   };
 

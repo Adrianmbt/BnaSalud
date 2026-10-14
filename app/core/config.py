@@ -7,9 +7,12 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Sistema de Salud Barcelona - API Backend"
     API_V1_STR: str = "/api/v1"
     
-    # Credenciales Supabase
-    SUPABASE_URL: str
-    SUPABASE_KEY: str
+    # Base de datos PostgreSQL local
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:19674244@localhost:5432/bnasalud"
+
+    # Credenciales Supabase (opcionales / legacy)
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
     
     # Google Gemini / GCP
     GOOGLE_API_KEY: str = ""
