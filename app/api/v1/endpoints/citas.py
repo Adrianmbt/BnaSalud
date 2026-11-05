@@ -8,9 +8,9 @@ from app.api.v1.deps import exigir_paciente_o_staff, exigir_staff, exigir_pacien
 from app.api.v1.errors import db_fail, fail, not_found
 from app.core.bitacora import registrar_accion
 from app.core.database import supabase
-from app.core.mail import enviar_welcome
-from app.core.security import hash_secreto, pin_ya_utilizado
+from app.core.mail import enviar_bienvenida
 from app.schemas.schemas import (
+    CitaAsignar,
     CitaCancelar,
     CitaConPacienteCreate,
     CitaCreate,
@@ -18,15 +18,10 @@ from app.schemas.schemas import (
     CitaEstadoUpdate,
     CitaPosponer,
     CitaResponse,
+    CitaSolicitudRequest,
     EstadoCita,
     HistoriaClinicaBase,
 )
-from app.services.whatsapp import (
-    enviar_bienvenida_cita,
-    enviar_notificacion_cancelacion,
-    enviar_notificacion_postergacion,
-)
-
 router = APIRouter(tags=["Citas Médicas"])
 
 # Fase piloto: reservas en línea solo para el CITAB.
@@ -54,11 +49,16 @@ def _get_db():
 
 
 def _generar_slots(centro_id: int, fecha: date, especialidad_id: Optional[int]) -> List[str]:
-    """Slots libres de 30 min para un centro/fecha, excluyendo los ya reservados."""
+    """Slots libres de 30 min para un centro/fecha, excluyendo los ya reservados.
+
+    Las solicitudes del portal (estado 'pendiente') todavía no tienen fecha ni
+    hora confirmadas, así que no bloquean cupos. Las citas antiguas que se
+    crearon con una fecha provisional tampoco deben reservar el slot.
+    """
     try:
         res = (
             supabase.table("citas")
-            .select("hora_inicio")
+            .select("hora_inicio, estado")
             .eq("centro_id", centro_id)
             .eq("fecha_cita", fecha.isoformat())
             .not_.eq("estado", "cancelada")
@@ -66,7 +66,11 @@ def _generar_slots(centro_id: int, fecha: date, especialidad_id: Optional[int]) 
         )
     except Exception:
         db_fail("consultar la disponibilidad")
-    ocupados = {str(r["hora_inicio"])[:5] for r in (res.data or [])}
+    ocupados = {
+        str(r["hora_inicio"])[:5]
+        for r in (res.data or [])
+        if r.get("hora_inicio") and r.get("estado") != "pendiente"
+    }
 
     apertura, cierre = HORARIOS_CENTRO.get(centro_id, ("08:00", "16:00"))
     inicio = datetime.strptime(apertura, "%H:%M")
@@ -80,19 +84,11 @@ def _generar_slots(centro_id: int, fecha: date, especialidad_id: Optional[int]) 
     return slots
 
 
-def _generar_pin_unico() -> str:
-    """Genera un PIN de 4 dígitos no asignado aún a ningún paciente."""
-    while True:
-        pin = f"{secrets.randbelow(9000) + 1000:04d}"
-        if not pin_ya_utilizado(pin):
-            return pin
-
-
-def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str], bool]:
+def _upsert_paciente(paciente: HistoriaClinicaBase) -> str:
     """Busca o crea un paciente en historias_clinicas por cédula.
 
-    Devuelve (paciente_id, pin_inicial, pin_enviado_por_correo): el PIN se
-    genera solo al registrar un paciente nuevo (primer acceso del portal).
+    No crea credenciales: el paciente define su contraseña en el portal con
+    «¿Olvidaste tu contraseña?» usando su cédula y su correo. Devuelve el id.
     """
     cedula = paciente.cedula.strip()
     if not cedula.isdigit():
@@ -100,7 +96,7 @@ def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str],
     try:
         existe = (
             supabase.table("historias_clinicas")
-            .select("id, cedula, numero_historia, pin_hash")
+            .select("id, cedula, numero_historia")
             .eq("cedula", cedula)
             .execute()
             .data
@@ -116,11 +112,6 @@ def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str],
             for k, v in datos.items()
             if v is not None and k not in {"cedula", "tipo_cedula"}
         }
-        pin_inicial = None
-        if not fila.get("pin_hash"):
-            pin_inicial = _generar_pin_unico()
-            actualizables["pin_hash"] = hash_secreto(pin_inicial)
-
         if actualizables:
             try:
                 supabase.table("historias_clinicas").update(actualizables).eq(
@@ -128,28 +119,23 @@ def _upsert_paciente(paciente: HistoriaClinicaBase) -> tuple[str, Optional[str],
                 ).execute()
             except Exception:
                 db_fail("actualizar los datos del paciente")
-        return fila["id"], pin_inicial, False
+        return fila["id"]
 
     registro = dict(datos)
     registro["numero_historia"] = f"HIS-{paciente.tipo_cedula.value}{cedula}"
-    # Generación de PIN Secreto de 4 dígitos para acceso del paciente al portal
-    pin_inicial = _generar_pin_unico()
-    registro["pin_hash"] = hash_secreto(pin_inicial)
     try:
         creado = supabase.table("historias_clinicas").insert(registro).execute()
     except Exception:
         db_fail("registrar al paciente")
 
-    enviado = False
     email = (registro.get("email") or "").strip()
     if email:
-        enviado = enviar_welcome(
+        enviar_bienvenida(
             registro.get("nombre_completo") or f"Paciente {cedula}",
             cedula,
-            pin_inicial,
             email,
         )
-    return creado.data[0]["id"], pin_inicial, enviado
+    return creado.data[0]["id"]
 
 
 def _generar_codigo(centro_id: int) -> str:
@@ -234,11 +220,9 @@ async def crear_cita(
         )
 
     if isinstance(payload, CitaConPacienteCreate):
-        paciente_id, pin_inicial, pin_enviado_correo = _upsert_paciente(payload.paciente)
+        paciente_id = _upsert_paciente(payload.paciente)
     else:
         paciente_id = payload.paciente_id
-        pin_inicial = None
-        pin_enviado_correo = False
         try:
             existe_paciente = (
                 supabase.table("historias_clinicas")
@@ -274,23 +258,6 @@ async def crear_cita(
 
     fila = creado.data[0]
 
-    # Enviar WhatsApp de bienvenida si es paciente nuevo
-    pin_enviado_whatsapp = False
-    if pin_inicial and isinstance(payload, CitaConPacienteCreate):
-        telefono = (payload.paciente.telefono or "").strip()
-        if telefono:
-            pin_enviado_whatsapp = await enviar_bienvenida_cita(
-                telefono=telefono,
-                nombre=payload.paciente.nombre_completo,
-                cedula=payload.paciente.cedula,
-                pin=pin_inicial,
-                centro=centro[0]["nombre"],
-                especialidad=esp[0]["nombre"],
-                fecha=payload.fecha_cita.strftime("%d/%m/%Y"),
-                hora=payload.hora_inicio.strftime("%H:%M"),
-                codigo_confirmacion=fila["codigo_confirmacion"],
-            )
-
     return CitaResponse(
         id=fila["id"],
         codigo_confirmacion=fila["codigo_confirmacion"],
@@ -304,9 +271,6 @@ async def crear_cita(
         origen=fila.get("origen", "cita_web"),
         estado=fila.get("estado", "pendiente"),
         created_at=fila.get("created_at", datetime.now()),
-        pin_inicial=pin_inicial,
-        pin_enviado_correo=pin_enviado_correo,
-        pin_enviado_whatsapp=pin_enviado_whatsapp,
     )
 
 
@@ -537,6 +501,300 @@ def _anotar_medico(fila: dict) -> None:
     fila["medico_nombre"] = _nombres_medicos([mid]).get(mid, "") if mid else ""
 
 
+def _nombres_pacientes(paciente_ids) -> dict:
+    """Resuelve {paciente_id: nombre_completo} para los IDs dados."""
+    ids = [p for p in (paciente_ids or []) if p]
+    if not ids:
+        return {}
+    try:
+        filas = (
+            supabase.table("historias_clinicas")
+            .select("id, nombre_completo")
+            .in_("id", ids)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return {}
+    return {p["id"]: p.get("nombre_completo", "") for p in filas}
+
+
+def _datos_paciente(paciente_id: str) -> dict:
+    """Ficha mínima del paciente (nombre y teléfono) para notificaciones."""
+    try:
+        filas = (
+            supabase.table("historias_clinicas")
+            .select("id, cedula, nombre_completo, telefono")
+            .eq("id", paciente_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return {}
+    return filas[0] if filas else {}
+
+
+@router.post(
+    "/solicitar",
+    response_model=CitaDetalleResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def solicitar_cita(
+    payload: CitaSolicitudRequest,
+    usuario: dict = Depends(exigir_paciente),
+) -> CitaDetalleResponse:
+    """Solicitud de cita del paciente (centro + especialidad).
+
+    No reserva un horario ni elige fecha: crea la cita en estado 'pendiente'
+    para que la recepción del centro asigne médico, fecha y hora según la
+    disponibilidad real y los turnos de ese centro.
+    """
+    paciente_id = usuario.get("paciente_id")
+    if not paciente_id:
+        fail(
+            "Su sesión no tiene un paciente asociado. Vuelva a iniciar sesión.",
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    try:
+        centro = (
+            supabase.table("clinicas")
+            .select("id, nombre, activo")
+            .eq("id", payload.centro_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("validar el centro de salud")
+    if not centro:
+        not_found("Centro de salud")
+    if not centro[0].get("activo", True):
+        fail("Este centro de salud aún no está operativo.", status.HTTP_409_CONFLICT)
+
+    try:
+        esp = (
+            supabase.table("especialidades")
+            .select("id, nombre")
+            .eq("id", payload.especialidad_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("validar la especialidad")
+    if not esp:
+        not_found("Especialidad")
+
+    # Evita solicitudes duplicadas mientras la anterior siga sin atender.
+    try:
+        pendientes = (
+            supabase.table("citas")
+            .select("id")
+            .eq("paciente_id", paciente_id)
+            .eq("centro_id", payload.centro_id)
+            .eq("especialidad_id", payload.especialidad_id)
+            .eq("estado", "pendiente")
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("verificar sus solicitudes pendientes")
+    if pendientes:
+        fail(
+            "Ya tiene una solicitud pendiente para esta especialidad en este "
+            "centro. Espere la confirmación de recepción.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    cita = {
+        "paciente_id": paciente_id,
+        "centro_id": payload.centro_id,
+        "centro_salud": centro[0]["nombre"],
+        "especialidad_id": payload.especialidad_id,
+        "especialidad": esp[0]["nombre"],
+        # Sin fecha ni hora: la recepción las asigna al confirmar la solicitud.
+        "fecha_cita": None,
+        "hora_inicio": None,
+        "motivo": payload.motivo,
+        "origen": "cita_web",
+        "estado": "pendiente",
+        "codigo_confirmacion": _generar_codigo(payload.centro_id),
+    }
+    try:
+        creado = supabase.table("citas").insert(cita).execute()
+        fila = creado.data[0]
+    except Exception:
+        db_fail("registrar la solicitud de cita")
+
+    registrar_accion(
+        {"rol": "paciente", "username": usuario.get("cedula", ""), "personal_id": None},
+        "solicitar_cita",
+        "citas",
+        fila["id"],
+        detalle=(
+            f"{centro[0]['nombre']} — {esp[0]['nombre']} — "
+            "fecha y hora por asignar en recepción"
+        ),
+    )
+
+    fila["paciente_nombre"] = _datos_paciente(paciente_id).get("nombre_completo", "")
+    return _a_cita_detalle(fila)
+
+
+@router.get("/mis-citas", response_model=List[CitaDetalleResponse])
+def listar_mis_citas(
+    usuario: dict = Depends(exigir_paciente),
+) -> List[CitaDetalleResponse]:
+    """Citas del paciente autenticado (sin necesidad de enviar la cédula)."""
+    cedula = (usuario.get("cedula") or "").strip()
+    if not cedula:
+        fail("Su sesión no tiene una cédula asociada. Vuelva a iniciar sesión.", 401)
+    return listar_citas_por_cedula(cedula=cedula, _=usuario)
+
+
+@router.get("/solicitudes", response_model=List[CitaDetalleResponse])
+def listar_solicitudes(
+    centro_id: Optional[int] = Query(None, description="Filtrar por centro de salud"),
+    _: dict = Depends(exigir_staff),
+) -> List[CitaDetalleResponse]:
+    """Solicitudes de cita pendientes, para gestión del personal de recepción."""
+    try:
+        consulta = supabase.table("citas").select("*").eq("estado", "pendiente")
+        if centro_id:
+            consulta = consulta.eq("centro_id", centro_id)
+        filas = consulta.order("created_at", desc=True).limit(100).execute().data or []
+    except Exception:
+        db_fail("listar las solicitudes de cita")
+
+    nombres_pacientes = _nombres_pacientes([f.get("paciente_id") for f in filas])
+    nombres_medicos = _nombres_medicos([f.get("medico_id") for f in filas])
+    for f in filas:
+        f["paciente_nombre"] = nombres_pacientes.get(f.get("paciente_id"), "")
+        f["medico_nombre"] = nombres_medicos.get(f.get("medico_id"), "")
+    return [_a_cita_detalle(f) for f in filas]
+
+
+@router.patch("/{cita_id}/asignar", response_model=CitaDetalleResponse)
+async def asignar_cita(
+    cita_id: str,
+    payload: CitaAsignar,
+    usuario: dict = Depends(exigir_staff),
+) -> CitaDetalleResponse:
+    """Confirma una solicitud asignando médico, fecha y hora.
+
+    La usa el personal de recepción. Actualiza la cita a 'confirmada'.
+    """
+    try:
+        fila = (
+            supabase.table("citas")
+            .select("*")
+            .eq("id", cita_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception:
+        db_fail("buscar la cita")
+    if not fila:
+        not_found("Cita")
+    cita_actual = fila[0]
+
+    if cita_actual.get("estado") in {"cancelada", "finalizada"}:
+        fail(
+            "No se puede asignar una cita cancelada o finalizada.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    if payload.fecha_cita < date.today():
+        fail("La fecha de la cita no puede estar en el pasado.")
+
+    try:
+        medico = (
+            supabase.table("personal")
+            .select("id, nombre, apellido, especialidad, clinica_id, cargo, estado")
+            .eq("id", payload.medico_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("validar el médico asignado")
+    if not medico:
+        not_found("Médico")
+    medico = medico[0]
+    if str(medico.get("estado", "")).upper() != "ACTIVO":
+        fail("El médico seleccionado no está activo.", status.HTTP_409_CONFLICT)
+    if medico.get("clinica_id") and cita_actual.get("centro_id") and (
+        medico["clinica_id"] != cita_actual["centro_id"]
+    ):
+        fail(
+            "El médico no pertenece al centro de salud de la cita.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    hora_str = payload.hora_inicio.strftime("%H:%M:%S")
+    try:
+        ocupada = (
+            supabase.table("citas")
+            .select("id")
+            .eq("centro_id", cita_actual["centro_id"])
+            .eq("fecha_cita", payload.fecha_cita.isoformat())
+            .eq("hora_inicio", hora_str)
+            .neq("id", cita_id)
+            .not_.eq("estado", "cancelada")
+            .execute()
+            .data
+        )
+    except Exception:
+        db_fail("verificar la disponibilidad del horario")
+    if ocupada:
+        fail(
+            "Ese horario ya está reservado por otra cita. Seleccione otro.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    actualizacion = {
+        "medico_id": payload.medico_id,
+        "fecha_cita": payload.fecha_cita.isoformat(),
+        "hora_inicio": hora_str,
+        "estado": "confirmada",
+    }
+    if payload.notas:
+        actualizacion["observaciones_medico"] = payload.notas
+
+    try:
+        supabase.table("citas").update(actualizacion).eq("id", cita_id).execute()
+    except Exception:
+        db_fail("asignar la cita")
+
+    registrar_accion(
+        usuario,
+        "asignar_cita",
+        "citas",
+        cita_id,
+        detalle=(
+            f"Médico {payload.medico_id} — "
+            f"{payload.fecha_cita.isoformat()} {hora_str[:5]}"
+        ),
+    )
+
+    paciente = _datos_paciente(cita_actual.get("paciente_id"))
+
+    cita_actual.update(actualizacion)
+    cita_actual["paciente_nombre"] = paciente.get("nombre_completo", "")
+    _anotar_medico(cita_actual)
+    return _a_cita_detalle(cita_actual)
+
+
 @router.get("/{codigo}", response_model=CitaDetalleResponse)
 def buscar_cita(codigo: str) -> CitaDetalleResponse:
     """Busca una cita por su código de confirmación."""
@@ -694,7 +952,6 @@ async def posponer_cita(
 
     Solo puede posponer citas en estado 'pendiente' o 'confirmada'.
     Valida que el nuevo horario esté libre antes de actualizar.
-    Envía notificación WhatsApp asíncrona con el nuevo horario.
     """
     # Verificar que la cita existe y pertenece al paciente autenticado
     try:
@@ -809,19 +1066,7 @@ async def posponer_cita(
         ),
     )
 
-    # Notificar al paciente por WhatsApp (sin bloquear la respuesta)
     relacion = cita_actual.get("historias_clinicas") or {}
-    telefono = (relacion.get("telefono") or "").strip()
-    if telefono:
-        await enviar_notificacion_postergacion(
-            telefono=telefono,
-            nombre=relacion.get("nombre_completo", "Paciente"),
-            centro=cita_actual.get("centro_salud", ""),
-            especialidad=cita_actual.get("especialidad", ""),
-            nueva_fecha=payload.nueva_fecha.strftime("%d/%m/%Y"),
-            nueva_hora=payload.nueva_hora.strftime("%H:%M"),
-            codigo_confirmacion=cita_actual.get("codigo_confirmacion", ""),
-        )
 
     # Devolver la cita actualizada
     cita_actual.pop("historias_clinicas", None)
@@ -894,19 +1139,7 @@ async def cancelar_cita(
         detalle=f"Motivo: {payload.motivo or 'No especificado'}",
     )
 
-    # Notificar al paciente por WhatsApp (sin bloquear la respuesta)
     relacion = cita_actual.get("historias_clinicas") or {}
-    telefono = (relacion.get("telefono") or "").strip()
-    if telefono:
-        await enviar_notificacion_cancelacion(
-            telefono=telefono,
-            nombre=relacion.get("nombre_completo", "Paciente"),
-            centro=cita_actual.get("centro_salud", ""),
-            especialidad=cita_actual.get("especialidad", ""),
-            fecha=str(cita_actual.get("fecha_cita", ""))[:10],
-            hora=str(cita_actual.get("hora_inicio", ""))[:5],
-            codigo_confirmacion=cita_actual.get("codigo_confirmacion", ""),
-        )
 
     # Devolver la cita actualizada
     cita_actual.pop("historias_clinicas", None)

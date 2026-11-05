@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import Avatar from '@mui/material/Avatar';
 import Badge from '@mui/material/Badge';
 import IconButton from '@mui/material/IconButton';
@@ -18,7 +19,6 @@ import Icon from '../components/Icon';
 import HistorialLinea from '../components/HistorialLinea';
 import { API, parseCedula, cerrarSesion, marcarUltimaSesion } from '../api';
 import { getCentroTheme } from '../centroTheme';
-import CitaModal from '../components/CitaModal';
 
 const SECCIONES = [
   { id: 'dashboard', etiqueta: 'Dashboard', detalle: 'Resumen de salud', icono: 'grid_view' },
@@ -181,13 +181,28 @@ function EtiquetaEstado({ estado, mapa }) {
 
 export default function Paciente() {
   const [cedulaEntrada, setCedulaEntrada] = useState('');
-  const [pinEntrada, setPinEntrada] = useState('');
+  const [passwordEntrada, setPasswordEntrada] = useState('');
   const [entrando, setEntrando] = useState(false);
   const [errorEntrada, setErrorEntrada] = useState('');
   const [infoEntrada, setInfoEntrada] = useState('');
-  const [flujoAcceso, setFlujoAcceso] = useState('login'); // login | recuperar | reset
-  const [recuperarForm, setRecuperarForm] = useState({ cedula: '', email: '', codigo: '', pinNuevo: '' });
+  const [flujoAcceso, setFlujoAcceso] = useState('login'); // login | registro | recuperar | reset
+  const [recuperarForm, setRecuperarForm] = useState({ cedula: '', email: '', codigo: '', password: '' });
   const [recuperando, setRecuperando] = useState(false);
+  const [registroForm, setRegistroForm] = useState({
+    tipo_cedula: 'V',
+    cedula: '',
+    nombre_completo: '',
+    fecha_nacimiento: '',
+    telefono: '',
+    email: '',
+    tipo_sangre: '',
+    alergias: '',
+    password: '',
+    consentimiento: false,
+  });
+  const [registrando, setRegistrando] = useState(false);
+  const [buscandoEmpleado, setBuscandoEmpleado] = useState(false);
+  const [autollenadoInfo, setAutollenadoInfo] = useState('');
   const [paciente, setPaciente] = useState(null);
   const [historial, setHistorial] = useState(null);
   const [citas, setCitas] = useState([]);
@@ -202,7 +217,17 @@ export default function Paciente() {
   const [seccion, setSeccion] = useState('dashboard');
   const [historialVista, setHistorialVista] = useState('general');
   const [navAbierta, setNavAbierta] = useState(false);
-  const [citaModal, setCitaModal] = useState(null);
+  const [solicitudAbierta, setSolicitudAbierta] = useState(false);
+  const [solicitudForm, setSolicitudForm] = useState({
+    centro_id: '',
+    especialidad_id: '',
+    motivo: '',
+  });
+  const [centrosSolicitud, setCentrosSolicitud] = useState([]);
+  const [especialidadesSolicitud, setEspecialidadesSolicitud] = useState([]);
+  const [cargandoEspecialidades, setCargandoEspecialidades] = useState(false);
+  const [enviandoSolicitud, setEnviandoSolicitud] = useState(false);
+  const [solicitudError, setSolicitudError] = useState('');
   const [aviso, setAviso] = useState('');
   const [recetaAbierta, setRecetaAbierta] = useState(null);
   const [anchorNotif, setAnchorNotif] = useState(null);
@@ -287,7 +312,7 @@ export default function Paciente() {
       setNuevaHoraPosponer('');
       setMotivoPosponer('');
       setSlotsPosponer([]);
-      setAviso('Cita reprogramada exitosamente. Se envió la notificación de confirmación por WhatsApp.');
+      setAviso('Cita reprogramada exitosamente.');
     } catch (err) {
       setPosponerError(err.message || 'No se pudo reprogramar la cita.');
     } finally {
@@ -307,7 +332,7 @@ export default function Paciente() {
       setCitas((prev) => prev.map((c) => (c.id === resp.id ? resp : c)));
       setCitaACancelar(null);
       setMotivoCancelar('');
-      setAviso('Cita cancelada. Se liberó tu cupo y recibirás la confirmación por WhatsApp.');
+      setAviso('Cita cancelada. Tu cupo quedó liberado.');
     } catch (err) {
       setCancelarError(err.message || 'No se pudo cancelar la cita.');
     } finally {
@@ -369,14 +394,14 @@ export default function Paciente() {
     '--color-error-container': '#FDE8E8',
   };
 
-  const entrar = useCallback(async (cedula, pin) => {
+  const entrar = useCallback(async (cedula, password) => {
     setEntrando(true);
     setErrorEntrada('');
     setInfoEntrada('');
     const ident = parseCedula(cedula);
     const cedulaLimpia = ident.cedula || cedula.replace(/\D/g, '');
     try {
-      const res = await API.loginPaciente(cedulaLimpia, pin);
+      const res = await API.loginPaciente(cedulaLimpia, password);
       try {
         localStorage.setItem('bna_token_paciente', res.token);
         localStorage.setItem('bna_sesion_paciente', JSON.stringify({ cedula: cedulaLimpia }));
@@ -388,7 +413,7 @@ export default function Paciente() {
       setSeccion('dashboard');
       setNavAbierta(false);
     } catch (err) {
-      setErrorEntrada(err.message || 'No se pudo iniciar sesión. Verifique su cédula y su PIN.');
+      setErrorEntrada(err.message || 'No se pudo iniciar sesión. Verifique su cédula y su contraseña.');
     } finally {
       setEntrando(false);
     }
@@ -403,12 +428,91 @@ export default function Paciente() {
     }
     setPaciente(null);
     setCedulaEntrada('');
-    setPinEntrada('');
+    setPasswordEntrada('');
     setErrorEntrada('');
     setInfoEntrada('');
     setFlujoAcceso('login');
     setSeccion('dashboard');
   }, []);
+
+  const abrirSolicitud = useCallback(() => {
+    setSolicitudError('');
+    setSolicitudForm({
+      centro_id: '',
+      especialidad_id: '',
+      motivo: '',
+    });
+    setEspecialidadesSolicitud([]);
+    setSolicitudAbierta(true);
+    setNavAbierta(false);
+  }, []);
+
+  useEffect(() => {
+    if (!solicitudAbierta || centrosSolicitud.length > 0) return undefined;
+    let activo = true;
+    API.getCentros()
+      .then((data) => {
+        if (activo) {
+          setCentrosSolicitud(
+            (Array.isArray(data) ? data : []).filter((c) => !c.disabled),
+          );
+        }
+      })
+      .catch(() => {
+        if (activo) setCentrosSolicitud([]);
+      });
+    return () => {
+      activo = false;
+    };
+  }, [solicitudAbierta, centrosSolicitud.length]);
+
+  useEffect(() => {
+    if (!solicitudAbierta || !solicitudForm.centro_id) {
+      setEspecialidadesSolicitud([]);
+      return undefined;
+    }
+    let activo = true;
+    setCargandoEspecialidades(true);
+    API.getEspecialidades(solicitudForm.centro_id)
+      .then((data) => {
+        if (activo) setEspecialidadesSolicitud(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (activo) setEspecialidadesSolicitud([]);
+      })
+      .finally(() => {
+        if (activo) setCargandoEspecialidades(false);
+      });
+    return () => {
+      activo = false;
+    };
+  }, [solicitudAbierta, solicitudForm.centro_id]);
+
+  const enviarSolicitud = async (e) => {
+    e.preventDefault();
+    setSolicitudError('');
+    if (!solicitudForm.centro_id || !solicitudForm.especialidad_id) {
+      setSolicitudError('Selecciona el centro de salud y la especialidad.');
+      return;
+    }
+    setEnviandoSolicitud(true);
+    try {
+      const nueva = await API.solicitarCita({
+        centro_id: Number(solicitudForm.centro_id),
+        especialidad_id: Number(solicitudForm.especialidad_id),
+        motivo: solicitudForm.motivo.trim() || null,
+      });
+      setCitas((prev) => [nueva, ...prev]);
+      setSolicitudAbierta(false);
+      setAviso(
+        'Solicitud enviada. La recepción del centro te confirmará la fecha y la hora.',
+      );
+    } catch (err) {
+      setSolicitudError(err.message || 'No se pudo enviar la solicitud.');
+    } finally {
+      setEnviandoSolicitud(false);
+    }
+  };
 
   const solicitarRecuperacion = async (e) => {
     e.preventDefault();
@@ -422,7 +526,7 @@ export default function Paciente() {
       return;
     }
     try {
-      const res = await API.recuperarPin(ident.cedula, recuperarForm.email);
+      const res = await API.recuperarContrasena(ident.cedula, recuperarForm.email);
       setInfoEntrada(res.mensaje || 'Se envió el código a su correo.');
       setRecuperarForm((f) => ({ ...f, cedula: ident.cedula }));
       setFlujoAcceso('reset');
@@ -433,26 +537,114 @@ export default function Paciente() {
     }
   };
 
-  const restablecerPin = async (e) => {
+  const restablecerContrasena = async (e) => {
     e.preventDefault();
     setRecuperando(true);
     setErrorEntrada('');
     setInfoEntrada('');
-    const pinNuevo = String(recuperarForm.pinNuevo || '');
-    if (pinNuevo.length < 4) {
-      setErrorEntrada('El PIN nuevo debe tener al menos 4 dígitos.');
+    const password = String(recuperarForm.password || '');
+    if (password.length < 6 || password.length > 64) {
+      setErrorEntrada('La contraseña nueva debe tener entre 6 y 64 caracteres.');
       setRecuperando(false);
       return;
     }
     try {
-      await API.resetPin(recuperarForm.cedula, recuperarForm.codigo, pinNuevo);
+      await API.restablecerContrasena(recuperarForm.cedula, recuperarForm.codigo, password);
       setFlujoAcceso('login');
-      setRecuperarForm({ cedula: '', email: '', codigo: '', pinNuevo: '' });
-      setInfoEntrada('¡PIN restablecido! Ingrese con su cédula y el nuevo PIN.');
+      setRecuperarForm({ cedula: '', email: '', codigo: '', password: '' });
+      setInfoEntrada('¡Contraseña restablecida! Inicia sesión con tu cédula y la nueva contraseña.');
     } catch (err) {
-      setErrorEntrada(err.message || 'No se pudo restablecer el PIN.');
+      setErrorEntrada(err.message || 'No se pudo restablecer la contraseña.');
     } finally {
       setRecuperando(false);
+    }
+  };
+
+  const autollenarEmpleado = async () => {
+    const ident = parseCedula(registroForm.cedula);
+    if (!ident.cedula || ident.cedula.length < 5) return;
+    setBuscandoEmpleado(true);
+    setAutollenadoInfo('');
+    try {
+      const res = await API.buscarEmpleado(ident.cedula);
+      if (res && res.encontrado) {
+        setRegistroForm((f) => ({
+          ...f,
+          nombre_completo: res.nombre_completo || f.nombre_completo,
+          telefono: res.telefono || f.telefono,
+          email: res.email || f.email,
+        }));
+        setAutollenadoInfo(
+          `Datos cargados desde el sistema de personal${
+            res.cargo ? ` (${res.cargo})` : ''
+          }. Revisa que estén correctos.`,
+        );
+      }
+    } catch {
+      /* El autollenado es opcional: si falla, el paciente llena sus datos. */
+    } finally {
+      setBuscandoEmpleado(false);
+    }
+  };
+
+  const registrarCuenta = async (e) => {
+    e.preventDefault();
+    setErrorEntrada('');
+    setInfoEntrada('');
+    const ident = parseCedula(registroForm.cedula);
+    if (!ident.cedula || ident.cedula.length < 5) {
+      setErrorEntrada('Ingrese una cédula válida.');
+      return;
+    }
+    if (registroForm.nombre_completo.trim().length < 3) {
+      setErrorEntrada('Ingrese su nombre completo.');
+      return;
+    }
+    const password = String(registroForm.password || '');
+    if (password.length < 6 || password.length > 64) {
+      setErrorEntrada('La contraseña debe tener entre 6 y 64 caracteres.');
+      return;
+    }
+    if (!registroForm.consentimiento) {
+      setErrorEntrada('Debe aceptar el tratamiento de sus datos de salud.');
+      return;
+    }
+
+    setRegistrando(true);
+    try {
+      const res = await API.registrarPaciente({
+        tipo_cedula: ident.tipo_cedula || registroForm.tipo_cedula,
+        cedula: ident.cedula,
+        nombre_completo: registroForm.nombre_completo.trim(),
+        fecha_nacimiento: registroForm.fecha_nacimiento || null,
+        telefono: registroForm.telefono.trim() || null,
+        email: registroForm.email.trim() || null,
+        tipo_sangre: registroForm.tipo_sangre || null,
+        alergias: registroForm.alergias
+          .split(',')
+          .map((a) => a.trim())
+          .filter(Boolean),
+        antecedentes_medicos: [],
+        password,
+        consentimiento_datos: true,
+      });
+      try {
+        localStorage.setItem('bna_token_paciente', res.token);
+        localStorage.setItem('bna_sesion_paciente', JSON.stringify({ cedula: ident.cedula }));
+        marcarUltimaSesion('paciente');
+      } catch {
+        /* sin almacenamiento */
+      }
+      setPaciente(res.paciente);
+      setCedulaEntrada(ident.cedula);
+      setPasswordEntrada(password);
+      setSeccion('dashboard');
+      setFlujoAcceso('login');
+      setAviso('¡Bienvenido! Tu cuenta fue creada correctamente.');
+    } catch (err) {
+      setErrorEntrada(err.message || 'No se pudo crear la cuenta.');
+    } finally {
+      setRegistrando(false);
     }
   };
 
@@ -549,7 +741,12 @@ export default function Paciente() {
     const hoy = new Date();
     return (
       citas
-        .filter((c) => c.estado !== 'cancelada' && new Date(`${String(c.fecha_cita).slice(0, 10)}T00:00:00`) >= hoy)
+        .filter(
+          (c) =>
+            c.estado !== 'cancelada' &&
+            c.estado !== 'pendiente' &&
+            new Date(`${String(c.fecha_cita).slice(0, 10)}T00:00:00`) >= hoy,
+        )
         .sort((a, b) => new Date(a.fecha_cita) - new Date(b.fecha_cita))[0] || null
     );
   }, [citas]);
@@ -736,13 +933,13 @@ export default function Paciente() {
       <div className="px-4 py-3">
         <button
           onClick={() => {
-            setCitaModal(centroCITAB);
+            abrirSolicitud();
             setNavAbierta(false);
           }}
           className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white shadow-md active:scale-[0.98] transition-all"
           style={{ background: temaCentro.gradient }}
         >
-          <Icon name="add_circle" className="text-base" /> Nueva Consulta
+          <Icon name="add_circle" className="text-base" /> Solicitar cita
         </button>
       </div>
 
@@ -928,7 +1125,7 @@ export default function Paciente() {
                     </div>
                     <h2 className="font-display text-2xl font-bold text-center text-secondary">Portal del Paciente</h2>
                     <p className="text-sm text-on-surface-variant text-center mt-1.5">
-                      Ingresa tu cédula y tu PIN para consultar tu historial clínico, citas y estudios.
+                      Ingresa tu cédula y tu contraseña para consultar tu historial clínico, citas y estudios.
                     </p>
 
                     {errorEntrada && (
@@ -954,11 +1151,11 @@ export default function Paciente() {
                             setErrorEntrada('Ingrese su cédula.');
                             return;
                           }
-                          if (String(pinEntrada).length < 4) {
-                            setErrorEntrada('Ingrese su PIN de 4 dígitos.');
+                          if (String(passwordEntrada).length < 4) {
+                            setErrorEntrada('Ingrese su contraseña.');
                             return;
                           }
-                          entrar(ident.cedula, pinEntrada);
+                          entrar(ident.cedula, passwordEntrada);
                         }}
                       >
                         <TextField
@@ -976,16 +1173,16 @@ export default function Paciente() {
                         <TextField
                           fullWidth
                           type="password"
-                          label="PIN de acceso"
-                          placeholder="4 dígitos"
-                          value={pinEntrada}
+                          label="Contraseña"
+                          placeholder="Tu contraseña"
+                          value={passwordEntrada}
                           onChange={(e) => {
-                            setPinEntrada(e.target.value.replace(/\D/g, '').slice(0, 8));
+                            setPasswordEntrada(e.target.value);
                             setErrorEntrada('');
                           }}
                           sx={accessFieldSx}
-                          slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'current-password' } }}
-                          helperText="Tu PIN fue creado al registrarte en tu primera cita."
+                          slotProps={{ htmlInput: { autoComplete: 'current-password' } }}
+                          helperText="La contraseña que elegiste al crear tu cuenta."
                         />
                         <Button
                           type="submit"
@@ -1003,6 +1200,18 @@ export default function Paciente() {
                         >
                           {entrando ? 'Verificando...' : 'Entrar al portal'}
                         </Button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFlujoAcceso('registro');
+                            setErrorEntrada('');
+                            setInfoEntrada('');
+                          }}
+                          className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border-2 border-secondary/25 text-sm font-bold text-secondary transition-colors duration-200 hover:border-secondary hover:bg-secondary/5"
+                        >
+                          <Icon name="person_add" className="text-base" />
+                          Crear mi cuenta
+                        </button>
                       </form>
                     )}
 
@@ -1013,7 +1222,7 @@ export default function Paciente() {
                       >
                         <div className="flex items-center gap-2">
                           <Icon name="lock_reset" className="text-doc" />
-                          <p className="text-sm font-bold text-primary">Recuperar mi PIN</p>
+                          <p className="text-sm font-bold text-primary">Recuperar mi contraseña</p>
                         </div>
                         <p className="text-xs text-on-surface-variant -mt-2">
                           Ingrese su cédula y el correo con el que se registró. Le enviaremos un código de 6 dígitos.
@@ -1070,13 +1279,13 @@ export default function Paciente() {
                     )}
 
                     {flujoAcceso === 'reset' && (
-                      <form className="mt-5 flex flex-col gap-5" onSubmit={restablecerPin}>
+                      <form className="mt-5 flex flex-col gap-5" onSubmit={restablecerContrasena}>
                         <div className="flex items-center gap-2">
                           <Icon name="password" className="text-doc" />
-                          <p className="text-sm font-bold text-primary">Crear un PIN nuevo</p>
+                          <p className="text-sm font-bold text-primary">Crear una contraseña nueva</p>
                         </div>
                         <p className="text-xs text-on-surface-variant -mt-2">
-                          Ingrese el código recibido y elija su nuevo PIN de 4 dígitos.
+                          Ingresa el código recibido y elige tu nueva contraseña (mínimo 6 caracteres).
                         </p>
                         <TextField
                           fullWidth
@@ -1102,13 +1311,14 @@ export default function Paciente() {
                         <TextField
                           fullWidth
                           type="password"
-                          label="PIN nuevo (4 dígitos)"
-                          slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 8 } }}
-                          value={recuperarForm.pinNuevo}
+                          label="Contraseña nueva"
+                          placeholder="Mínimo 6 caracteres"
+                          slotProps={{ htmlInput: { maxLength: 64, autoComplete: 'new-password' } }}
+                          value={recuperarForm.password}
                           onChange={(e) =>
                             setRecuperarForm((f) => ({
                               ...f,
-                              pinNuevo: e.target.value.replace(/\D/g, '').slice(0, 8),
+                              password: e.target.value,
                             }))
                           }
                           sx={accessFieldSx}
@@ -1127,7 +1337,7 @@ export default function Paciente() {
                             '&:hover': { backgroundColor: 'var(--color-doc-deep)' },
                           }}
                         >
-                          {recuperando ? 'Guardando...' : 'Restablecer mi PIN'}
+                          {recuperando ? 'Guardando...' : 'Restablecer mi contraseña'}
                         </Button>
                         <button
                           type="button"
@@ -1142,11 +1352,198 @@ export default function Paciente() {
                       </form>
                     )}
 
+                    {flujoAcceso === 'registro' && (
+                      <form className="mt-5 flex flex-col gap-4" onSubmit={registrarCuenta}>
+                        <div className="flex items-center gap-2">
+                          <Icon name="person_add" className="text-doc" />
+                          <p className="text-sm font-bold text-primary">Crear mi cuenta</p>
+                        </div>
+                        <p className="text-xs text-on-surface-variant -mt-2">
+                          Registra tus datos una sola vez. Podrás reservar y consultar tus citas.
+                        </p>
+                        <div className="grid grid-cols-[92px_1fr] gap-3">
+                          <TextField
+                            select
+                            label="Tipo"
+                            value={registroForm.tipo_cedula}
+                            onChange={(e) =>
+                              setRegistroForm((f) => ({ ...f, tipo_cedula: e.target.value }))
+                            }
+                            sx={accessFieldSx}
+                          >
+                            <MenuItem value="V">V</MenuItem>
+                            <MenuItem value="E">E</MenuItem>
+                            <MenuItem value="P">P</MenuItem>
+                          </TextField>
+                          <TextField
+                            label="Cédula de Identidad"
+                            placeholder="12345678"
+                            value={registroForm.cedula}
+                            onChange={(e) => {
+                              setRegistroForm((f) => ({ ...f, cedula: e.target.value }));
+                              setAutollenadoInfo('');
+                            }}
+                            onBlur={autollenarEmpleado}
+                            sx={accessFieldSx}
+                            autoFocus
+                            slotProps={{
+                              htmlInput: { inputMode: 'numeric' },
+                              input: {
+                                endAdornment: buscandoEmpleado ? (
+                                  <Icon name="sync" className="text-base animate-spin text-secondary" />
+                                ) : null,
+                              },
+                            }}
+                            helperText="Si eres trabajador de la Alcaldía, al salir del campo cargamos tus datos."
+                          />
+                        </div>
+                        {autollenadoInfo && (
+                          <div className="p-2.5 bg-doc-soft rounded-xl border border-doc/20 flex items-start gap-2" role="status">
+                            <Icon name="badge" className="text-doc text-base shrink-0" />
+                            <p className="text-[11px] font-semibold text-doc-deep">{autollenadoInfo}</p>
+                          </div>
+                        )}
+                        <TextField
+                          fullWidth
+                          label="Nombre completo"
+                          placeholder="María Rodríguez"
+                          value={registroForm.nombre_completo}
+                          onChange={(e) =>
+                            setRegistroForm((f) => ({ ...f, nombre_completo: e.target.value }))
+                          }
+                          sx={accessFieldSx}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <TextField
+                            label="Fecha de nacimiento"
+                            type="date"
+                            value={registroForm.fecha_nacimiento}
+                            onChange={(e) =>
+                              setRegistroForm((f) => ({ ...f, fecha_nacimiento: e.target.value }))
+                            }
+                            sx={accessFieldSx}
+                            slotProps={{ inputLabel: { shrink: true } }}
+                          />
+                          <TextField
+                            select
+                            label="Tipo de sangre"
+                            value={registroForm.tipo_sangre}
+                            onChange={(e) =>
+                              setRegistroForm((f) => ({ ...f, tipo_sangre: e.target.value }))
+                            }
+                            sx={accessFieldSx}
+                          >
+                            <MenuItem value="">No sé</MenuItem>
+                            {TIPOS_SANGRE.map((t) => (
+                              <MenuItem key={t} value={t}>
+                                {t}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </div>
+                        <TextField
+                          fullWidth
+                          label="Teléfono de contacto"
+                          placeholder="04141234567"
+                          value={registroForm.telefono}
+                          onChange={(e) =>
+                            setRegistroForm((f) => ({
+                              ...f,
+                              telefono: e.target.value.replace(/[^\d+]/g, '').slice(0, 15),
+                            }))
+                          }
+                          sx={accessFieldSx}
+                          helperText="Para que la recepción pueda contactarte por tu cita."
+                        />
+                        <TextField
+                          fullWidth
+                          type="email"
+                          label="Correo electrónico"
+                          placeholder="usted@correo.com"
+                          value={registroForm.email}
+                          onChange={(e) =>
+                            setRegistroForm((f) => ({ ...f, email: e.target.value }))
+                          }
+                          sx={accessFieldSx}
+                        />
+                        <TextField
+                          fullWidth
+                          label="Alergias (separadas por coma)"
+                          placeholder="Penicilina, mariscos"
+                          value={registroForm.alergias}
+                          onChange={(e) =>
+                            setRegistroForm((f) => ({ ...f, alergias: e.target.value }))
+                          }
+                          sx={accessFieldSx}
+                        />
+                        <TextField
+                          fullWidth
+                          type="password"
+                          label="Contraseña"
+                          placeholder="Mínimo 6 caracteres"
+                          value={registroForm.password}
+                          onChange={(e) =>
+                            setRegistroForm((f) => ({
+                              ...f,
+                              password: e.target.value,
+                            }))
+                          }
+                          sx={accessFieldSx}
+                          slotProps={{ htmlInput: { autoComplete: 'new-password' } }}
+                          helperText="La usarás junto a tu cédula para entrar al portal."
+                        />
+                        <label className="flex items-start gap-2 text-[11px] text-on-surface-variant">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 accent-current"
+                            checked={registroForm.consentimiento}
+                            onChange={(e) =>
+                              setRegistroForm((f) => ({
+                                ...f,
+                                consentimiento: e.target.checked,
+                              }))
+                            }
+                          />
+                          <span>
+                            Acepto el tratamiento de mis datos personales y de salud para la
+                            gestión de mis citas en BnaSalud.
+                          </span>
+                        </label>
+                        <Button
+                          type="submit"
+                          fullWidth
+                          disabled={registrando}
+                          variant="contained"
+                          sx={{
+                            background: 'linear-gradient(135deg, #3B98D4 0%, #1A4B7C 100%)',
+                            borderRadius: 2,
+                            py: 1.3,
+                            fontWeight: 700,
+                            textTransform: 'none',
+                          }}
+                        >
+                          {registrando ? 'Creando cuenta...' : 'Crear mi cuenta'}
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFlujoAcceso('login');
+                            setErrorEntrada('');
+                            setInfoEntrada('');
+                          }}
+                          className="flex min-h-11 w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border-2 border-secondary/25 text-sm font-bold text-secondary transition-colors duration-200 hover:border-secondary hover:bg-secondary/5"
+                        >
+                          <Icon name="login" className="text-base" />
+                          ¿Ya tienes cuenta? Inicia sesión
+                        </button>
+                      </form>
+                    )}
+
                     <div className="mt-5 pt-4 border-t border-outline-variant/40">
                       <p className="text-[11px] text-on-surface-variant text-center">
                         {flujoAcceso === 'login' ? (
                           <>
-                            ¿Olvidaste tu PIN?{' '}
+                            ¿Olvidaste tu contraseña?{' '}
                             <button
                               type="button"
                               onClick={() => {
@@ -1155,17 +1552,25 @@ export default function Paciente() {
                               }}
                               className="font-semibold text-secondary hover:underline"
                             >
-                              Recupéralo por correo
+                              Recupérala por correo
                             </button>
                           </>
                         ) : null}
-                        {flujoAcceso === 'login' && (
+                        {(flujoAcceso === 'recuperar' || flujoAcceso === 'reset') && (
                           <span className="block mt-1">
-                            ¿No tienes cuenta?{' '}
-                            <span className="font-semibold text-secondary">
-                              Reserva tu cita primero
-                            </span>{' '}
-                            y el sistema te registra con tu PIN.
+                            ¿Ya tienes cuenta?{' '}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFlujoAcceso('login');
+                                setErrorEntrada('');
+                                setInfoEntrada('');
+                              }}
+                              className="font-semibold text-secondary hover:underline"
+                            >
+                              Inicia sesión
+                            </button>
+                            .
                           </span>
                         )}
                       </p>
@@ -1254,10 +1659,10 @@ export default function Paciente() {
                             Reserva tu próxima consulta médica y mantenla al día desde tu portal.
                           </p>
                           <button
-                            onClick={() => setCitaModal(centroCITAB)}
+                            onClick={abrirSolicitud}
                             className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-primary font-bold text-sm shadow hover:shadow-lg transition-shadow"
                           >
-                            <Icon name="event_available" className="text-base" /> Agendar Cita
+                            <Icon name="event_available" className="text-base" /> Solicitar cita
                           </button>
                         </div>
                       )}
@@ -1387,12 +1792,12 @@ export default function Paciente() {
                       </p>
                     </div>
                     <Button
-                      onClick={() => setCitaModal(centroCITAB)}
+                      onClick={abrirSolicitud}
                       variant="contained"
                       startIcon={<Icon name="add" className="text-lg" />}
                       sx={{ background: temaCentro.gradient, borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
                     >
-                      Agendar cita
+                      Solicitar cita
                     </Button>
                   </div>
 
@@ -1412,8 +1817,16 @@ export default function Paciente() {
                               <Icon name="event" filled className="text-xl" />
                             </div>
                             <div>
-                              <p className="text-sm font-extrabold text-primary capitalize">{formatoFechaLarga(c.fecha_cita)}</p>
-                              <p className="font-mono text-[11px] font-bold text-secondary">{horaCorta(c.hora_inicio)}</p>
+                              <p className="text-sm font-extrabold text-primary capitalize">
+                                {c.estado === 'pendiente'
+                                  ? 'Por confirmar'
+                                  : formatoFechaLarga(c.fecha_cita)}
+                              </p>
+                              <p className="font-mono text-[11px] font-bold text-secondary">
+                                {c.estado === 'pendiente'
+                                  ? 'Recepción asignará la hora'
+                                  : horaCorta(c.hora_inicio)}
+                              </p>
                             </div>
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1446,7 +1859,7 @@ export default function Paciente() {
                                 Cancelar cita
                               </Button>
                             )}
-                            {c.estado !== 'cancelada' && c.estado !== 'completada' && (
+                            {c.estado === 'confirmada' && (
                               <Button
                                 size="small"
                                 onClick={() => {
@@ -1839,10 +2252,10 @@ export default function Paciente() {
                                 No tienes citas próximas. Reserva tu consulta y mantenla al día desde tu portal.
                               </p>
                               <button
-                                onClick={() => setCitaModal(centroCITAB)}
+                                onClick={abrirSolicitud}
                                 className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-primary font-bold text-sm shadow hover:shadow-lg transition-shadow"
                               >
-                                <Icon name="event_available" className="text-base" /> Agendar Cita
+                                <Icon name="event_available" className="text-base" /> Solicitar cita
                               </button>
                             </div>
                           )}
@@ -2114,8 +2527,123 @@ export default function Paciente() {
         </main>
       </div>
 
-      {/* Modal de cita (CITAB) */}
-      {citaModal && <CitaModal centro={citaModal} paciente={paciente} onClose={() => setCitaModal(null)} />}
+      {/* Diálogo: solicitud de cita (centro + especialidad) */}
+      <Dialog
+        open={solicitudAbierta}
+        onClose={() => !enviandoSolicitud && setSolicitudAbierta(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle className="flex items-center justify-between gap-3">
+          <span className="font-display text-xl font-bold text-primary">Solicitar cita</span>
+          <IconButton
+            onClick={() => setSolicitudAbierta(false)}
+            disabled={enviandoSolicitud}
+            aria-label="Cerrar"
+          >
+            <Icon name="close" />
+          </IconButton>
+        </DialogTitle>
+        <form onSubmit={enviarSolicitud}>
+          <DialogContent dividers>
+            <div className="space-y-4">
+              <p className="text-xs text-on-surface-variant">
+                Elige el centro de salud y la especialidad. No necesitas elegir
+                fecha: la recepción del centro revisará tu solicitud y te asignará
+                el médico, la fecha y la hora según su disponibilidad.
+              </p>
+
+              {solicitudError && (
+                <div className="p-3 bg-error-container rounded-xl border border-error/20 flex items-center gap-2" role="alert">
+                  <Icon name="error" className="text-error text-lg" />
+                  <p className="text-xs font-semibold text-error">{solicitudError}</p>
+                </div>
+              )}
+
+              <TextField
+                select
+                fullWidth
+                label="Centro de salud"
+                value={solicitudForm.centro_id}
+                onChange={(e) =>
+                  setSolicitudForm((f) => ({
+                    ...f,
+                    centro_id: e.target.value,
+                    especialidad_id: '',
+                  }))
+                }
+                sx={fieldSx}
+              >
+                {centrosSolicitud.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                select
+                fullWidth
+                label="Especialidad"
+                value={solicitudForm.especialidad_id}
+                onChange={(e) =>
+                  setSolicitudForm((f) => ({ ...f, especialidad_id: e.target.value }))
+                }
+                disabled={!solicitudForm.centro_id || cargandoEspecialidades}
+                sx={fieldSx}
+                helperText={
+                  solicitudForm.centro_id && !cargandoEspecialidades && especialidadesSolicitud.length === 0
+                    ? 'Este centro no tiene especialidades con médicos asignados.'
+                    : ' '
+                }
+              >
+                {especialidadesSolicitud.map((esp) => (
+                  <MenuItem key={esp.id} value={esp.id}>
+                    {esp.nombre}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              <TextField
+                fullWidth
+                multiline
+                minRows={3}
+                label="Motivo de la consulta (opcional)"
+                placeholder="Describe brevemente qué te ocurre"
+                value={solicitudForm.motivo}
+                onChange={(e) =>
+                  setSolicitudForm((f) => ({ ...f, motivo: e.target.value }))
+                }
+                sx={fieldSx}
+              />
+            </div>
+          </DialogContent>
+          <DialogActions className="p-4">
+            <Button
+              onClick={() => setSolicitudAbierta(false)}
+              disabled={enviandoSolicitud}
+              sx={{ textTransform: 'none', fontWeight: 700, color: 'var(--color-on-surface-variant)' }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={enviandoSolicitud}
+              startIcon={
+                enviandoSolicitud ? (
+                  <Icon name="sync" className="text-lg animate-spin" />
+                ) : (
+                  <Icon name="send" className="text-lg" />
+                )
+              }
+              sx={{ background: temaCentro.gradient, borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
+            >
+              {enviandoSolicitud ? 'Enviando...' : 'Enviar solicitud'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
 
       {/* Diálogo: detalle de consulta / comprobante */}
       <Dialog open={!!recetaAbierta} onClose={() => setRecetaAbierta(null)} maxWidth="sm" fullWidth>

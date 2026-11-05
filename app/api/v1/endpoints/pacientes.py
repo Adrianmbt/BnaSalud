@@ -1,16 +1,19 @@
 from datetime import datetime
 import html
 import re
-from typing import Any, Dict, List
+import secrets
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, status
 
 from app.api.v1.deps import exigir_paciente_o_staff, exigir_roles
 from app.api.v1.errors import db_fail, fail, not_found
 from app.api.v1.utils import parse_json_list, parse_list
+from app.core.bitacora import registrar_accion
 from app.core.database import supabase
 from app.core.mail import enviar_aviso_personal, smtp_habilitado
 from app.core.notificaciones import registrar as registrar_notificacion
+from app.core.security import crear_token, hash_secreto
 from app.schemas.schemas import (
     ConsultaDetalleResponse,
     HistoriaClinicaResponse,
@@ -21,6 +24,8 @@ from app.schemas.schemas import (
     MedicoPacienteResponse,
     NotificacionItem,
     NotificarPacienteRequest,
+    PacienteLoginResponse,
+    PacienteRegistroRequest,
     ProgresoPacienteResponse,
 )
 
@@ -84,6 +89,146 @@ def _buscar_paciente(cedula: str) -> dict:
     return filas[0]
 
 
+@router.get("/empleado/{cedula}")
+def buscar_empleado(cedula: str) -> Dict[str, Any]:
+    """Datos de un trabajador de la Alcaldía para autollenar el registro.
+
+    Busca en `personal` por cédula (solo dígitos). Es público porque el
+    formulario de registro lo consulta antes de crear la cuenta; devuelve
+    únicamente los datos de contacto necesarios para el autollenado.
+    """
+    digitos = re.sub(r"\D", "", cedula or "")
+    if not digitos:
+        fail("La cédula debe contener al menos un dígito.")
+
+    try:
+        filas = (
+            supabase.table("personal")
+            .select("id, cedula, nombre, apellido, telefono, email, cargo, especialidad, clinica_id")
+            .eq("cedula", digitos)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("buscar al trabajador")
+
+    if not filas:
+        return {"encontrado": False}
+
+    fila = filas[0]
+    return {
+        "encontrado": True,
+        "nombre": fila.get("nombre") or "",
+        "apellido": fila.get("apellido") or "",
+        "nombre_completo": f"{fila.get('nombre') or ''} {fila.get('apellido') or ''}".strip(),
+        "telefono": fila.get("telefono") or "",
+        "email": fila.get("email") or "",
+        "cargo": fila.get("cargo") or "",
+        "especialidad": fila.get("especialidad") or "",
+        "clinica_id": fila.get("clinica_id"),
+    }
+
+
+@router.post(
+    "/registrar",
+    response_model=PacienteLoginResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def registrar_paciente(payload: PacienteRegistroRequest) -> PacienteLoginResponse:
+    """Auto-registro de un paciente nuevo desde el portal público.
+
+    Crea la historia clínica (`historias_clinicas`) y la cuenta de acceso
+    (`usuarios` con rol 'paciente'), y devuelve un token para que el
+    paciente quede autenticado de inmediato.
+    """
+    cedula = re.sub(r"\D", "", payload.cedula.strip())
+    if not cedula:
+        fail("La cédula debe contener al menos un dígito.")
+
+    try:
+        existente = (
+            supabase.table("historias_clinicas")
+            .select("id, cedula")
+            .eq("cedula", cedula)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        db_fail("verificar la cédula")
+
+    if existente:
+        fail(
+            "Ya existe un paciente registrado con esta cédula. "
+            "Inicie sesión con su cédula y contraseña.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    # La contraseña del paciente se guarda en `pin_hash` (bcrypt), la columna
+    # histórica del esquema; el nombre se conserva para no migrar la BD.
+    secreto = payload.password.strip()
+    if not (6 <= len(secreto) <= 64):
+        fail("La contraseña debe tener entre 6 y 64 caracteres.")
+
+    registro = {
+        "tipo_cedula": payload.tipo_cedula.value,
+        "cedula": cedula,
+        "nombre_completo": payload.nombre_completo.strip(),
+        "fecha_nacimiento": payload.fecha_nacimiento.isoformat()
+        if payload.fecha_nacimiento
+        else None,
+        "telefono": payload.telefono,
+        "email": str(payload.email) if payload.email else None,
+        "tipo_sangre": payload.tipo_sangre,
+        "antecedentes_medicos": payload.antecedentes_medicos,
+        "alergias": payload.alergias,
+        "numero_historia": f"HIS-{payload.tipo_cedula.value}{cedula}",
+        "pin_hash": hash_secreto(secreto),
+    }
+    try:
+        creado = supabase.table("historias_clinicas").insert(registro).execute()
+        fila = creado.data[0]
+    except Exception:
+        db_fail("registrar al paciente")
+
+    # Cuenta de acceso del paciente (mismo identificador que el portal).
+    # Es complementaria: el login real usa cédula + contraseña contra
+    # historias_clinicas, así que un fallo aquí no debe impedir el registro.
+    try:
+        supabase.table("usuarios").insert(
+            {
+                "username": f"pac_{cedula}",
+                "password_hash": hash_secreto(secrets.token_hex(16)),
+                "rol": "paciente",
+                "paciente_id": fila["id"],
+                "activo": True,
+            }
+        ).execute()
+    except Exception:
+        pass
+
+    token = crear_token(
+        {
+            "tipo": "paciente",
+            "rol": "paciente",
+            "username": "",
+            "personal_id": None,
+            "paciente_id": fila["id"],
+            "cedula": cedula,
+        }
+    )
+    registrar_accion(
+        {"rol": "paciente", "username": cedula, "personal_id": None},
+        "registro_paciente",
+        "historias_clinicas",
+        fila["id"],
+    )
+    return PacienteLoginResponse(token=token, paciente=_a_historia(fila))
+
+
 def _a_consulta_detalle(fila: dict) -> ConsultaDetalleResponse:
     return ConsultaDetalleResponse(
         consulta_id=fila["id"],
@@ -112,7 +257,7 @@ def obtener_paciente(
 ) -> HistoriaClinicaResponse:
     """Obtiene la historia clínica de un paciente por su cédula.
 
-    Acceso: el propio paciente (cédula+PIN) o el personal autenticado.
+    Acceso: el propio paciente (cédula+contraseña) o el personal autenticado.
     """
     return _a_historia(_buscar_paciente(cedula.strip()))
 
@@ -192,27 +337,29 @@ def medico_tratante(
         )
 
     # Si aún no hay vínculo formal, se deduce del médico elegido en la cita
-    # más reciente (el paciente lo seleccionó al solicitar la cita en línea).
+    # más reciente. Se ignoran las solicitudes del portal que todavía no
+    # tienen médico ni fecha asignados por recepción.
     try:
-        cita = (
+        citas = (
             supabase.table("citas")
             .select("medico_id")
             .eq("paciente_id", fila["id"])
             .not_.eq("estado", "cancelada")
-            .order("fecha_cita", desc=True)
-            .limit(1)
+            .order("created_at", desc=True)
+            .limit(20)
             .execute()
             .data
             or []
         )
     except Exception:
-        cita = []
-    if cita and cita[0].get("medico_id"):
+        citas = []
+    cita = next((c for c in citas if c.get("medico_id")), None)
+    if cita:
         try:
             medico_cita = (
                 supabase.table("personal")
                 .select("id, nombre, apellido, especialidad")
-                .eq("id", cita[0]["medico_id"])
+                .eq("id", cita["medico_id"])
                 .limit(1)
                 .execute()
                 .data

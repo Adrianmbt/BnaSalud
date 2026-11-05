@@ -194,18 +194,6 @@ class CitaResponse(CitaBase):
     paciente_id: str
     origen: OrigenAtencion = Field(default=OrigenAtencion.CITA_WEB)
     estado: EstadoCita = Field(default=EstadoCita.PENDIENTE)
-    pin_inicial: Optional[str] = Field(
-        default=None,
-        description="PIN de acceso generado al registrar al paciente por primera vez (solo primera cita)",
-    )
-    pin_enviado_correo: bool = Field(
-        default=False,
-        description="True si el PIN se envió por correo (tarjeta de bienvenida)",
-    )
-    pin_enviado_whatsapp: bool = Field(
-        default=False,
-        description="True si el PIN se envió por WhatsApp (Green API)",
-    )
     created_at: datetime
 
     class Config:
@@ -220,8 +208,12 @@ class CitaDetalleResponse(BaseModel):
     especialidad: str
     medico_id: Optional[int] = Field(None, description="ID del médico asignado a la cita")
     medico_nombre: str = Field(default="", description="Nombre del médico asignado (unido desde personal)")
-    fecha_cita: date
-    hora_inicio: time
+    fecha_cita: Optional[date] = Field(
+        None, description="Fecha confirmada; None mientras recepción no la asigne"
+    )
+    hora_inicio: Optional[time] = Field(
+        None, description="Hora confirmada; None mientras recepción no la asigne"
+    )
     motivo: Optional[str] = None
     estado: EstadoCita = Field(default=EstadoCita.PENDIENTE)
     origen: OrigenAtencion = Field(default=OrigenAtencion.CITA_WEB)
@@ -243,6 +235,32 @@ class CitaEstadoUpdate(BaseModel):
 class CitaCancelar(BaseModel):
     """Cancelación de una cita iniciada por el paciente."""
     motivo: Optional[str] = Field(None, max_length=300, description="Motivo de la cancelación, visible para el personal")
+
+class CitaAsignar(BaseModel):
+    """Asignación de fecha, hora y médico a una solicitud de cita.
+
+    La usa el personal de recepción para confirmar una solicitud hecha
+    desde el portal público.
+    """
+    medico_id: int = Field(..., description="ID del médico en la tabla personal")
+    fecha_cita: date = Field(..., description="Fecha confirmada de la cita")
+    hora_inicio: time = Field(..., description="Hora confirmada (HH:MM:SS)")
+    notas: Optional[str] = Field(
+        None, max_length=500, description="Observaciones para el paciente o el médico"
+    )
+
+class CitaSolicitudRequest(BaseModel):
+    """Solicitud de cita hecha por el paciente desde el portal público.
+
+    El paciente solo elige centro y especialidad (y, opcionalmente, el
+    motivo). La recepción del centro asigna después el médico, la fecha y
+    la hora definitivos según su disponibilidad.
+    """
+    centro_id: int = Field(..., json_schema_extra={"example": 2})
+    especialidad_id: int = Field(..., json_schema_extra={"example": 1})
+    motivo: Optional[str] = Field(
+        None, max_length=500, json_schema_extra={"example": "Dolor de cabeza recurrente"}
+    )
 
 class TurnoColaResponse(BaseModel):
     cita_id: str
@@ -535,31 +553,68 @@ class LoginResponse(BaseModel):
     usuario: LoginUsuarioResponse
 
 class PacienteLoginRequest(BaseModel):
-    """Acceso al portal del paciente: cédula + PIN (4-8 dígitos)."""
+    """Acceso al portal del paciente: cédula + contraseña."""
     cedula: str = Field(..., json_schema_extra={"example": "12345678"})
-    pin: str = Field(..., min_length=4, max_length=8, json_schema_extra={"example": "1234"})
+    password: str = Field(
+        ...,
+        min_length=6,
+        max_length=64,
+        description="Contraseña elegida al crear la cuenta (6-64 caracteres).",
+    )
 
 class PacienteLoginResponse(BaseModel):
     token: str
     paciente: HistoriaClinicaResponse
 
-class RecuperarPinRequest(BaseModel):
-    """Solicitud de recuperación de PIN: verifica la cédula contra el correo."""
+class PacienteRegistroRequest(BaseModel):
+    """Auto-registro de un paciente desde el portal público.
+
+    El paciente elige su contraseña (6-64 caracteres). Al registrarse se crea
+    también la cuenta de acceso (`usuarios`) con rol `paciente`.
+    """
+    tipo_cedula: TipoIdentificacion = Field(default=TipoIdentificacion.V)
+    cedula: str = Field(..., min_length=5, json_schema_extra={"example": "12345678"})
+    nombre_completo: str = Field(..., min_length=3, json_schema_extra={"example": "María Rodríguez"})
+    fecha_nacimiento: Optional[date] = None
+    telefono: Optional[str] = Field(None, json_schema_extra={"example": "04141234567"})
+    email: Optional[EmailStr] = Field(None, json_schema_extra={"example": "maria@example.com"})
+    tipo_sangre: Optional[str] = Field(None, json_schema_extra={"example": "O+"})
+    antecedentes_medicos: List[str] = Field(default_factory=list)
+    alergias: List[str] = Field(default_factory=list)
+    password: str = Field(
+        ...,
+        min_length=6,
+        max_length=64,
+        description="Contraseña de acceso elegida por el paciente.",
+    )
+    consentimiento_datos: bool = Field(
+        default=False,
+        description="El paciente acepta el tratamiento de sus datos de salud.",
+    )
+
+class RecuperarPasswordRequest(BaseModel):
+    """Solicitud de nueva contraseña: verifica la cédula contra el correo."""
     cedula: str = Field(..., json_schema_extra={"example": "12345678"})
     email: EmailStr = Field(..., json_schema_extra={"example": "maria@example.com"})
 
-class RecuperarPinResponse(BaseModel):
+class RecuperarPasswordResponse(BaseModel):
     mensaje: str
     expira_minutos: int
-    codigo_demo: Optional[str] = Field(
-        None, description="Código devuelto solo en modo demo (sin envío por correo)"
+    codigo_desarrollo: Optional[str] = Field(
+        None,
+        description="Código devuelto solo en desarrollo y sin SMTP; en producción va por correo",
     )
 
-class ResetPinRequest(BaseModel):
-    """Restablece el PIN con el código recibido por correo."""
+class ResetPasswordRequest(BaseModel):
+    """Restablece la contraseña con el código recibido por correo."""
     cedula: str = Field(..., json_schema_extra={"example": "12345678"})
     codigo: str = Field(..., min_length=6, max_length=6, json_schema_extra={"example": "482913"})
-    pin_nuevo: str = Field(..., min_length=4, max_length=8, json_schema_extra={"example": "9876"})
+    password: str = Field(
+        ...,
+        min_length=6,
+        max_length=64,
+        description="Contraseña nueva.",
+    )
 
 
 # ==========================================
