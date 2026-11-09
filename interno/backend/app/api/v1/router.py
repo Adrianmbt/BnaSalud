@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     examenes,
     farmacia,
     historias_clinicas,
+    historias_medicas,
     busqueda,
     agenda,
     medicamentos,
@@ -17,6 +18,8 @@ from app.api.v1.endpoints import (
     admin_sistema,
     dashboard,
     whatsapp,
+    diagnostico,
+    reprogramaciones,
 )
 from app.core.security import get_current_user, require_roles
 
@@ -35,6 +38,12 @@ api_router.include_router(cola.router, prefix="/cola", tags=["Cola de Atención"
 api_router.include_router(consultas.router, prefix="/consultas", tags=["Consultas"], dependencies=[Depends(get_current_user)])
 api_router.include_router(farmacia.router, prefix="/farmacia", tags=["Farmacia"], dependencies=[Depends(get_current_user)])
 api_router.include_router(historias_clinicas.router, prefix="/historias-clinicas", tags=["Historias Clínicas"], dependencies=[Depends(get_current_user)])
+api_router.include_router(
+    historias_medicas.router,
+    prefix="/historias-medicas",
+    tags=["Historias Médicas"],
+    dependencies=[Depends(get_current_user)],
+)
 api_router.include_router(busqueda.router, prefix="/busqueda", tags=["Búsqueda"], dependencies=[Depends(get_current_user)])
 api_router.include_router(agenda.router, prefix="/agenda", tags=["Agenda"], dependencies=[Depends(get_current_user)])
 api_router.include_router(medicamentos.router, prefix="/medicamentos", tags=["Medicamentos"], dependencies=[Depends(get_current_user)])
@@ -44,3 +53,10 @@ api_router.include_router(guardias.router, prefix="/guardias", tags=["Guardias"]
 api_router.include_router(personal.router, prefix="/personal", tags=["Personal"], dependencies=[Depends(get_current_user)])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"], dependencies=[Depends(get_current_user)])
 api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["WhatsApp"], dependencies=[Depends(get_current_user)])
+api_router.include_router(diagnostico.router, prefix="/diagnostico", tags=["Diagnóstico"])
+api_router.include_router(
+    reprogramaciones.router,
+    prefix="/reprogramaciones",
+    tags=["Reprogramación de citas"],
+    dependencies=[Depends(get_current_user)],
+)
