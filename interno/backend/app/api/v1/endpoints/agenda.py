@@ -22,6 +22,7 @@ from app.models.cola import (
 from app.schemas.agenda import (
     CitaCreadaResponse,
     CitaCrearRequest,
+    CupoSemanalResponse,
     DiaDisponibilidad,
     DisponibilidadResponse,
     EspecialistaItem,
@@ -447,6 +448,120 @@ async def calendario_disponibilidad(
     }
 
 
+@router.get("/cupos-semanal", response_model=CupoSemanalResponse)
+async def cupos_semanal(
+    medico_id: int,
+    semana_desde: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Cupos disponibles por día de la semana para un médico.
+
+    Calculado desde `agenda_medicos` (turnos configurados) menos citas
+    ya registradas (no canceladas). No hay un número hardcodeado de 20;
+    depende del horario real del médico.
+
+    Se usa para que el portal web y la recepción vean los mismos cupos
+    y no se solapen asignaciones.
+    """
+    esp = await _especialista(db, medico_id)
+
+    hoy = (await db.execute(text("SELECT CURRENT_DATE AS hoy"))).scalar_one()
+    if semana_desde:
+        try:
+            inicio_semana = datetime.strptime(semana_desde, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="semana_desde inválida (YYYY-MM-DD)."
+            )
+    else:
+        # Lunes de la semana actual
+        inicio_semana = hoy - timedelta(days=hoy.weekday())
+    fin_semana = inicio_semana + timedelta(days=6)
+
+    agenda = await _turnos_agenda(db, medico_id)
+
+    # Ocupadas de toda la semana
+    filas = (
+        await db.execute(
+            text(
+                "SELECT fecha_cita, to_char(hora_inicio, 'HH24:MI') AS h, count(*) AS n "
+                "FROM citas WHERE medico_id = :mid AND fecha_cita BETWEEN :d AND :h "
+                "  AND estado <> 'cancelada' "
+                "GROUP BY fecha_cita, to_char(hora_inicio, 'HH24:MI')"
+            ),
+            {"mid": medico_id, "d": inicio_semana, "h": fin_semana},
+        )
+    ).mappings()
+    ocupadas_por_fecha: dict = {}
+    for f in filas:
+        ocupadas_por_fecha.setdefault(f["fecha_cita"], set()).add(f["h"])
+
+    ausentes = await _fechas_ausente(db, medico_id, inicio_semana, fin_semana)
+
+    DIAS_NOMBRE = [
+        "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
+    ]
+
+    dias: List[CupoDiaSemana] = []
+    cupos_totales = 0
+    cur = inicio_semana
+    while cur <= fin_semana:
+        turnos_del_dia = agenda.get(cur.weekday(), [])
+        turnos_libres_dia: List[JornadaDisponible] = []
+        cupos_dia = 0
+
+        if cur not in ausentes and turnos_del_dia:
+            ocupadas_hhmm = ocupadas_por_fecha.get(cur, set())
+            for turno in turnos_del_dia:
+                hh_in = _hhmm(turno["hora_inicio"])
+                hh_out = _hhmm(turno["hora_fin"])
+                inicio_dt = datetime.combine(date.min, time.fromisoformat(hh_in))
+                fin_dt = datetime.combine(date.min, time.fromisoformat(hh_out))
+                paso = timedelta(minutes=SLOT_MINUTOS)
+                slots: list = []
+                cur_dt = inicio_dt
+                while cur_dt + paso <= fin_dt:
+                    slots.append(cur_dt.strftime("%H:%M"))
+                    cur_dt += paso
+                libres = [s for s in slots if s not in ocupadas_hhmm]
+                if libres:
+                    turnos_libres_dia.append(
+                        JornadaDisponible(
+                            turno_id=turno["turno_id"],
+                            nombre=turno.get("turno_nombre") or "",
+                            hora_inicio=hh_in,
+                            hora_fin=hh_out,
+                            capacidad=len(slots),
+                            cupos_libres=len(libres),
+                            disponible=True,
+                            hora_asignada=libres[0],
+                        )
+                    )
+                    cupos_dia += len(libres)
+
+        dias.append(
+            CupoDiaSemana(
+                dia_semana=cur.weekday(),
+                nombre=DIAS_NOMBRE[cur.weekday()],
+                fecha=cur.isoformat(),
+                turnos=turnos_libres_dia,
+                cupos_libres=cupos_dia,
+            )
+        )
+        cupos_totales += cupos_dia
+        cur += timedelta(days=1)
+
+    return CupoSemanalResponse(
+        medico_id=medico_id,
+        medico_nombre=esp["nombre"],
+        especialidad=esp["especialidad"],
+        semana_desde=inicio_semana.isoformat(),
+        semana_hasta=fin_semana.isoformat(),
+        dias=dias,
+        cupos_libres_totales=cupos_totales,
+    )
+
+
 def _jornadas_de_dia(
     agenda: dict, fecha: date, ocupadas: set, ausente: bool = False
 ) -> JornadasDia:
@@ -519,6 +634,22 @@ async def crear_cita(
             status_code=409,
             detail=f"El especialista está ausente el {payload.fecha}.",
         )
+
+    # Bloqueo a nivel de transacción sobre el slot específico
+    # (médico + fecha + hora) para evitar doble-reserva entre peticiones
+    # concurrentes (web y recepción al mismo tiempo). pg_advisory_xact_lock
+    # se libera automáticamente al hacer commit/rollback.
+    await db.execute(
+        text(
+            "SELECT pg_advisory_xact_lock(hashtextextended("
+            "  :mid || '|' || :fec || '|' || :hora, 0))"
+        ),
+        {
+            "mid": str(payload.medico_id),
+            "fec": fec.isoformat(),
+            "hora": payload.hora_inicio,
+        },
+    )
 
     # Solicitud del portal web: recepción confirma la cita existente en vez
     # de crear un registro nuevo. Se conserva el centro y el paciente.

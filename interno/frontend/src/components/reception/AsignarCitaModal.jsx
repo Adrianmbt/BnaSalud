@@ -12,8 +12,10 @@ import {
   MapPin,
   MessageCircle,
   Clock,
+  ShieldAlert,
 } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
+import { obtenerCuposSemanal } from '../../api/reprogramaciones';
 
 function fechaLarga(iso) {
   if (!iso) return '';
@@ -36,13 +38,14 @@ function cupoColor(cupos) {
 
 export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsignada }) {
   const [data, setData] = useState(null);
-  const [calendario, setCalendario] = useState(null);
+  const [cuposSemanal, setCuposSemanal] = useState(null);
   const [especialistas, setEspecialistas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [medicoId, setMedicoId] = useState(null);
   const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null);
+  const [modoEmergencia, setModoEmergencia] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [citaConfirmada, setCitaConfirmada] = useState(null);
 
@@ -73,19 +76,19 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
       .catch(() => setEspecialistas([]));
   }, []);
 
-  // Calendario del médico seleccionado
+  // Cupos semanales del médico seleccionado
   useEffect(() => {
     if (!medicoId) {
-      setCalendario(null);
+      setCuposSemanal(null);
       setFechaSeleccionada(null);
       setTurnoSeleccionado(null);
       return;
     }
     let vivo = true;
     axiosClient
-      .get(`/agenda/disponibilidad/calendario?medico_id=${medicoId}&dias=30`)
-      .then((r) => { if (vivo) setCalendario(r.data || null); })
-      .catch(() => { if (vivo) setCalendario(null); });
+      .get('/agenda/cupos-semanal', { params: { medico_id: medicoId } })
+      .then((r) => { if (vivo) setCuposSemanal(r.data || null); })
+      .catch(() => { if (vivo) setCuposSemanal(null); });
     return () => { vivo = false; };
   }, [medicoId]);
 
@@ -94,21 +97,24 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
   const especialidadCita = cita?.especialidad || '';
   const centroCita = cita?.centro_salud || '';
 
-  const especialistasDeEspecialidad = useMemo(
-    () => especialistas.filter((esp) => esp.especialidad === especialidadCita),
-    [especialistas, especialidadCita]
+  // Médicos filtrados por especialidad, o todos si es modo emergencia
+  const especialistasFiltrados = useMemo(() => {
+    if (modoEmergencia) return especialistas;
+    return especialistas.filter((esp) => esp.especialidad === especialidadCita);
+  }, [especialistas, especialidadCita, modoEmergencia]);
+
+  // Días con cupos del médico seleccionado
+  const diasConCupos = useMemo(
+    () => (cuposSemanal?.dias || []).filter((d) => d.cupos_libres > 0),
+    [cuposSemanal]
   );
 
-  const diasDisponibles = useMemo(
-    () => (calendario?.dias || []).filter((d) => d.disponible),
-    [calendario]
-  );
-
+  // Jornadas (turnos) del día seleccionado
   const jornadasDia = useMemo(() => {
-    if (!calendario || !fechaSeleccionada) return [];
-    const dia = calendario.dias.find((d) => d.fecha === fechaSeleccionada);
-    return dia ? (dia.turnos_libres || []) : [];
-  }, [calendario, fechaSeleccionada]);
+    if (!cuposSemanal || !fechaSeleccionada) return [];
+    const dia = cuposSemanal.dias.find((d) => d.fecha === fechaSeleccionada);
+    return dia ? (dia.turnos || []) : [];
+  }, [cuposSemanal, fechaSeleccionada]);
 
   const confirmarAsignacion = useCallback(async () => {
     if (!medicoId || !fechaSeleccionada || !turnoSeleccionado) {
@@ -127,7 +133,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
         nivel: 'verde',
         especialidad: cita?.especialidad || '',
         motivo: cita?.motivo || 'Asignación de cita',
-        origen: cita?.origen || 'remision',
+        origen: modoEmergencia ? 'emergencia' : (cita?.origen || 'remision'),
       };
       const resp = await axiosClient.post('/agenda/citas', payload);
       setEnviando(false);
@@ -137,7 +143,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
       setEnviando(false);
       setError(err?.response?.data?.detail || 'Error al asignar la cita.');
     }
-  }, [medicoId, fechaSeleccionada, turnoSeleccionado, paciente, cita, citaId, onAsignada]);
+  }, [medicoId, fechaSeleccionada, turnoSeleccionado, paciente, cita, citaId, onAsignada, modoEmergencia]);
 
   if (!citaId) return null;
 
@@ -197,15 +203,32 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
           Elegir médico
         </h4>
         <span className="ml-auto text-[10px] font-bold text-slate-400 tracking-wider">
-          {especialidadCita}
+          {modoEmergencia ? 'Emergencia' : especialidadCita}
         </span>
       </div>
       <p className="text-xs text-slate-500">
-        Especialistas de {especialidadCita} con cupos disponibles.
+        {modoEmergencia
+          ? 'Cualquier médico disponible para atención de urgencia.'
+          : `Especialistas de ${especialidadCita} con cupos disponibles.`}
       </p>
-      {especialistasDeEspecialidad.length === 0 ? (
+      <label htmlFor="modo-emergencia" className="flex items-center gap-2 cursor-pointer text-sm text-slate-700">
+        <input
+          id="modo-emergencia"
+          type="checkbox"
+          checked={modoEmergencia}
+          onChange={(e) => {
+            setModoEmergencia(e.target.checked);
+            setMedicoId(null);
+            setFechaSeleccionada(null);
+            setTurnoSeleccionado(null);
+          }}
+          className="w-4 h-4 rounded border-slate-300 text-brand-deep focus:ring-brand-deep"
+        />
+        <span>Atención de emergencia (cualquier médico)</span>
+      </label>
+      {especialistasFiltrados.length === 0 ? (
         <div className="rounded-xl bg-amber-50 border border-amber-100 p-4 text-sm text-amber-700">
-          No hay especialistas de {especialidadCita} disponibles en este momento.
+          No hay especialistas disponibles en este momento.
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -224,7 +247,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
             aria-label="Seleccionar médico"
           >
             <option value="">— Elija un médico —</option>
-            {especialistasDeEspecialidad.map((esp) => (
+            {especialistasFiltrados.map((esp) => (
               <option key={esp.id} value={esp.id}>
                 Dr(a). {esp.nombre} — {esp.especialidad}
               </option>
@@ -235,50 +258,75 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
     </section>
   );
 
-  // Sección: calendario + turnos
-  const seccionCalendario = (
+  // Sección: cupos semanales + calendario de días + turnos
+  const seccionCupos = (
     <section className="rounded-xl border border-slate-200 p-5 space-y-6">
-      <div className="flex items-center gap-3">
-        <Stethoscope className="w-5 h-5 text-brand-deep" />
-        <h4 className="font-bold text-sm text-slate-900">
-          Elegir fecha y turno
-        </h4>
-        <span className="ml-auto text-[10px] font-bold text-slate-400 tracking-wider">
-          {especialidadCita}
-        </span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <ShieldAlert className="w-5 h-5 text-brand-deep" />
+          <h4 className="font-bold text-sm text-slate-900">
+            Elegir fecha y turno
+          </h4>
+        </div>
+        {cuposSemanal && (
+          <span className="text-[10px] font-bold text-slate-400 tracking-wider">
+            {cuposSemanal.especialidad}
+          </span>
+        )}
       </div>
 
-      {calendario === null && (
+      {cuposSemanal === null && (
         <p className="text-xs text-amber-600 font-semibold py-8 text-center">
           Cargando horario del médico…
         </p>
       )}
 
-      {calendario && calendario.dias.length === 0 && (
+      {cuposSemanal && cuposSemanal.dias.length === 0 && (
         <p className="text-xs text-rose-600 font-semibold py-8 text-center">
           Sin días disponibles para este médico.
         </p>
       )}
 
-      {calendario && calendario.dias.length > 0 && (
+      {cuposSemanal && cuposSemanal.dias.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendario visual */}
+          {/* Contador semanal */}
+          <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+            <p className="text-[10px] font-semibold text-slate-400 tracking-wider mb-3">
+              Cupos esta semana
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-700">
+                Disponibles:
+              </span>
+              <span className="font-bold text-lg text-slate-900">
+                {cuposSemanal.cupos_libres_totales}
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-2">
+              Semana {cuposSemanal.semana_desde} al {cuposSemanal.semana_hasta}
+            </p>
+          </div>
+
+          {/* Calendario visual de días */}
           <div className="space-y-4">
             <p className="text-[10px] font-semibold text-slate-400 tracking-wider">
-              Días disponibles (próximos 30 días)
+              Días disponibles (esta semana)
             </p>
             <div className="grid grid-cols-7 gap-1">
-              {calendario.dias.map((d) => {
+              {cuposSemanal.dias.map((d) => {
                 const c = cupoColor(d.cupos_libres);
-                const disponible = d.disponible;
+                const disponible = d.cupos_libres > 0;
                 const seleccionado = fechaSeleccionada === d.fecha;
-                const cupos = Math.min(Number(d.cupos_libres || 0), 10);
                 return (
                   <button
                     key={d.fecha}
                     type="button"
                     disabled={!disponible}
-                    onClick={disponible ? () => { setFechaSeleccionada(d.fecha); setTurnoSeleccionado(null); } : undefined}
+                    onClick={
+                      disponible
+                        ? () => { setFechaSeleccionada(d.fecha); setTurnoSeleccionado(null); }
+                        : undefined
+                    }
                     className={`flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-lg transition-all ${
                       seleccionado
                         ? 'bg-brand-deep border-brand-deep text-white'
@@ -291,7 +339,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
                       {d.fecha.split('-')[2]}
                     </span>
                     <span className={`text-[10px] font-semibold ${seleccionado ? 'text-emerald-100' : disponible ? c.text : 'text-slate-400'}`}>
-                      {disponible ? cupos : '—'}
+                      {disponible ? d.cupos_libres : '—'}
                     </span>
                   </button>
                 );
@@ -355,7 +403,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
                         <span className="text-slate-500">Médico</span>
                         <span className="font-semibold text-slate-900">
                           Dr(a).{' '}
-                          {especialistasDeEspecialidad.find((e) => e.id === medicoId)?.nombre}
+                          {especialistasFiltrados.find((e) => e.id === medicoId)?.nombre}
                         </span>
                       </div>
                       <div className="flex justify-between border-b border-slate-100 pb-2">
@@ -405,7 +453,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
     </section>
   );
 
-  // Sección: confirmación exitosa (solo se evalúa cuando citaConfirmada existe)
+  // Sección: confirmación exitosa
   const seccionConfirmada = citaConfirmada ? (
     <div className="space-y-6 text-center">
       <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
@@ -479,6 +527,14 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
       aria-modal="true"
       aria-label="Asignar cita"
     >
+      {/* Skip link para lectores de pantalla */}
+      <a
+        href="#contenido-modal"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[10001] focus:bg-white focus:text-black focus:px-4 focus:py-2 focus:rounded focus:border focus:border-brand-deep"
+      >
+        Ir al contenido de la modal
+      </a>
+
       <div
         className="absolute inset-0 z-[9998] bg-slate-900/40 backdrop-blur-sm"
         aria-hidden="true"
@@ -486,6 +542,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
       />
       <aside
         className="relative z-[10000] bg-white rounded-2xl shadow-2xl w-full sm:max-w-2xl mx-auto flex flex-col max-h-[90vh] border border-slate-200/70"
+        id="contenido-modal"
       >
         <header className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-3 shrink-0">
           <div className="min-w-0">
@@ -533,7 +590,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
             <>
               {seccionPaciente}
 
-              {!citaConfirmada && medicoId ? seccionCalendario : seccionMedico}
+              {!citaConfirmada && medicoId ? seccionCupos : seccionMedico}
 
               {citaConfirmada && seccionConfirmada}
             </>
