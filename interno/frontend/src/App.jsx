@@ -4,6 +4,7 @@ import ReceptionInterface from './pages/ReceptionInterface';
 import EmergencyDoctorInterface from './pages/EmergencyDoctorInterface';
 import SpecialistInterface from './pages/SpecialistInterface';
 import FarmaciaInterface from './pages/FarmaciaInterface';
+import HistoriasMedicasInterface from './pages/HistoriasMedicasInterface';
 import SystemAdminInterface from './pages/SystemAdminInterface';
 import ExecutiveAdminDashboard from './pages/ExecutiveAdminDashboard';
 import { ThemeProvider } from './components/ThemeProvider';
@@ -142,9 +143,26 @@ function Aplicacion() {
           onLogout={handleLogout}
         />
       )}
+      {currentRole === 'historias_medicas' && (
+        <HistoriasMedicasInterface
+          userName={currentUser}
+          personalId={currentPersonalId}
+          clinicaId={currentClinicaId}
+          clinicaNombre={currentClinicaNombre}
+          onLogout={handleLogout}
+        />
+      )}
       {currentRole === 'admin_sistemas' && (
         <SystemAdminInterface
           userName={currentUser}
+          userRole={currentRole}
+          onLogout={handleLogout}
+        />
+      )}
+      {currentRole === 'recursos_humanos' && (
+        <SystemAdminInterface
+          userName={currentUser}
+          userRole={currentRole}
           onLogout={handleLogout}
         />
       )}
@@ -154,7 +172,7 @@ function Aplicacion() {
           onLogout={handleLogout}
         />
       )}
-      {!['emergency', 'especialista', 'recepcion', 'farmacia', 'admin_sistemas', 'director'].includes(currentRole) && (
+      {!['emergency', 'especialista', 'recepcion', 'farmacia', 'historias_medicas', 'admin_sistemas', 'recursos_humanos', 'director'].includes(currentRole) && (
         <Login onLogin={handleLogin} />
       )}
     </ThemeProvider>

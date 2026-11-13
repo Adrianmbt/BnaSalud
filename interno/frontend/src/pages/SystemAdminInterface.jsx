@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
   Database,
+  Download,
   Eye,
   Loader2,
   LogOut,
@@ -16,6 +18,7 @@ import {
   Terminal,
   Trash2,
   Pencil,
+  Upload,
   UserCog,
   UserPlus,
   Users,
@@ -27,9 +30,11 @@ const ROLES = [
   { value: 'recepcionista', label: 'Recepcionista' },
   { value: 'medico_emergencia', label: 'Medico de Emergencia' },
   { value: 'medico', label: 'Medico Especialista' },
+  { value: 'historias_medicas', label: 'Historias Medicas' },
   { value: 'jefe_farmacia', label: 'Jefe de Farmacia' },
   { value: 'farmaceutico', label: 'Farmaceutico' },
   { value: 'admin_sistemas', label: 'Admin de Sistemas' },
+  { value: 'recursos_humanos', label: 'Recursos Humanos' },
 ];
 
 const CARGOS = [
@@ -45,6 +50,7 @@ const Badge = ({ children, color = 'blue' }) => {
     red: 'bg-red-50 text-red-700 ring-red-200',
     slate: 'bg-slate-100 text-slate-600 ring-slate-200',
     amber: 'bg-amber-50 text-amber-700 ring-amber-200',
+    violet: 'bg-violet-50 text-violet-700 ring-violet-200',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 rounded-full ${colors[color]}`}>
@@ -93,14 +99,17 @@ const Pagination = ({ page, total, perPage, onChange }) => {
 /* ═══════════════════════════════════════════════════════════════════
    USERS SECTION
    ═══════════════════════════════════════════════════════════════════ */
-function UsuariosSection() {
+function UsuariosSection({ onEditarHorario }) {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [busqueda, setBusqueda] = useState('');
   const [cargando, setCargando] = useState(true);
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ username: '', password: '', rol: 'recepcionista', personal_id: '' });
+  const [form, setForm] = useState({
+    username: '', password: '', rol: 'recepcionista', personal_id: '',
+    nombre: '', apellido: '', especialidad: '', cedula: '',
+  });
   const [editando, setEditando] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
@@ -117,6 +126,27 @@ function UsuariosSection() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  const esRolMedico = ['medico', 'medico_emergencia'].includes(form.rol);
+
+  const formVacio = () => ({
+    username: '', password: '', rol: 'recepcionista', personal_id: '',
+    nombre: '', apellido: '', especialidad: '', cedula: '',
+  });
+
+  const abrirCrear = () => {
+    setForm(formVacio());
+    setEditando(null);
+    setError('');
+    setModal('crear');
+  };
+
+  const datosPersonales = () => ({
+    nombre: form.nombre.trim() || null,
+    apellido: form.apellido.trim() || null,
+    especialidad: form.especialidad.trim() || null,
+    cedula: form.cedula.trim() || null,
+  });
+
   const crear = async () => {
     setGuardando(true); setError('');
     try {
@@ -125,27 +155,47 @@ function UsuariosSection() {
         password: form.password,
         rol: form.rol,
         personal_id: form.personal_id ? Number(form.personal_id) : null,
+        ...datosPersonales(),
       });
-      setModal(null); setForm({ username: '', password: '', rol: 'recepcionista', personal_id: '' });
+      setModal(null); setForm(formVacio());
       cargar();
     } catch (e) { setError(e?.response?.data?.detail || 'Error al crear usuario.'); } finally { setGuardando(false); }
   };
 
   const abrirEditar = (u) => {
     setEditando(u);
-    setForm({ username: u.username, password: '', rol: u.rol, personal_id: u.personal_id || '' });
+    setForm({
+      username: u.username,
+      password: '',
+      rol: u.rol,
+      personal_id: u.personal_id || '',
+      nombre: u.nombre || '',
+      apellido: u.apellido || '',
+      especialidad: u.especialidad || '',
+      cedula: u.cedula || '',
+    });
+    setError('');
     setModal('editar');
   };
 
   const editar = async () => {
     setGuardando(true); setError('');
     try {
-      const payload = { username: form.username.trim(), rol: form.rol, personal_id: form.personal_id ? Number(form.personal_id) : null };
+      const payload = {
+        rol: form.rol,
+        personal_id: form.personal_id ? Number(form.personal_id) : null,
+        ...datosPersonales(),
+      };
       if (form.password) payload.password = form.password;
       await axiosClient.put(`/admin/usuarios/${editando.id}`, payload);
-      setModal(null); setEditando(null); setForm({ username: '', password: '', rol: 'recepcionista', personal_id: '' });
+      setModal(null); setEditando(null); setForm(formVacio());
       cargar();
     } catch (e) { setError(e?.response?.data?.detail || 'Error al editar usuario.'); } finally { setGuardando(false); }
+  };
+
+  const verHorario = (u) => {
+    setModal(null);
+    onEditarHorario && onEditarHorario(u.personal_id);
   };
 
   const toggleActivo = async (u) => {
@@ -162,6 +212,7 @@ function UsuariosSection() {
 
   const rolColor = (rol) => {
     if (rol === 'admin_sistemas') return 'blue';
+    if (rol === 'historias_medicas') return 'violet';
     if (rol?.includes('medico')) return 'green';
     return 'slate';
   };
@@ -175,7 +226,7 @@ function UsuariosSection() {
             placeholder="Buscar usuario..."
             className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 text-sm rounded-lg placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all" />
         </div>
-        <button onClick={() => setModal('crear')}
+        <button onClick={abrirCrear}
           className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white font-semibold text-sm rounded-lg hover:bg-brand-primaryDark shadow-sm shadow-brand-primary/20 transition-all">
           <Plus className="w-4 h-4" /> Nuevo
         </button>
@@ -216,6 +267,12 @@ function UsuariosSection() {
                         className="p-1.5 text-slate-400 hover:text-brand-primary rounded-lg hover:bg-blue-50 transition-colors">
                         <UserCog className="w-4 h-4" />
                       </button>
+                      {u.personal_id && ['medico', 'medico_emergencia'].includes(u.rol) && (
+                        <button onClick={() => verHorario(u)} title="Editar horario"
+                          className="p-1.5 text-slate-400 hover:text-brand-primary rounded-lg hover:bg-blue-50 transition-colors">
+                          <CalendarClock className="w-4 h-4" />
+                        </button>
+                      )}
                       <button onClick={() => toggleActivo(u)} title={u.activo ? 'Desactivar' : 'Activar'}
                         className="p-1.5 text-slate-400 hover:text-brand-primary rounded-lg hover:bg-blue-50 transition-colors">
                         {u.activo ? <ShieldOff className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
@@ -253,8 +310,20 @@ function UsuariosSection() {
               <Select label="Rol" value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}>
                 {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </Select>
-              <Input label="Personal ID (opcional)" type="number" value={form.personal_id} onChange={(e) => setForm({ ...form, personal_id: e.target.value })} placeholder="ID del personal" />
-              <button onClick={crear} disabled={guardando || !form.username.trim() || !form.password}
+              <Input label="Personal ID (opcional)" type="number" value={form.personal_id} onChange={(e) => setForm({ ...form, personal_id: e.target.value })} placeholder="ID del personal existente" />
+              {esRolMedico && (
+                <div className="border-t border-slate-100 pt-3 mt-1 space-y-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Datos del médico</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input label="Nombre" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre" />
+                    <Input label="Apellido" value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} placeholder="Apellido" />
+                  </div>
+                  <Input label="Especialidad" value={form.especialidad} onChange={(e) => setForm({ ...form, especialidad: e.target.value })} placeholder="Ej: Cardiología" />
+                  <Input label="Cédula (opcional)" value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })} placeholder="V-12345678" />
+                  <p className="text-[11px] text-slate-400">Si dejas vacío el Personal ID se crea una ficha nueva con estos datos.</p>
+                </div>
+              )}
+              <button onClick={crear} disabled={guardando || !form.username.trim() || !form.password || (esRolMedico && !form.nombre.trim())}
                 className="w-full py-2.5 bg-brand-primary text-white font-semibold text-sm rounded-lg hover:bg-brand-primaryDark shadow-sm shadow-brand-primary/20 disabled:opacity-40 transition-all">
                 {guardando ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : 'Crear Usuario'}
               </button>
@@ -285,6 +354,23 @@ function UsuariosSection() {
                 {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
               </Select>
               <Input label="Personal ID (opcional)" type="number" value={form.personal_id} onChange={(e) => setForm({ ...form, personal_id: e.target.value })} placeholder="ID del personal" />
+              {esRolMedico && (
+                <div className="border-t border-slate-100 pt-3 mt-1 space-y-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Datos del médico</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input label="Nombre" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Nombre" />
+                    <Input label="Apellido" value={form.apellido} onChange={(e) => setForm({ ...form, apellido: e.target.value })} placeholder="Apellido" />
+                  </div>
+                  <Input label="Especialidad" value={form.especialidad} onChange={(e) => setForm({ ...form, especialidad: e.target.value })} placeholder="Ej: Cardiología" />
+                  <Input label="Cédula (opcional)" value={form.cedula} onChange={(e) => setForm({ ...form, cedula: e.target.value })} placeholder="V-12345678" />
+                  {form.personal_id && (
+                    <button onClick={() => verHorario({ ...editando, personal_id: form.personal_id })}
+                      className="w-full inline-flex items-center justify-center gap-2 py-2 rounded-lg border border-slate-200 text-slate-600 font-semibold text-sm hover:border-brand-primary hover:text-brand-primary transition-all">
+                      <CalendarClock className="w-4 h-4" /> Editar horario del médico
+                    </button>
+                  )}
+                </div>
+              )}
               <button onClick={editar} disabled={guardando || !form.username.trim()}
                 className="w-full py-2.5 bg-brand-primary text-white font-semibold text-sm rounded-lg hover:bg-brand-primaryDark shadow-sm shadow-brand-primary/20 disabled:opacity-40 transition-all">
                 {guardando ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : 'Guardar Cambios'}
@@ -317,6 +403,12 @@ function EmpleadosSection() {
   const [benefForm, setBenefForm] = useState({ nombre_completo: '', parentesco: '', empleado_id: '' });
   const [editandoBenef, setEditandoBenef] = useState(null);
   const [opciones, setOpciones] = useState([]);
+  const [importacion, setImportacion] = useState(null); // {nombre, archivo, datos}
+  const [importando, setImportando] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+  const [enteImport, setEnteImport] = useState('');
+  const [aviso, setAviso] = useState('');
+  const inputArchivo = useRef(null);
   const PER_PAGE = 8;
 
   const cargar = useCallback(async () => {
@@ -343,9 +435,76 @@ function EmpleadosSection() {
       .catch(() => {});
   }, []);
 
-  const abrirCrear = () => { setForm({ cedula: '', nombre_completo: '', edad: '', cargo: '' }); setEditando(null); setModal('form'); };
+  const elegirArchivo = () => inputArchivo.current && inputArchivo.current.click();
+
+  // Ente u organismo por defecto: solo se usa si el archivo no trae columna ENTE.
+  const paramEnte = () => {
+    const v = enteImport.trim();
+    return v ? `&ente=${encodeURIComponent(v)}` : '';
+  };
+
+  const leerArchivo = async (ev) => {
+    const archivo = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if (!archivo) return;
+    setImportando(true); setError(''); setAviso('');
+    const fd = new FormData();
+    fd.append('file', archivo);
+    try {
+      const { data } = await axiosClient.post(`/admin/empleados/importar?modo=validar${paramEnte()}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImportacion({ nombre: archivo.name, archivo, datos: data });
+    } catch (e) {
+      const d = e?.response?.data;
+      if (d && Array.isArray(d.errores)) {
+        setImportacion({ nombre: archivo.name, archivo, datos: d });
+      } else {
+        const detalle = d?.detail?.mensaje || d?.mensaje || d?.detail ||
+          (typeof d === 'string' ? d : 'No se pudo leer el archivo.');
+        setError(typeof detalle === 'string' ? detalle : 'No se pudo leer el archivo.');
+      }
+    } finally { setImportando(false); }
+  };
+
+  const aplicarImportacion = async () => {
+    if (!importacion?.archivo) return;
+    setAplicando(true); setError('');
+    const fd = new FormData();
+    fd.append('file', importacion.archivo);
+    try {
+      const { data } = await axiosClient.post(`/admin/empleados/importar?modo=aplicar${paramEnte()}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImportacion(null);
+      setAviso(data.mensaje || 'Importación aplicada.');
+      cargar();
+    } catch (e) {
+      const d = e?.response?.data;
+      if (d && Array.isArray(d.errores)) {
+        setImportacion({ ...importacion, datos: d });
+      } else {
+        const detalle = d?.detail || d?.mensaje || 'No se pudo aplicar la importación.';
+        setError(typeof detalle === 'string' ? detalle : 'No se pudo aplicar la importación.');
+        setImportacion(null);
+      }
+    } finally { setAplicando(false); }
+  };
+
+  const descargarPlantilla = () => {
+    const contenido = 'cedula;nombre;edad;cargo;ente;estado\n';
+    const blob = new Blob(['\ufeff' + contenido], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_nomina.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const abrirCrear = () => { setForm({ cedula: '', nombre_completo: '', edad: '', cargo: '', ente: '' }); setEditando(null); setModal('form'); };
   const abrirEditar = (e) => {
-    setForm({ cedula: e.cedula, nombre_completo: e.nombre_completo, edad: e.edad ?? '', cargo: e.cargo });
+    setForm({ cedula: e.cedula, nombre_completo: e.nombre_completo, edad: e.edad ?? '', cargo: e.cargo, ente: e.ente || '' });
     setEditando(e); setModal('form'); setBeneficiarios([]); cargarBeneficiarios(e.id);
   };
 
@@ -426,11 +585,31 @@ function EmpleadosSection() {
             placeholder="Buscar por nombre, cedula, cargo..."
             className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 text-sm rounded-lg placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all" />
         </div>
+        <button onClick={descargarPlantilla} title="Descargar plantilla CSV"
+          className="flex items-center gap-2 px-3 py-2.5 border border-slate-200 bg-white text-slate-600 font-semibold text-sm rounded-lg hover:border-brand-primary hover:text-brand-primary transition-all">
+          <Download className="w-4 h-4" /> Plantilla
+        </button>
+        <button onClick={elegirArchivo} disabled={importando}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-brand-primary/40 text-brand-primary font-semibold text-sm rounded-lg hover:bg-brand-primary/5 disabled:opacity-50 transition-all">
+          {importando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          {importando ? 'Leyendo…' : 'Importar Excel'}
+        </button>
+        <input
+          ref={inputArchivo}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          className="hidden"
+          onChange={leerArchivo}
+        />
         <button onClick={abrirCrear}
           className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white font-semibold text-sm rounded-lg hover:bg-brand-primaryDark shadow-sm shadow-brand-primary/20 transition-all">
           <Plus className="w-4 h-4" /> Nuevo
         </button>
       </div>
+
+      {aviso && (
+        <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-lg">{aviso}</div>
+      )}
 
       {error && (
         <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
@@ -445,6 +624,7 @@ function EmpleadosSection() {
                 <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Nombre</th>
                 <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Edad</th>
                 <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cargo</th>
+                <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Ente</th>
                 <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cargas</th>
                 <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Estado</th>
                 <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-right">Acciones</th>
@@ -452,15 +632,16 @@ function EmpleadosSection() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {cargando ? (
-                <tr><td colSpan={7} className="py-10 text-center"><Loader2 className="w-5 h-5 mx-auto animate-spin text-brand-primary" /></td></tr>
+                <tr><td colSpan={8} className="py-10 text-center"><Loader2 className="w-5 h-5 mx-auto animate-spin text-brand-primary" /></td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={7} className="py-10 text-center text-slate-400 text-sm">Sin resultados</td></tr>
+                <tr><td colSpan={8} className="py-10 text-center text-slate-400 text-sm">Sin resultados</td></tr>
               ) : items.map((e) => (
                 <tr key={e.id} className="hover:bg-slate-50/50 transition-colors">
                   <td className="py-3 px-4 text-sm text-slate-600 font-mono">{e.cedula}</td>
                   <td className="py-3 px-4 font-semibold text-sm text-slate-800">{e.nombre_completo}</td>
                   <td className="py-3 px-4 text-sm text-slate-600">{e.edad ?? '—'}</td>
                   <td className="py-3 px-4 text-sm text-slate-600">{e.cargo || '—'}</td>
+                  <td className="py-3 px-4 text-sm text-slate-600">{e.ente || '—'}</td>
                   <td className="py-3 px-4 text-sm text-slate-600">{e.num_beneficiarios ?? 0}</td>
                   <td className="py-3 px-4">
                     <Badge color={e.activo ? 'green' : 'red'}>{e.activo ? 'ACTIVO' : 'INACTIVO'}</Badge>
@@ -490,6 +671,113 @@ function EmpleadosSection() {
 
       <Pagination page={page} total={total} perPage={PER_PAGE} onChange={setPage} />
 
+      {importacion && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setImportacion(null)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-brand-primary/10 flex items-center justify-center">
+                  <Upload className="w-5 h-5 text-brand-primary" />
+                </div>
+                <div>
+                  <span className="font-bold text-slate-800">Importar nómina (vista previa)</span>
+                  <p className="text-[11px] text-slate-400 truncate">{importacion.nombre}</p>
+                </div>
+              </div>
+              <button onClick={() => setImportacion(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { etiqueta: 'Trabajadores', valor: importacion.datos?.titulares ?? 0, color: 'text-slate-800' },
+                  { etiqueta: 'Nuevos', valor: importacion.datos?.a_crear ?? 0, color: 'text-emerald-600' },
+                  { etiqueta: 'A actualizar', valor: importacion.datos?.a_actualizar ?? 0, color: 'text-sky-600' },
+                  { etiqueta: 'Cargas', valor: importacion.datos?.cargas ?? 0, color: 'text-slate-800' },
+                  { etiqueta: 'Cargas nuevas', valor: importacion.datos?.cargas_crear ?? 0, color: 'text-emerald-600' },
+                  { etiqueta: 'Cargas a actualizar', valor: importacion.datos?.cargas_actualizar ?? 0, color: 'text-sky-600' },
+                  { etiqueta: 'Filas leídas', valor: importacion.datos?.filas ?? 0, color: 'text-slate-500' },
+                  { etiqueta: 'Errores', valor: (importacion.datos?.errores || []).length, color: 'text-red-600' },
+                ].map((c) => (
+                  <div key={c.etiqueta} className="rounded-xl bg-slate-50 ring-1 ring-slate-200 px-3 py-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{c.etiqueta}</p>
+                    <p className={`text-xl font-extrabold ${c.color}`}>{c.valor}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                  Ente u organismo {importacion.datos?.ente ? `· aplicado: ${importacion.datos.ente}` : ''}
+                </label>
+                <input value={enteImport} onChange={(ev) => setEnteImport(ev.target.value)}
+                  placeholder="Ej: Alcaldía de Bolívar"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-primary/30" />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Solo se usa si el archivo no trae columna <span className="font-semibold">ENTE</span>.
+                  {' '}Modo de planilla detectado: <span className="font-semibold">{importacion.datos?.modo_planilla === 'nomina' ? 'nómina completa (titular + cargas)' : 'resumen'}</span>.
+                  {' '}Las celdas vacías no borran datos y nunca se elimina a quien no venga en el archivo.
+                </p>
+              </div>
+
+              {((importacion.datos?.cargas_reasignadas || 0) > 0 || (importacion.datos?.cargas_repetidas || 0) > 0) && (
+                <p className="text-[12px] text-amber-800 bg-amber-50 ring-1 ring-amber-200 rounded-lg px-3 py-2">
+                  {importacion.datos?.cargas_reasignadas > 0 && (
+                    <>{importacion.datos.cargas_reasignadas} carga(s) cambiarán de titular al titular que indica el archivo. </>
+                  )}
+                  {importacion.datos?.cargas_repetidas > 0 && (
+                    <>{importacion.datos.cargas_repetidas} fila(s) repetidas: la misma cédula de carga aparece varias veces y se toma la última.</>
+                  )}
+                </p>
+              )}
+
+              <p className="text-[12px] text-slate-500 bg-sky-50 ring-1 ring-sky-200 rounded-lg px-3 py-2">
+                Formato resumen: <span className="font-semibold">Cédula</span> y <span className="font-semibold">Nombre</span>{' '}
+                (opcionales Edad, Cargo, Ente, Estado). Formato nómina: el layout del sistema con cédula del titular,
+                cédula del asegurado y parentesco, una fila por carga. El cruce es por cédula.
+              </p>
+
+              {importacion.datos?.mensaje && (
+                <p className="text-[12px] text-red-700 bg-red-50 ring-1 ring-red-200 rounded-lg px-3 py-2">{importacion.datos.mensaje}</p>
+              )}
+
+              {(importacion.datos?.errores || []).length > 0 && (
+                <div className="border border-red-200 rounded-xl overflow-hidden">
+                  <div className="px-3 py-2 bg-red-50 text-[11px] font-bold uppercase tracking-wide text-red-700">
+                    Filas con errores · nada se aplicará hasta corregirlas
+                  </div>
+                  <div className="max-h-56 overflow-y-auto divide-y divide-red-100">
+                    {importacion.datos.errores.map((err) => (
+                      <div key={`${err.fila}-${err.cedula}`} className="px-3 py-2 flex gap-3 text-[12px]">
+                        <span className="font-mono font-semibold text-slate-600 shrink-0">Fila {err.fila}</span>
+                        <span className="font-mono text-slate-500 shrink-0">{err.cedula || '—'}</span>
+                        <span className="text-red-700">{err.error}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t border-slate-100 flex gap-2.5">
+              <button onClick={descargarPlantilla}
+                className="inline-flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-all">
+                <Download className="w-4 h-4" /> Plantilla
+              </button>
+              <button onClick={() => setImportacion(null)} disabled={aplicando}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={aplicarImportacion} disabled={aplicando || (importacion.datos?.errores || []).length > 0}
+                className="flex-[1.4] inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primaryDark text-white font-bold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                {aplicando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                Aplicar {importacion.datos?.titulares ?? 0} trabajadores + {importacion.datos?.cargas ?? 0} cargas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal === 'form' && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md animate-scale-in max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -512,6 +800,7 @@ function EmpleadosSection() {
                 <option value="">Seleccionar...</option>
                 {CARGOS.map((c) => <option key={c} value={c}>{c}</option>)}
               </Select>
+              <Input label="Ente u organismo" value={form.ente || ''} onChange={(e) => setForm({ ...form, ente: e.target.value })} placeholder="Ej: Alcaldía de Bolívar" />
 
               {editando && (
                 <div className="border-t border-slate-100 pt-4 mt-1">
@@ -595,6 +884,230 @@ function EmpleadosSection() {
                 className="w-full py-2.5 bg-brand-primary text-white font-semibold text-sm rounded-lg hover:bg-brand-primaryDark shadow-sm shadow-brand-primary/20 disabled:opacity-40 transition-all">
                 {guardando ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : editando ? 'Actualizar' : 'Crear Empleado'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HORARIOS DE MÉDICOS SECTION
+   ═══════════════════════════════════════════════════════════════════ */
+function HorariosSection({ medicoInicial = null, onInicialAbierto, userRole = 'admin_sistemas' }) {
+  const [medicos, setMedicos] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [cargando, setCargando] = useState(true);
+  const [horario, setHorario] = useState(null);
+  const [seleccion, setSeleccion] = useState({});
+  const [cargandoHorario, setCargandoHorario] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [certificando, setCertificando] = useState(null);
+  const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
+
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    try {
+      const { data } = await axiosClient.get('/admin/medicos', { params: { q: busqueda } });
+      setMedicos(data || []);
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo cargar la lista de médicos.');
+      setMedicos([]);
+    } finally { setCargando(false); }
+  }, [busqueda]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const abrirHorario = async (medicoId) => {
+    setCargandoHorario(true); setError(''); setAviso('');
+    try {
+      const { data } = await axiosClient.get(`/admin/medicos/${medicoId}/horario`);
+      setHorario(data);
+      const mapa = {};
+      (data.dias || []).forEach((d) => { mapa[d.dia_semana] = [...(d.turno_ids || [])]; });
+      setSeleccion(mapa);
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo cargar el horario.');
+    } finally { setCargandoHorario(false); }
+  };
+
+  useEffect(() => {
+    if (medicoInicial) {
+      abrirHorario(medicoInicial);
+      onInicialAbierto && onInicialAbierto();
+    }
+    // Abre una sola vez el horario pedido desde el formulario de usuario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medicoInicial]);
+
+  const alternarTurno = (dia, turnoId) => {
+    setSeleccion((prev) => {
+      const actuales = prev[dia] || [];
+      const siguiente = actuales.includes(turnoId)
+        ? actuales.filter((t) => t !== turnoId)
+        : [...actuales, turnoId];
+      return { ...prev, [dia]: siguiente };
+    });
+  };
+
+  const guardar = async () => {
+    if (!horario) return;
+    setGuardando(true); setError(''); setAviso('');
+    try {
+      const dias = Object.entries(seleccion).map(([dia, turno_ids]) => ({
+        dia_semana: Number(dia),
+        turno_ids,
+      }));
+      const { data } = await axiosClient.put(`/admin/medicos/${horario.medico.id}/horario`, { dias });
+      setAviso(`Horario guardado: ${data.dias_configurados} día(s) configurado(s).`);
+      cargar();
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo guardar el horario.');
+    } finally { setGuardando(false); }
+  };
+
+  const certificarHorario = async () => {
+    if (!horario) return;
+    setCertificando(horario.medico.id); setError(''); setAviso('');
+    try {
+      const { data } = await axiosClient.post(`/admin/medicos/${horario.medico.id}/horario/certificar`);
+      setAviso(`Horario certificado: ${data.dias_certificados} día(s) certificado(s).`);
+      setHorario(null);
+      cargar();
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo certificar el horario.');
+    } finally { setCertificando(null); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar médico por nombre o especialidad..."
+            className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 text-slate-800 text-sm rounded-lg placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all" />
+        </div>
+      </div>
+
+      <p className="text-[12px] text-slate-500 bg-sky-50 ring-1 ring-sky-200 rounded-lg px-3 py-2">
+        Los especialistas se agendan por turnos de Mañana y Tarde. Solo Medicina General y Emergencias tienen cobertura 24 horas.
+      </p>
+
+      {error && !horario && (
+        <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
+      )}
+
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Médico</th>
+                <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Especialidad</th>
+                <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Días con horario</th>
+                <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {cargando ? (
+                <tr><td colSpan={4} className="py-10 text-center"><Loader2 className="w-5 h-5 mx-auto animate-spin text-brand-primary" /></td></tr>
+              ) : medicos.length === 0 ? (
+                <tr><td colSpan={4} className="py-10 text-center text-slate-400 text-sm">Sin resultados</td></tr>
+              ) : medicos.map((m) => (
+                <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="py-3 px-4 font-semibold text-sm text-slate-800">
+                    {m.nombre}
+                    {m.emergencia && <span className="ml-2"><Badge color="red">EMERGENCIA</Badge></span>}
+                  </td>
+                  <td className="py-3 px-4 text-sm text-slate-600">{m.especialidad || '—'}</td>
+                  <td className="py-3 px-4">
+                    <Badge color={m.dias_con_horario ? 'green' : 'amber'}>{m.dias_con_horario} / 7</Badge>
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <button onClick={() => abrirHorario(m.id)} title="Editar horario"
+                      className="p-1.5 text-slate-400 hover:text-brand-primary rounded-lg hover:bg-blue-50 transition-colors">
+                      <CalendarClock className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {horario && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setHorario(null)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-brand-primary/10 flex items-center justify-center">
+                  <CalendarClock className="w-5 h-5 text-brand-primary" />
+                </div>
+                <div>
+                  <span className="font-bold text-slate-800">{horario.medico.nombre}</span>
+                  <p className="text-[11px] text-slate-400">{horario.medico.especialidad || 'Sin especialidad'}</p>
+                </div>
+              </div>
+              <button onClick={() => setHorario(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              {cargandoHorario ? (
+                <div className="py-8 text-center"><Loader2 className="w-5 h-5 mx-auto animate-spin text-brand-primary" /></div>
+              ) : (
+                <>
+                  {horario.medico.permite_24h && (
+                    <p className="text-[11px] text-slate-500 bg-emerald-50 ring-1 ring-emerald-200 rounded-lg px-3 py-2">
+                      Este médico puede tener turnos de 24 horas (Medicina General / Emergencias).
+                    </p>
+                  )}
+                  {(horario.dias || []).map((d) => (
+                    <div key={d.dia_semana} className="flex flex-col sm:flex-row sm:items-center gap-2 border-b border-slate-100 pb-2 last:border-0">
+                      <span className="w-24 shrink-0 text-[12px] font-semibold text-slate-600">{d.nombre}</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(horario.turnos || []).map((t) => {
+                          const bloqueado = t.es_24h && !horario.medico.permite_24h;
+                          const activo = (seleccion[d.dia_semana] || []).includes(t.id);
+                          return (
+                            <button key={t.id} type="button" disabled={bloqueado}
+                              onClick={() => alternarTurno(d.dia_semana, t.id)}
+                              title={bloqueado ? 'Solo Medicina General y Emergencias cubren 24 horas' : `${t.hora_inicio}–${t.hora_fin}`}
+                              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all disabled:opacity-30 disabled:cursor-not-allowed ${
+                                activo
+                                  ? 'bg-brand-primary text-white border-brand-primary'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:border-brand-primary/50'
+                              }`}>
+                              {t.nombre} <span className="font-mono text-[10px] opacity-80">{t.hora_inicio}–{t.hora_fin}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {error && (
+                    <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
+                  )}
+                  {aviso && (
+                    <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-lg">{aviso}</div>
+                  )}
+
+                  <button onClick={guardar} disabled={guardando}
+                    className="w-full py-2.5 bg-brand-primary text-white font-semibold text-sm rounded-lg hover:bg-brand-primaryDark shadow-sm shadow-brand-primary/20 disabled:opacity-40 transition-all">
+                    {guardando ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : 'Guardar Horario'}
+                  </button>
+                  {userRole === 'recursos_humanos' && (
+                    <button onClick={certificarHorario} disabled={certificando === horario.medico.id}
+                      className="w-full py-2.5 mt-2 bg-emerald-600 text-white font-semibold text-sm rounded-lg hover:bg-emerald-700 shadow-sm shadow-emerald/20 disabled:opacity-40 transition-all">
+                      {certificando === horario.medico.id ? <Loader2 className="w-4 h-4 mx-auto animate-spin" /> : 'Certificar Horario'}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -756,11 +1269,13 @@ function LogsSection() {
 const SECCIONES = [
   { id: 'usuarios', label: 'Usuarios', icon: Users },
   { id: 'empleados', label: 'Nomina', icon: Database },
+  { id: 'horarios', label: 'Horarios', icon: CalendarClock },
   { id: 'logs', label: 'Logs del Sistema', icon: Terminal },
 ];
 
-export default function SystemAdminInterface({ userName = 'Oswaldo Garcia', onLogout }) {
+export default function SystemAdminInterface({ userName = 'Oswaldo Garcia', userRole = 'admin_sistemas', onLogout }) {
   const [seccion, setSeccion] = useState('usuarios');
+  const [horarioMedicoId, setHorarioMedicoId] = useState(null);
 
   return (
     <div className="min-h-screen bg-brand-surface">
@@ -820,9 +1335,34 @@ export default function SystemAdminInterface({ userName = 'Oswaldo Garcia', onLo
 
       {/* Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {seccion === 'usuarios' && <UsuariosSection />}
-        {seccion === 'empleados' && <EmpleadosSection />}
-        {seccion === 'logs' && <LogsSection />}
+        {userRole === 'recursos_humanos' ? (
+          <HorariosSection
+            medicoInicial={horarioMedicoId}
+            onInicialAbierto={() => setHorarioMedicoId(null)}
+            userRole={userRole}
+          />
+        ) : (
+          <>
+            {seccion === 'usuarios' && (
+              <UsuariosSection
+                onEditarHorario={(personalId) => {
+                  if (!personalId) return;
+                  setHorarioMedicoId(personalId);
+                  setSeccion('horarios');
+                }}
+              />
+            )}
+            {seccion === 'empleados' && <EmpleadosSection />}
+            {seccion === 'horarios' && (
+              <HorariosSection
+                medicoInicial={horarioMedicoId}
+                onInicialAbierto={() => setHorarioMedicoId(null)}
+                userRole={userRole}
+              />
+            )}
+            {seccion === 'logs' && <LogsSection />}
+          </>
+        )}
       </main>
 
       {/* Footer */}

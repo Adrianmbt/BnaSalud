@@ -4,6 +4,7 @@ Solo permite el ingreso a los módulos habilitados del sistema interno:
 `recepcionista` -> Módulo de Recepción
 `medico_emergencia` -> Módulo de Medicina de Emergencias
 `medico` -> Módulo de Especialista
+`historias_medicas` -> Módulo de Historia Clínica Integral (CITAB)
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -28,9 +29,11 @@ MODULOS_INTERNOS = {
     "recepcionista": "recepcion",
     "medico_emergencia": "emergency",
     "medico": "especialista",
+    "historias_medicas": "historias_medicas",
     "jefe_farmacia": "farmacia",
     "farmaceutico": "farmacia",
     "admin_sistemas": "admin_sistemas",
+    "recursos_humanos": "recursos_humanos",
     "director": "director",
 }
 
@@ -151,7 +154,11 @@ async def login(
     if clinica_id is None and usuario.clinica_id is not None:
         clinica_id = usuario.clinica_id
 
-    # 3) Resolver nombre del centro y código
+    # 3) Fallback: usar el CLINICA_ID / CENTRO_ID configurado en el entorno para esta sede
+    if clinica_id is None and settings.id_centro is not None:
+        clinica_id = settings.id_centro
+
+    # 4) Resolver nombre del centro y código
     if clinica_id is not None:
         try:
             clinica = (await db.execute(
