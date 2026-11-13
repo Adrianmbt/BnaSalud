@@ -26,12 +26,12 @@ def _headers() -> dict:
 
 
 async def sincronizar_solicitudes_supabase(db: AsyncSession, centro_id: Optional[int] = None) -> int:
-    """Consulta citas pendientes en Supabase y las sincroniza en la BD local.
+    """Consulta citas pendientes y canceladas en Supabase y las sincroniza en la BD local.
 
-    Por defecto trae todas las citas con origen='cita_web' y estado='pendiente'
-    (sin filtrar por centro en Supabase, porque el centro remoto puede diferir
-    del centro de esta sede); se insertan con su centro_id original y el filtro
-    por centro se aplica al leer desde la BD local.
+    Trae citas con origen='cita_web' y estado en ('pendiente', 'cancelada')
+    para reflejar tanto las solicitudes activas como las que el paciente
+    canceló desde el portal web. Se insertan con su centro_id original y el
+    filtro por centro se aplica al leer desde la BD local.
     """
     if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
         logger.warning("SUPABASE_URL/SUPABASE_KEY no configuradas; se omite sincronización.")
@@ -40,7 +40,7 @@ async def sincronizar_solicitudes_supabase(db: AsyncSession, centro_id: Optional
     base_url = settings.SUPABASE_URL.rstrip("/")
     citas_url = f"{base_url}/rest/v1/citas"
     params = {
-        "estado": "eq.pendiente",
+        "estado": "in.('pendiente','cancelada')",
         "origen": "eq.cita_web",
         "select": "*",
         "order": "created_at.desc",
@@ -88,6 +88,7 @@ async def sincronizar_solicitudes_supabase(db: AsyncSession, centro_id: Optional
         p_data = pacientes_map.get(str(pid)) if pid else None
 
         # 1. Asegurar historia clínica local
+        local_pid = None
         if p_data:
             cedula = str(p_data.get("cedula") or "").strip()
             nombre = p_data.get("nombre_completo") or "Paciente Web"
@@ -95,26 +96,57 @@ async def sincronizar_solicitudes_supabase(db: AsyncSession, centro_id: Optional
             email = p_data.get("email") or ""
             dir_pac = p_data.get("direccion") or ""
 
-            await db.execute(
-                text("""
-                    INSERT INTO historias_clinicas
-                        (id, cedula, nombre_completo, telefono, email, direccion, created_at)
-                    VALUES
-                        (:id, :cedula, :nombre, :telefono, :email, :direccion, NOW())
-                    ON CONFLICT (id) DO UPDATE SET
-                        nombre_completo = EXCLUDED.nombre_completo,
-                        telefono = COALESCE(NULLIF(EXCLUDED.telefono, ''), historias_clinicas.telefono),
-                        email = COALESCE(NULLIF(EXCLUDED.email, ''), historias_clinicas.email)
-                """),
-                {
-                    "id": pid,
-                    "cedula": cedula,
-                    "nombre": nombre,
-                    "telefono": tel,
-                    "email": email,
-                    "direccion": dir_pac,
-                },
-            )
+            # Buscar si ya existe una historia clínica local con esta cédula
+            if cedula:
+                existente = (
+                    await db.execute(
+                        text("SELECT id FROM historias_clinicas WHERE cedula = :ced"),
+                        {"ced": cedula},
+                    )
+                ).mappings().first()
+                if existente:
+                    local_pid = str(existente["id"])
+                    # Actualizar datos si faltan
+                    await db.execute(
+                        text("""
+                            UPDATE historias_clinicas
+                            SET nombre_completo = COALESCE(:nombre, nombre_completo),
+                                telefono = COALESCE(NULLIF(:telefono, ''), telefono),
+                                email = COALESCE(NULLIF(:email, ''), email),
+                                direccion = COALESCE(NULLIF(:direccion, ''), direccion)
+                            WHERE id = :pid
+                        """),
+                        {
+                            "pid": local_pid,
+                            "nombre": nombre,
+                            "telefono": tel,
+                            "email": email,
+                            "direccion": dir_pac,
+                        },
+                    )
+            # Si no existe por cédula, insertar con el id de Supabase
+            if not local_pid:
+                await db.execute(
+                    text("""
+                        INSERT INTO historias_clinicas
+                            (id, cedula, nombre_completo, telefono, email, direccion, created_at)
+                        VALUES
+                            (:id, :cedula, :nombre, :telefono, :email, :direccion, NOW())
+                        ON CONFLICT (id) DO UPDATE SET
+                            nombre_completo = EXCLUDED.nombre_completo,
+                            telefono = COALESCE(NULLIF(EXCLUDED.telefono, ''), historias_clinicas.telefono),
+                            email = COALESCE(NULLIF(EXCLUDED.email, ''), historias_clinicas.email)
+                    """),
+                    {
+                        "id": pid,
+                        "cedula": cedula,
+                        "nombre": nombre,
+                        "telefono": tel,
+                        "email": email,
+                        "direccion": dir_pac,
+                    },
+                )
+                local_pid = pid
 
         # 2. Insertar o actualizar cita en BD local (usa el centro_id remoto; fallback al parametro)
         existe = (
@@ -123,6 +155,8 @@ async def sincronizar_solicitudes_supabase(db: AsyncSession, centro_id: Optional
                 {"cid": cid},
             )
         ).mappings().first()
+
+        estado_remoto = c.get("estado") or "pendiente"
 
         if not existe:
             await db.execute(
@@ -133,17 +167,18 @@ async def sincronizar_solicitudes_supabase(db: AsyncSession, centro_id: Optional
                          fecha_cita, hora_inicio)
                     VALUES
                         (:id, :pid, :centro_id, :centro_salud, :especialidad,
-                         :motivo, 'cita_web', 'pendiente', :codigo, :created_at,
+                         :motivo, 'cita_web', :estado_remoto, :codigo, :created_at,
                          :fecha_cita, :hora_inicio)
                     ON CONFLICT (id) DO NOTHING
                 """),
                 {
                     "id": cid,
-                    "pid": pid,
+                    "pid": local_pid,
                     "centro_id": c.get("centro_id") or centro_id,
                     "centro_salud": c.get("centro_salud") or "CITAB",
                     "especialidad": c.get("especialidad") or "",
                     "motivo": c.get("motivo") or "",
+                    "estado_remoto": estado_remoto,
                     "codigo": c.get("codigo_confirmacion") or f"WEB-{cid[:6].upper()}",
                     "created_at": _parse_created_at(c.get("created_at")),
                     "fecha_cita": c.get("fecha_cita") or datetime.now().date(),
@@ -155,6 +190,14 @@ async def sincronizar_solicitudes_supabase(db: AsyncSession, centro_id: Optional
                 },
             )
             sincronizadas += 1
+        else:
+            # Si la cita ya existe localmente, actualizar su estado si cambió en Supabase
+            if existe["estado"] != estado_remoto:
+                await db.execute(
+                    text("UPDATE citas SET estado = :estado_remoto WHERE id::text = :cid"),
+                    {"estado_remoto": estado_remoto, "cid": cid},
+                )
+                sincronizadas += 1
 
     if sincronizadas > 0:
         await db.commit()
