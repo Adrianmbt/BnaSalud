@@ -456,9 +456,13 @@ async def cupos_semanal(
 ):
     """Cupos disponibles por día de la semana para un médico.
 
-    Calculado desde `agenda_medicos` (turnos configurados) menos citas
-    ya registradas (no canceladas). No hay un número hardcodeado de 20;
-    depende del horario real del médico.
+    Solo días laborables (lunes a viernes). Máximo 20 cupos por semana,
+    asignados por orden de registro/asignación. Se calcula desde
+    `agenda_medicos` (turnos configurados) menos citas ya registradas
+    (no canceladas).
+
+    El médico carga su horario el domingo para la semana siguiente.
+    Se muestra solo los días que tiene cargados.
 
     Se usa para que el portal web y la recepción vean los mismos cupos
     y no se solapen asignaciones.
@@ -476,11 +480,11 @@ async def cupos_semanal(
     else:
         # Lunes de la semana actual
         inicio_semana = hoy - timedelta(days=hoy.weekday())
-    fin_semana = inicio_semana + timedelta(days=6)
+    fin_semana = inicio_semana + timedelta(days=4)  # Lunes a viernes
 
     agenda = await _turnos_agenda(db, medico_id)
 
-    # Ocupadas de toda la semana
+    # Ocupadas de toda la semana (lunes a viernes)
     filas = (
         await db.execute(
             text(
@@ -502,17 +506,26 @@ async def cupos_semanal(
         "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
     ]
 
+    DIAS_LABORABLES = {0, 1, 2, 3, 4}  # Lunes a viernes
+
     dias: List[CupoDiaSemana] = []
-    cupos_totales = 0
+    cupos_restantes_semana = 20  # Máximo 20 cupos por semana
     cur = inicio_semana
     while cur <= fin_semana:
+        # Solo días laborables (lunes a viernes)
+        if cur.weekday() not in DIAS_LABORABLES:
+            cur += timedelta(days=1)
+            continue
+
         turnos_del_dia = agenda.get(cur.weekday(), [])
         turnos_libres_dia: List[JornadaDisponible] = []
         cupos_dia = 0
 
-        if cur not in ausentes and turnos_del_dia:
+        if cur not in ausentes and turnos_del_dia and cupos_restantes_semana > 0:
             ocupadas_hhmm = ocupadas_por_fecha.get(cur, set())
             for turno in turnos_del_dia:
+                if cupos_restantes_semana <= 0:
+                    break
                 hh_in = _hhmm(turno["hora_inicio"])
                 hh_out = _hhmm(turno["hora_fin"])
                 inicio_dt = datetime.combine(date.min, time.fromisoformat(hh_in))
@@ -524,6 +537,8 @@ async def cupos_semanal(
                     slots.append(cur_dt.strftime("%H:%M"))
                     cur_dt += paso
                 libres = [s for s in slots if s not in ocupadas_hhmm]
+                # Limitar cupos del día al restante de la semana
+                libres = libres[:cupos_restantes_semana]
                 if libres:
                     turnos_libres_dia.append(
                         JornadaDisponible(
@@ -538,6 +553,7 @@ async def cupos_semanal(
                         )
                     )
                     cupos_dia += len(libres)
+                    cupos_restantes_semana -= len(libres)
 
         dias.append(
             CupoDiaSemana(
@@ -548,8 +564,9 @@ async def cupos_semanal(
                 cupos_libres=cupos_dia,
             )
         )
-        cupos_totales += cupos_dia
         cur += timedelta(days=1)
+
+    cupos_libres_totales = sum(d.cupos_libres for d in dias)
 
     return CupoSemanalResponse(
         medico_id=medico_id,
@@ -558,7 +575,7 @@ async def cupos_semanal(
         semana_desde=inicio_semana.isoformat(),
         semana_hasta=fin_semana.isoformat(),
         dias=dias,
-        cupos_libres_totales=cupos_totales,
+        cupos_libres_totales=cupos_libres_totales,
     )
 
 
