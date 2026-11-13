@@ -21,8 +21,8 @@ class TurnoLibre(BaseModel):
 class JornadaDisponible(BaseModel):
     """Turno completo (Mañana, Tarde, ...) con sus cupos libres.
 
-    La solicitud de cita se elige por turno; `hora_asignada` es la primera
-    franja libre dentro de ese turno.
+    La solicitud de cita se elige por turno; el paciente se ancla al turno
+    (rango hora_inicio - hora_fin), no a una hora específica.
     """
 
     turno_id: int
@@ -32,7 +32,6 @@ class JornadaDisponible(BaseModel):
     capacidad: int = 0
     cupos_libres: int = 0
     disponible: bool = False
-    hora_asignada: Optional[str] = None
 
 
 class JornadasDia(BaseModel):
@@ -70,7 +69,14 @@ class CitaCrearRequest(BaseModel):
     medico_id: int = Field(..., description="ID del especialista en personal")
     especialidad: str = ""
     fecha: str = Field(..., description="Fecha de la cita (YYYY-MM-DD)")
-    hora_inicio: str = Field(..., description="Hora de la cita (HH:MM)")
+    hora_inicio: Optional[str] = Field(
+        None,
+        description="Hora de la cita (HH:MM). Si se indica turno_id, se valida que esté dentro del rango del turno.",
+    )
+    turno_id: Optional[int] = Field(
+        None,
+        description="ID del turno (rango hora_inicio - hora_fin) al que se asigna la cita.",
+    )
     nivel: str = Field(..., description="Nivel de prioridad: azul | verde | amarillo")
     origen: Optional[str] = "remision"
     motivo: Optional[str] = None

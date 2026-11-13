@@ -130,6 +130,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
         medico_id: medicoId,
         fecha: fechaSeleccionada,
         hora_inicio: turnoSeleccionado.hora_inicio,
+        turno_id: turnoSeleccionado.turno_id,
         nivel: 'verde',
         especialidad: cita?.especialidad || '',
         motivo: cita?.motivo || 'Asignación de cita',
@@ -368,10 +369,10 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {jornadasDia.map((t) => {
-                        const seleccionado = turnoSeleccionado?.hora_inicio === t.hora_inicio;
+                        const seleccionado = turnoSeleccionado?.turno_id === t.turno_id;
                         return (
                           <button
-                            key={t.hora_inicio}
+                            key={t.turno_id}
                             type="button"
                             onClick={() => setTurnoSeleccionado(t)}
                             className={`w-full py-3 rounded-lg border text-sm font-medium transition-all flex flex-col items-center gap-1 ${
@@ -384,7 +385,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
                               {t.turno_nombre || 'Turno'}
                             </span>
                             <span className={`font-bold text-sm ${seleccionado ? 'text-white' : 'text-slate-900'}`}>
-                              {t.hora_inicio}
+                              {t.hora_inicio} - {t.hora_fin}
                             </span>
                           </button>
                         );
@@ -415,7 +416,7 @@ export default function AsignarCitaModal({ citaId, pacienteData, onClose, onAsig
                       <div className="flex justify-between">
                         <span className="text-slate-500">Turno</span>
                         <span className="font-semibold text-slate-900">
-                          {turnoSeleccionado.turno_nombre ? `${turnoSeleccionado.turno_nombre} · ${turnoSeleccionado.hora_inicio}` : turnoSeleccionado.hora_inicio}
+                          {turnoSeleccionado.turno_nombre ? `${turnoSeleccionado.turno_nombre} · ${turnoSeleccionado.hora_inicio}-${turnoSeleccionado.hora_fin}` : `${turnoSeleccionado.hora_inicio}-${turnoSeleccionado.hora_fin}`}
                         </span>
                       </div>
                     </div>

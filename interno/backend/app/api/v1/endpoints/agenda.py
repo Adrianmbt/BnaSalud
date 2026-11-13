@@ -550,7 +550,6 @@ async def cupos_semanal(
                             capacidad=len(slots),
                             cupos_libres=len(libres),
                             disponible=True,
-                            hora_asignada=libres[0],
                         )
                     )
                     cupos_dia += len(libres)
@@ -611,7 +610,6 @@ def _jornadas_de_dia(
                 capacidad=len(slots),
                 cupos_libres=len(libres),
                 disponible=bool(libres),
-                hora_asignada=_hhmm(libres[0]["hora_inicio"]) if libres else None,
             )
         )
     turnos.sort(key=lambda t: t.hora_inicio)
@@ -640,9 +638,42 @@ async def crear_cita(
 
     try:
         fec = datetime.strptime(payload.fecha, "%Y-%m-%d").date()
-        hora = datetime.strptime(payload.hora_inicio, "%H:%M").time()
     except ValueError:
-        raise HTTPException(status_code=400, detail="fecha/hora inválidas.")
+        raise HTTPException(status_code=400, detail="fecha inválida (YYYY-MM-DD).")
+
+    # Determinar la hora de la cita:
+    # - Si se indica hora_inicio, se usa esa.
+    # - Si se indica turno_id sin hora_inicio, se usa la hora_inicio del turno.
+    # - Si no se indica ninguna, error.
+    hora = None
+    turno_rango = None
+    if payload.hora_inicio:
+        try:
+            hora = datetime.strptime(payload.hora_inicio, "%H:%M").time()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="hora_inicio inválida (HH:MM).")
+    elif payload.turno_id is not None:
+        # Buscar el turno en la agenda del médico para ese día de la semana.
+        agenda = await _turnos_agenda(db, payload.medico_id)
+        turnos_dia = agenda.get(fec.weekday(), [])
+        turno_encontrado = next(
+            (t for t in turnos_dia if t["turno_id"] == payload.turno_id), None
+        )
+        if not turno_encontrado:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El turno {payload.turno_id} no está activo para el médico el {payload.fecha}.",
+            )
+        turno_rango = turno_encontrado
+        try:
+            hora = datetime.strptime(str(turno_encontrado["hora_inicio"]), "%H:%M:%S").time()
+        except ValueError:
+            hora = datetime.strptime(str(turno_encontrado["hora_inicio"]), "%H:%M").time()
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Es obligatorio indicar hora_inicio o turno_id.",
+        )
 
     esp = await _especialista(db, payload.medico_id)
 
@@ -653,10 +684,9 @@ async def crear_cita(
             detail=f"El especialista está ausente el {payload.fecha}.",
         )
 
-    # Bloqueo a nivel de transacción sobre el slot específico
-    # (médico + fecha + hora) para evitar doble-reserva entre peticiones
-    # concurrentes (web y recepción al mismo tiempo). pg_advisory_xact_lock
-    # se libera automáticamente al hacer commit/rollback.
+    # Bloqueo a nivel de transacción sobre el turno/médico/fecha para evitar
+    # doble-reserva entre peticiones concurrentes (web y recepción).
+    hora_lock = str(hora)[:5] if hora else payload.hora_inicio or ""
     await db.execute(
         text(
             "SELECT pg_advisory_xact_lock(hashtextextended("
@@ -665,7 +695,7 @@ async def crear_cita(
         {
             "mid": str(payload.medico_id),
             "fec": fec.isoformat(),
-            "hora": payload.hora_inicio,
+            "hora": hora_lock,
         },
     )
 
@@ -694,7 +724,7 @@ async def crear_cita(
         agenda = await _turnos_agenda(db, payload.medico_id)
         turnos = agenda.get(fec.weekday(), [])
         turno = next(
-            (t for t in turnos if str(t["hora_inicio"])[:5] == payload.hora_inicio),
+            (t for t in turnos if str(t["hora_inicio"])[:5] == str(hora)[:5]),
             None,
         )
         if not turno:
@@ -702,19 +732,19 @@ async def crear_cita(
                 status_code=400,
                 detail=(
                     f"El especialista no atiende ese día/hora "
-                    f"({payload.fecha} {payload.hora_inicio})."
+                    f"({payload.fecha} {str(hora)[:5]})."
                 ),
             )
         ocupadas = await _horas_ocupadas(db, payload.medico_id, fec)
         misma_cita = (
             existente["medico_id"] == payload.medico_id
             and str(existente["fecha_cita"])[:10] == fec.isoformat()
-            and str(existente["hora_inicio"])[:5] == payload.hora_inicio
+            and str(existente["hora_inicio"])[:5] == str(hora)[:5]
         )
-        if payload.hora_inicio in ocupadas and not misma_cita:
+        if str(hora)[:5] in ocupadas and not misma_cita:
             raise HTTPException(
                 status_code=409,
-                detail=f"Esa hora ({payload.hora_inicio}) ya está ocupada.",
+                detail=f"Esa hora ({str(hora)[:5]}) ya está ocupada.",
             )
 
         esp_nombre = (
@@ -830,7 +860,7 @@ async def crear_cita(
             f"🩺 *Especialidad:* {esp_nombre}\n"
             f"👨‍⚕️ *Médico:* Dr(a). {medico_nombre}\n"
             f"📅 *Fecha:* {fec.strftime('%d/%m/%Y')}\n"
-            f"⏰ *Hora:* {payload.hora_inicio}\n"
+            f"⏰ *Hora:* {str(hora)[:5]}\n"
             f"🔖 *Código de cita:* {cod_cita}\n\n"
             f"Por favor acuda 15 minutos antes con su cédula de identidad. ¡Le esperamos!"
         )
@@ -845,7 +875,7 @@ async def crear_cita(
                 medico_id=payload.medico_id,
                 medico_nombre=medico_nombre,
                 fecha_cita=fec.isoformat(),
-                hora_inicio=payload.hora_inicio,
+                hora_inicio=str(hora)[:5],
                 centro_nombre=centro_nombre,
                 especialidad=esp_nombre,
                 codigo_confirmacion=cod_cita,
@@ -864,7 +894,7 @@ async def crear_cita(
             especialidad=fila["especialidad"] or esp_nombre,
             medico_id=payload.medico_id,
             fecha_cita=fec.isoformat(),
-            hora_inicio=payload.hora_inicio,
+            hora_inicio=str(hora)[:5],
             estado="confirmada",
             paciente_nombre=paciente_nombre,
             paciente_telefono=telefono,
@@ -889,15 +919,15 @@ async def crear_cita(
     # Validar que el slot esté disponible (turno activo ese día y sin cita).
     agenda = await _turnos_agenda(db, payload.medico_id)
     turnos = agenda.get(fec.weekday(), [])
-    turno = next((t for t in turnos if str(t["hora_inicio"])[:5] == payload.hora_inicio), None)
+    turno = next((t for t in turnos if str(t["hora_inicio"])[:5] == str(hora)[:5]), None)
     if not turno:
         raise HTTPException(
             status_code=400,
-            detail=f"El especialista no atiende ese día/hora ({payload.fecha} {payload.hora_inicio}).",
+            detail=f"El especialista no atiende ese día/hora ({payload.fecha} {str(hora)[:5]}).",
         )
     ocupadas = await _horas_ocupadas(db, payload.medico_id, fec)
-    if payload.hora_inicio in ocupadas:
-        raise HTTPException(status_code=409, detail=f"Esa hora ({payload.hora_inicio}) ya está ocupada.")
+    if str(hora)[:5] in ocupadas:
+        raise HTTPException(status_code=409, detail=f"Esa hora ({str(hora)[:5]}) ya está ocupada.")
 
     codigo = _generar_codigo(fec.year)
     while True:
@@ -952,7 +982,7 @@ async def crear_cita(
         especialidad=payload.especialidad or esp["especialidad"],
         medico_id=payload.medico_id,
         fecha_cita=fec.isoformat(),
-        hora_inicio=payload.hora_inicio,
+        hora_inicio=str(hora)[:5],
         estado="pendiente",
         centro_salud=centro_salud,
     )
