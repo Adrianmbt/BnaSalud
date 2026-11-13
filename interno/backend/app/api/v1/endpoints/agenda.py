@@ -22,6 +22,7 @@ from app.models.cola import (
 from app.schemas.agenda import (
     CitaCreadaResponse,
     CitaCrearRequest,
+    CupoDiaSemana,
     CupoSemanalResponse,
     DiaDisponibilidad,
     DisponibilidadResponse,
