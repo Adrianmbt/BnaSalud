@@ -1,6 +1,7 @@
+import unicodedata
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from app.schemas.schemas import CentroSaludResponse
 from app.core.database import supabase
@@ -132,9 +133,67 @@ MAQUETA_FALLBACK: List[dict] = [
 ]
 
 
-def _aplicar_catalogo(fila: dict) -> CentroSaludResponse:
+def _normalizar(texto: str) -> str:
+    """Minúsculas sin tildes, para comparar especialidades y nombres de centro."""
+    descompuesto = unicodedata.normalize("NFKD", texto or "")
+    return "".join(c for c in descompuesto if not unicodedata.combining(c)).strip().lower()
+
+
+# Algunas filas de `clinicas` pueden llegar sin código; se resuelve por nombre.
+_CODIGO_POR_NOMBRE = {_normalizar(f["nombre"]): f["codigo"] for f in MAQUETA_FALLBACK}
+
+
+def _extras_de(fila: dict) -> dict:
+    """Catálogo de presentación del centro, por código o, si falta, por nombre."""
+    codigo = fila.get("codigo") or _CODIGO_POR_NOMBRE.get(
+        _normalizar(fila.get("nombre", "")), ""
+    )
+    return CATALOGO.get(codigo, {})
+
+
+def _combinar_especialidades(*listas) -> List[str]:
+    """Une listas de especialidades sin duplicar por tildes ni mayúsculas."""
+    vistos: set[str] = set()
+    salida: List[str] = []
+    for lista in listas:
+        for nombre in lista or []:
+            limpio = (nombre or "").strip()
+            clave = _normalizar(limpio)
+            if clave and clave not in vistos:
+                vistos.add(clave)
+                salida.append(limpio)
+    return salida
+
+
+def _especialidades_reales() -> dict[int, List[str]]:
+    """Especialidades con personal asignado, agrupadas por centro de salud.
+
+    Es una sola consulta: el portal público la usa para completar el catálogo
+    con lo que realmente atiende cada sede (el catálogo es solo presentación).
+    """
+    try:
+        personal = (
+            supabase.table("personal")
+            .select("clinica_id, especialidad")
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return {}
+    agrupadas: dict[int, List[str]] = {}
+    for fila in personal:
+        centro_id = fila.get("clinica_id")
+        nombre = (fila.get("especialidad") or "").strip()
+        if centro_id is None or not nombre:
+            continue
+        agrupadas.setdefault(int(centro_id), []).append(nombre)
+    return agrupadas
+
+
+def _aplicar_catalogo(fila: dict, reales: List[str] | None = None) -> CentroSaludResponse:
     """Combina la fila de la tabla clinicas con el catálogo visual por código."""
-    extras = CATALOGO.get(fila.get("codigo", ""), {})
+    extras = _extras_de(fila)
     base = {
         "id": fila.get("id"),
         "codigo": fila.get("codigo", ""),
@@ -144,7 +203,8 @@ def _aplicar_catalogo(fila: dict) -> CentroSaludResponse:
         "parroquia": fila.get("parroquia", ""),
         "direccion": fila.get("direccion", ""),
         "horario": extras.get("horario", "Consultar horario"),
-        "servicios": extras.get("servicios", []),
+        # Catálogo primero (orden y redacción curada) + lo que hay en personal.
+        "servicios": _combinar_especialidades(extras.get("servicios", []), reales),
         "logo": extras.get("logo", "/identidad visual/SBna.jpeg"),
         "fondoColor": extras.get("fondoColor", "#00677d"),
         "disabled": not fila.get("activo", True),
@@ -163,9 +223,12 @@ def listar_centros() -> List[CentroSaludResponse]:
     try:
         res = supabase.table("clinicas").select("*").order("id").execute()
         filas = res.data or []
-        return [_aplicar_catalogo(f) for f in filas]
     except Exception:
         return [_aplicar_catalogo(f) for f in MAQUETA_FALLBACK]
+    reales = _especialidades_reales()
+    return [
+        _aplicar_catalogo(f, reales.get(int(f.get("id") or 0), [])) for f in filas
+    ]
 
 
 @router.get("/{centro_id}", response_model=CentroSaludResponse)
@@ -174,7 +237,8 @@ def obtener_centro(centro_id: int) -> CentroSaludResponse:
     try:
         res = supabase.table("clinicas").select("*").eq("id", centro_id).execute()
         if res.data:
-            return _aplicar_catalogo(res.data[0])
+            reales = _especialidades_reales().get(int(centro_id), [])
+            return _aplicar_catalogo(res.data[0], reales)
     except Exception:
         pass
     for f in MAQUETA_FALLBACK:

@@ -12,7 +12,7 @@ from app.core.config import settings
 
 
 def hash_secreto(valor: str) -> str:
-    """Hash bcrypt de un secreto (contraseña o PIN)."""
+    """Hash bcrypt de un secreto (contraseña del paciente o del personal)."""
     return bcrypt.hashpw(valor.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
@@ -24,27 +24,6 @@ def verificar_secreto(valor: str, hash_: str | None) -> bool:
         return bcrypt.checkpw(valor.encode("utf-8"), hash_.encode("utf-8"))
     except (ValueError, TypeError):
         return False
-
-
-def pin_ya_utilizado(pin: str) -> bool:
-    """True si algún paciente ya tiene asignado el PIN (4-8 dígitos)."""
-    from app.core.database import supabase
-
-    try:
-        filas = (
-            supabase.table("historias_clinicas")
-            .select("pin_hash")
-            .execute()
-            .data
-            or []
-        )
-    except Exception:
-        return False
-    return any(
-        verificar_secreto(pin, fila.get("pin_hash"))
-        for fila in filas
-        if fila.get("pin_hash")
-    )
 
 
 def crear_token(payload: Dict[str, Any], minutos: int | None = None) -> str:
@@ -62,7 +41,7 @@ def verificar_token(token: str) -> Dict[str, Any]:
 
 
 def generar_codigo() -> str:
-    """Código numérico de 6 dígitos para recuperación de PIN."""
+    """Código numérico de 6 dígitos para restablecer la contraseña."""
     return f"{secrets.randbelow(1_000_000):06d}"
 
 

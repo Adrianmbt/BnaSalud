@@ -1,7 +1,7 @@
 """Bitácora de acciones sensibles (Fase 7).
 
 Cada acción relevante (login, cambios de estado de recetas, cola, resultados)
-queda registrada en `bitacora_acciones` y se consulta desde /admin.
+queda registrada en `bitacora_acciones` y se consulta desde /institucional.
 Nunca interrumpe el flujo principal: los fallos de registro se ignoran.
 """
 from __future__ import annotations

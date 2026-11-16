@@ -1,10 +1,11 @@
 """Autenticación de BnaSalud.
 
-Dos vías de acceso:
+Tres vías de acceso:
   • /auth/login        → personal (médicos, farmacia, enfermería): usuario + clave.
-  • /auth/paciente     → portal del paciente: cédula + PIN (4-8 dígitos).
+  • /auth/institucional → cuentas globales: admin_sistemas y director.
+  • /auth/paciente     → portal del paciente: cédula + contraseña.
   • /auth/paciente/recuperar → genera un código de 6 dígitos por correo.
-  • /auth/paciente/reset     → restablece el PIN con ese código.
+  • /auth/paciente/reset     → restablece la contraseña con ese código.
 
 Los tokens son JWT con expiración (ver app/core/security.py) y las rutas
 sensibles de la API los validan mediante app/api/v1/deps.py.
@@ -13,8 +14,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, HTTPException, Request, status
 
+import time
+from collections import defaultdict
+from threading import Lock
+
+from app.api.v1.deps import ROLES_GLOBALES
 from app.api.v1.errors import db_fail, fail
 from app.api.v1.endpoints.pacientes import _a_historia, _buscar_paciente
 from app.core.bitacora import registrar_accion
@@ -25,7 +31,6 @@ from app.core.security import (
     crear_token,
     generar_codigo,
     hash_secreto,
-    pin_ya_utilizado,
     verificar_secreto,
 )
 from app.schemas.schemas import (
@@ -35,19 +40,44 @@ from app.schemas.schemas import (
     LoginUsuarioResponse,
     PacienteLoginRequest,
     PacienteLoginResponse,
-    RecuperarPinRequest,
-    RecuperarPinResponse,
-    ResetPinRequest,
+    RecuperarPasswordRequest,
+    RecuperarPasswordResponse,
+    ResetPasswordRequest,
 )
 
 router = APIRouter(tags=["Autenticación"])
 
 ERROR_CREDENCIALES = "Usuario o contraseña incorrectos."
 
+# Rate limit simple en memoria para endpoints de autenticación.
+# Ventana deslizante: máximo `maximo` intentos por IP en `ventana` segundos.
+_intentos_auth: dict[str, list[float]] = defaultdict(list)
+_lock_auth = Lock()
 
-@router.post("/login", response_model=LoginResponse)
-def login(credenciales: LoginRequest) -> LoginResponse:
-    """Inicia sesión del personal (rol: medico, farmaceutico, enfermero, superusuario)."""
+
+def _rate_limit_auth(clave: str, maximo: int = 5, ventana: int = 60) -> bool:
+    """Devuelve True si la petición puede pasar; False si se excede el límite."""
+    ahora = time.time()
+    with _lock_auth:
+        # Tope de memoria: si llegan muchísimas IPs, se reinicia la ventana.
+        if len(_intentos_auth) > 5_000:
+            _intentos_auth.clear()
+        tiempos = [t for t in _intentos_auth.get(clave, []) if ahora - t < ventana]
+        if len(tiempos) >= maximo:
+            return False
+        tiempos.append(ahora)
+        _intentos_auth[clave] = tiempos
+        return True
+
+
+def _login_con_password(
+    credenciales: LoginRequest,
+    roles_permitidos: tuple[str, ...] | None = None,
+) -> LoginResponse:
+    """Valida usuario + contraseña y emite el token de personal.
+
+    Si `roles_permitidos` se indica, la cuenta debe tener uno de esos roles.
+    """
     username = credenciales.username.strip().lower()
     try:
         filas = (
@@ -68,7 +98,9 @@ def login(credenciales: LoginRequest) -> LoginResponse:
     if not verificar_secreto(credenciales.password, cuenta.get("password_hash")):
         fail(ERROR_CREDENCIALES, 401)
     if cuenta.get("rol") == "paciente":
-        fail("Esta cuenta usa el portal del paciente (cédula y PIN).", 403)
+        fail("Esta cuenta usa el portal del paciente (cédula y contraseña).", 403)
+    if roles_permitidos is not None and cuenta.get("rol") not in roles_permitidos:
+        fail("Esta cuenta no tiene acceso al panel institucional.", 403)
 
     nombre = cuenta.get("username")
     especialidad = None
@@ -121,13 +153,47 @@ def login(credenciales: LoginRequest) -> LoginResponse:
     )
 
 
+@router.post("/login", response_model=LoginResponse)
+def login(
+    credenciales: LoginRequest,
+    request: Request,
+) -> LoginResponse:
+    """Inicia sesión del personal (rol: medico, farmaceutico, enfermero, superusuario)."""
+    if not _rate_limit_auth(f"auth:{request.client.host}"):
+        fail("Demasiados intentos. Intente nuevamente más tarde.", status.HTTP_429_TOO_MANY_REQUESTS)
+    return _login_con_password(credenciales)
+
+
+@router.post("/institucional", response_model=LoginResponse)
+def login_institucional(
+    credenciales: LoginRequest,
+    request: Request,
+) -> LoginResponse:
+    """Acceso al panel institucional: solo admin_sistemas y director."""
+    if not _rate_limit_auth(f"auth:{request.client.host}"):
+        fail("Demasiados intentos. Intente nuevamente más tarde.", status.HTTP_429_TOO_MANY_REQUESTS)
+    return _login_con_password(credenciales, roles_permitidos=ROLES_GLOBALES)
+
+
 @router.post("/paciente", response_model=PacienteLoginResponse)
-def login_paciente(datos: PacienteLoginRequest) -> PacienteLoginResponse:
-    """Acceso al portal del paciente: cédula + PIN."""
+def login_paciente(
+    datos: PacienteLoginRequest,
+    request: Request,
+) -> PacienteLoginResponse:
+    """Acceso al portal del paciente: cédula + contraseña."""
+    if not _rate_limit_auth(f"auth:{request.client.host}"):
+        fail("Demasiados intentos. Intente nuevamente más tarde.", status.HTTP_429_TOO_MANY_REQUESTS)
+    secreto = datos.password.strip()
+    if not secreto:
+        fail("Ingrese su contraseña.", 400)
+
     cedula = datos.cedula.strip()
-    fila = _buscar_paciente(cedula)
-    if not verificar_secreto(datos.pin, fila.get("pin_hash")):
-        fail("PIN incorrecto. Verifique su cédula y su PIN.", 401)
+    try:
+        fila = _buscar_paciente(cedula)
+    except HTTPException:
+        fila = None
+    if not fila or not verificar_secreto(secreto, fila.get("pin_hash")):
+        fail("Cédula o contraseña incorrectas.", 401)
 
     token = crear_token(
         {
@@ -148,21 +214,43 @@ def login_paciente(datos: PacienteLoginRequest) -> PacienteLoginResponse:
     return PacienteLoginResponse(token=token, paciente=_a_historia(fila))
 
 
-@router.post("/paciente/recuperar", response_model=RecuperarPinResponse)
-def recuperar_pin(datos: RecuperarPinRequest) -> RecuperarPinResponse:
+@router.post("/paciente/recuperar", response_model=RecuperarPasswordResponse)
+def recuperar_password(
+    datos: RecuperarPasswordRequest,
+    request: Request,
+) -> RecuperarPasswordResponse:
     """Genera un código de 6 dígitos si la cédula y el correo coinciden.
 
-    En modo demo (sin SMTP configurado) el código se devuelve en la
-    respuesta para poder probar el flujo; en producción se envía por correo.
+    Sin SMTP configurado el código se envía igualmente por la respuesta solo
+    en desarrollo (ENVIRONMENT != production); en producción va por correo.
     """
-    fila = _buscar_paciente(datos.cedula.strip())
-    email_registrado = (fila.get("email") or "").strip().lower()
-    if not email_registrado or email_registrado != datos.email.strip().lower():
-        fail("El correo no coincide con el registrado para esta cédula.")
+    if not _rate_limit_auth(f"auth:{request.client.host}"):
+        fail("Demasiados intentos. Intente nuevamente más tarde.", status.HTTP_429_TOO_MANY_REQUESTS)
+
+    minutos = settings.RECUPERACION_EXPIRACION_MINUTOS
+    mensaje_generico = (
+        "Si la cédula y el correo coinciden con una cuenta registrada, "
+        f"recibirá un código de 6 dígitos válido por {minutos} minutos."
+    )
+    try:
+        fila = _buscar_paciente(datos.cedula.strip())
+    except HTTPException:
+        fila = None
+    email_registrado = ((fila or {}).get("email") or "").strip().lower()
+    if not fila or not email_registrado or email_registrado != datos.email.strip().lower():
+        return RecuperarPasswordResponse(
+            mensaje=mensaje_generico,
+            expira_minutos=minutos,
+            codigo_desarrollo=None,
+        )
 
     codigo = generar_codigo()
-    expira = datetime.now(timezone.utc) + timedelta(minutes=settings.PIN_EXPIRACION_MINUTOS)
+    expira = datetime.now(timezone.utc) + timedelta(minutes=minutos)
     try:
+        # Solo un código válido por paciente: los anteriores quedan invalidados.
+        supabase.table("recuperacion_pacientes").update(
+            {"usado": True}
+        ).eq("paciente_id", fila["id"]).eq("usado", False).execute()
         supabase.table("recuperacion_pacientes").insert(
             {
                 "paciente_id": fila["id"],
@@ -176,26 +264,34 @@ def recuperar_pin(datos: RecuperarPinRequest) -> RecuperarPinResponse:
     enviado = enviar_codigo_recuperacion(
         fila.get("nombre_completo", "Paciente"),
         codigo,
-        settings.PIN_EXPIRACION_MINUTOS,
+        minutos,
         fila["email"],
     )
-    return RecuperarPinResponse(
-        mensaje=(
-            "Hemos enviado un código de 6 dígitos a su correo. "
-            f"Válido por {settings.PIN_EXPIRACION_MINUTOS} minutos."
-            if enviado
-            else "Si el correo coincide con el registrado, recibirá un código "
-            f"de 6 dígitos válido por {settings.PIN_EXPIRACION_MINUTOS} minutos."
-        ),
-        expira_minutos=settings.PIN_EXPIRACION_MINUTOS,
-        codigo_demo=codigo if (settings.PIN_EMITIR_DEMO and not enviado) else None,
+    return RecuperarPasswordResponse(
+        mensaje=mensaje_generico,
+        expira_minutos=minutos,
+        codigo_desarrollo=None if (settings.es_produccion or enviado) else codigo,
     )
 
 
 @router.post("/paciente/reset", response_model=HistoriaClinicaResponse)
-def reset_pin(datos: ResetPinRequest) -> HistoriaClinicaResponse:
-    """Valida el código recibido y restablece el PIN del paciente."""
-    fila = _buscar_paciente(datos.cedula.strip())
+def reset_password(
+    datos: ResetPasswordRequest,
+    request: Request,
+) -> HistoriaClinicaResponse:
+    """Valida el código recibido y restablece la contraseña del paciente."""
+    if not _rate_limit_auth(f"auth:{request.client.host}"):
+        fail("Demasiados intentos. Intente nuevamente más tarde.", status.HTTP_429_TOO_MANY_REQUESTS)
+    secreto = datos.password.strip()
+    if not secreto:
+        fail("Indique la nueva contraseña.")
+    if not (6 <= len(secreto) <= 64):
+        fail("La contraseña debe tener entre 6 y 64 caracteres.")
+
+    try:
+        fila = _buscar_paciente(datos.cedula.strip())
+    except HTTPException:
+        fail("Código inválido o expirado. Solicite uno nuevo.")
     ahora = datetime.now(timezone.utc)
     try:
         registros = (
@@ -224,21 +320,14 @@ def reset_pin(datos: ResetPinRequest) -> HistoriaClinicaResponse:
     if not valido:
         fail("Código inválido o expirado. Solicite uno nuevo.")
 
-    if pin_ya_utilizado(datos.pin_nuevo):
-        fail(
-            "El PIN elegido ya está en uso por otro paciente. Elija otro.",
-            status.HTTP_409_CONFLICT,
-        )
-
     try:
         supabase.table("recuperacion_pacientes").update({"usado": True}).eq(
             "id", valido["id"]
         ).execute()
         supabase.table("historias_clinicas").update(
-            {"pin_hash": hash_secreto(datos.pin_nuevo)}
+            {"pin_hash": hash_secreto(secreto)}
         ).eq("id", fila["id"]).execute()
     except Exception:
-        db_fail("restablecer el PIN")
+        db_fail("restablecer la contraseña")
 
-    fila["pin_hash"] = None
     return _a_historia(fila)

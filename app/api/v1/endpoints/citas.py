@@ -48,12 +48,22 @@ def _get_db():
     yield None
 
 
+def _es_cupo_duplicado(error: Exception) -> bool:
+    """True si el error lo levantó el índice único de cupo (doble reserva).
+
+    El índice `citas_cupo_centro_uq` (migración 0027) es la garantía real:
+    la comprobación previa en Python no ve dos peticiones simultáneas.
+    """
+    texto = str(error).lower()
+    return "23505" in texto or "duplicate key" in texto
+
+
 def _generar_slots(centro_id: int, fecha: date, especialidad_id: Optional[int]) -> List[str]:
     """Slots libres de 30 min para un centro/fecha, excluyendo los ya reservados.
 
     Las solicitudes del portal (estado 'pendiente') todavía no tienen fecha ni
-    hora confirmadas, así que no bloquean cupos. Las citas antiguas que se
-    crearon con una fecha provisional tampoco deben reservar el slot.
+    hora confirmadas, así que no bloquean cupos. En cambio, una cita pendiente
+    con fecha y hora (creada en recepción o pospuesta) sí ocupa su turno.
     """
     try:
         res = (
@@ -69,7 +79,7 @@ def _generar_slots(centro_id: int, fecha: date, especialidad_id: Optional[int]) 
     ocupados = {
         str(r["hora_inicio"])[:5]
         for r in (res.data or [])
-        if r.get("hora_inicio") and r.get("estado") != "pendiente"
+        if r.get("hora_inicio")
     }
 
     apertura, cierre = HORARIOS_CENTRO.get(centro_id, ("08:00", "16:00"))
@@ -142,7 +152,7 @@ def _generar_codigo(centro_id: int) -> str:
     prefijo = PREFIJOS_CONFIRMACION.get(centro_id, "BNA")
     anio = date.today().year
     for _ in range(5):
-        codigo = f"{prefijo}-{anio}-{secrets.token_hex(2).upper()}"
+        codigo = f"{prefijo}-{anio}-{secrets.token_hex(4).upper()}"
         ocupado = (
             supabase.table("citas")
             .select("id")
@@ -160,8 +170,9 @@ def _generar_codigo(centro_id: int) -> str:
 async def crear_cita(
     payload: Union[CitaConPacienteCreate, CitaCreate],
     db=Depends(_get_db),
+    _: dict = Depends(exigir_staff),
 ) -> CitaResponse:
-    """Crea una cita médica (registra al paciente si no existe)."""
+    """Crea una cita médica desde recepción (registra al paciente si no existe)."""
     if payload.centro_id != CITAB_CENTER_ID:
         fail(
             "La reserva de citas en línea actualmente solo está disponible para el CITAB durante esta fase.",
@@ -253,7 +264,12 @@ async def crear_cita(
         cita["medico_id"] = payload.medico_id
     try:
         creado = supabase.table("citas").insert(cita).execute()
-    except Exception:
+    except Exception as error:
+        if _es_cupo_duplicado(error):
+            fail(
+                "Ese horario acaba de ser reservado por otra persona. Seleccione otro.",
+                status.HTTP_409_CONFLICT,
+            )
         db_fail("registrar la cita")
 
     fila = creado.data[0]
@@ -272,184 +288,6 @@ async def crear_cita(
         estado=fila.get("estado", "pendiente"),
         created_at=fila.get("created_at", datetime.now()),
     )
-
-
-@router.get("/medicos")
-def listar_medicos_por_especialidad(
-    centro_id: int,
-    especialidad_id: int,
-    db=Depends(_get_db),
-) -> dict:
-    """Devuelve los médicos de una especialidad en un centro, con sus días y horarios."""
-    if centro_id != CITAB_CENTER_ID:
-        return {"medicos": [], "mensaje": "Centro no disponible para agenda digital."}
-
-    try:
-        especialidad = (
-            supabase.table("especialidades")
-            .select("nombre")
-            .eq("id", especialidad_id)
-            .limit(1)
-            .execute()
-            .data
-        )
-    except Exception:
-        db_fail("validar la especialidad")
-    if not especialidad:
-        not_found("Especialidad")
-
-    nombre_esp = especialidad[0]["nombre"]
-
-    try:
-        personal = (
-            supabase.table("personal")
-            .select("id, nombre, apellido, cedula")
-            .eq("clinica_id", centro_id)
-            .eq("especialidad", nombre_esp)
-            .eq("cargo", "Médico")
-            .eq("estado", "ACTIVO")
-            .execute()
-            .data
-            or []
-        )
-    except Exception:
-        db_fail("consultar los médicos")
-
-    if not personal:
-        return {"medicos": [], "mensaje": "No hay médicos disponibles para esta especialidad."}
-
-    medico_ids = [p["id"] for p in personal]
-
-    try:
-        turnos_raw = (
-            supabase.table("personal_turnos")
-            .select("personal_id, turno_id, observaciones, turnos(nombre, hora_inicio, hora_fin)")
-            .in_("personal_id", medico_ids)
-            .eq("clinica_id", centro_id)
-            .execute()
-            .data
-            or []
-        )
-    except Exception:
-        db_fail("consultar los horarios de los médicos")
-
-    turnos_map: dict[int, list] = {}
-    for t in turnos_raw:
-        pid = t["personal_id"]
-        turno_info = t.get("turnos") or {}
-        turnos_map.setdefault(pid, []).append({
-            "dia": t.get("observaciones", ""),
-            "turno_nombre": turno_info.get("nombre", ""),
-            "hora_inicio": turno_info.get("hora_inicio", ""),
-            "hora_fin": turno_info.get("hora_fin", ""),
-        })
-
-    medicos = []
-    for p in personal:
-        horarios = turnos_map.get(p["id"], [])
-        dias_trabajo = sorted({h["dia"] for h in horarios if h["dia"]})
-        medicos.append({
-            "id": p["id"],
-            "nombre_completo": f"Dr(a). {p['nombre']} {p['apellido']}",
-            "cedula": p.get("cedula", ""),
-            "dias": dias_trabajo,
-            "horarios": horarios,
-        })
-
-    return {"medicos": medicos}
-
-
-@router.get("/disponibilidad")
-def obtener_disponibilidad(
-    centro_id: int,
-    especialidad_id: int,
-    fecha: date,
-    medico_id: Optional[int] = Query(default=None, description="ID del médico para filtrar por su horario"),
-    db=Depends(_get_db),
-) -> dict:
-    """Devuelve los slots libres de 30 minutos para un centro, fecha y (opcionalmente) médico."""
-    if centro_id != CITAB_CENTER_ID:
-        return {
-            "disponible": False,
-            "mensaje": "Centro no disponible para agenda digital actualmente.",
-            "slots": [],
-        }
-    try:
-        existe = (
-            supabase.table("clinicas").select("id").eq("id", centro_id).execute().data
-        )
-    except Exception:
-        db_fail("validar el centro de salud")
-    if not existe:
-        not_found("Centro de salud")
-
-    if medico_id:
-        dia_semana = fecha.strftime("%A")
-        dias_es = {
-            "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
-            "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo",
-        }
-        dia_es = dias_es.get(dia_semana, "")
-
-        try:
-            turnos_medico = (
-                supabase.table("personal_turnos")
-                .select("turno_id, observaciones, turnos(hora_inicio, hora_fin)")
-                .eq("personal_id", medico_id)
-                .eq("clinica_id", centro_id)
-                .execute()
-                .data
-                or []
-            )
-        except Exception:
-            db_fail("consultar el horario del médico")
-
-        turno_del_dia = None
-        for t in turnos_medico:
-            if t.get("observaciones", "").lower() == dia_es.lower():
-                turno_del_dia = t
-                break
-
-        if not turno_del_dia:
-            return {
-                "disponible": False,
-                "centro_id": centro_id,
-                "especialidad_id": especialidad_id,
-                "medico_id": medico_id,
-                "fecha": fecha.isoformat(),
-                "slots": [],
-                "mensaje": f"El médico no atiende los {dia_es}.",
-            }
-
-        turno_info = turno_del_dia.get("turnos") or {}
-        hora_inicio_turno = turno_info.get("hora_inicio", "07:00")[:5]
-        hora_fin_turno = turno_info.get("hora_fin", "19:00")[:5]
-
-        slots = _generar_slots(centro_id, fecha, especialidad_id)
-        slots_filtrados = [
-            s for s in slots
-            if hora_inicio_turno <= s < hora_fin_turno
-        ]
-
-        return {
-            "disponible": bool(slots_filtrados),
-            "centro_id": centro_id,
-            "especialidad_id": especialidad_id,
-            "medico_id": medico_id,
-            "fecha": fecha.isoformat(),
-            "slots": slots_filtrados,
-            "mensaje": "No hay horarios disponibles para esta fecha." if not slots_filtrados else "",
-        }
-
-    slots = _generar_slots(centro_id, fecha, especialidad_id)
-    return {
-        "disponible": bool(slots),
-        "centro_id": centro_id,
-        "especialidad_id": especialidad_id,
-        "fecha": fecha.isoformat(),
-        "slots": slots,
-        "mensaje": "No hay horarios disponibles para esta fecha." if not slots else "",
-    }
 
 
 def _a_cita_detalle(fila: dict) -> CitaDetalleResponse:
@@ -773,7 +611,12 @@ async def asignar_cita(
 
     try:
         supabase.table("citas").update(actualizacion).eq("id", cita_id).execute()
-    except Exception:
+    except Exception as error:
+        if _es_cupo_duplicado(error):
+            fail(
+                "Ese horario acaba de ser reservado por otra persona. Seleccione otro.",
+                status.HTTP_409_CONFLICT,
+            )
         db_fail("asignar la cita")
 
     registrar_accion(
@@ -1051,7 +894,12 @@ async def posponer_cita(
                 "estado": "pendiente",   # vuelve a pendiente tras reprogramar
             }
         ).eq("id", cita_id).execute()
-    except Exception:
+    except Exception as error:
+        if _es_cupo_duplicado(error):
+            fail(
+                "Ese horario acaba de ser reservado por otra persona. Seleccione otro.",
+                status.HTTP_409_CONFLICT,
+            )
         db_fail("posponer la cita")
 
     # Registrar en bitácora

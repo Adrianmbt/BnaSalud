@@ -9,6 +9,10 @@ from app.core.security import verificar_token
 
 ROLES_STAFF = ("superusuario", "medico", "farmaceutico", "enfermero")
 
+# Cuentas globales del portal público (sin centro asignado): ven todos los
+# centros de salud desde cualquier lugar.
+ROLES_GLOBALES = ("admin_sistemas", "director")
+
 
 def usuario_actual(
     authorization: Optional[str] = Header(default=None),
@@ -55,6 +59,30 @@ def exigir_roles(*roles: str):
             )
         return usuario
     return validador
+
+
+def exigir_rol_global(
+    usuario: Dict[str, Any] = Depends(exigir_staff),
+) -> Dict[str, Any]:
+    """Solo las cuentas globales (admin_sistemas / director)."""
+    if usuario.get("rol") not in ROLES_GLOBALES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta sección es exclusiva para el personal directivo.",
+        )
+    return usuario
+
+
+def exigir_admin_sistemas(
+    usuario: Dict[str, Any] = Depends(exigir_staff),
+) -> Dict[str, Any]:
+    """Soporte técnico: logs, estado del sistema y nómina."""
+    if usuario.get("rol") != "admin_sistemas":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta sección es exclusiva del encargado de sistemas.",
+        )
+    return usuario
 
 
 def exigir_paciente(

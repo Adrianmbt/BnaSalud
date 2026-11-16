@@ -618,6 +618,35 @@ class ResetPasswordRequest(BaseModel):
 
 
 # ==========================================
+# ESQUEMAS: CUENTAS GLOBALES (FASE 2)
+# ==========================================
+
+class UsuarioGlobalCreate(BaseModel):
+    """Alta de una cuenta global del portal (sistemas o dirección)."""
+    username: str = Field(
+        ..., min_length=3, max_length=40,
+        pattern=r"^[a-zA-Z0-9._-]+$",
+        json_schema_extra={"example": "jperez"},
+    )
+    password: str = Field(..., min_length=8, max_length=72)
+    rol: str = Field(..., pattern=r"^(admin_sistemas|director)$")
+
+class UsuarioGlobalUpdate(BaseModel):
+    """Cambio de contraseña o de estado de una cuenta global."""
+    password: Optional[str] = Field(None, min_length=8, max_length=72)
+    activo: Optional[bool] = None
+
+class UsuarioGlobalResponse(BaseModel):
+    id: str
+    username: str
+    rol: str
+    nombre: str
+    activo: bool
+    personal_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+
+# ==========================================
 # ESQUEMAS: COLA DE PACIENTES (FASE 2)
 # ==========================================
 

@@ -122,7 +122,7 @@ if (has('evolution')) {
 
 console.log('\n------------------------------');
 console.log('Listo. Ahora puedes arrancar cada parte:');
-console.log('  Backend:    venv\\Scripts\\python -m uvicorn app.main:app --port 8000');
+console.log('  Backend:    venv\\Scripts\\python -m uvicorn app.main:app --port 8001');
 console.log('  Frontend:   npm --prefix frontend run dev   (http://localhost:5173)');
 console.log('  Mobile:     npm --prefix mobile start');
 console.log('  WhatsApp:   npm --prefix evolution-api run start:prod   (panel http://localhost:8080)');
