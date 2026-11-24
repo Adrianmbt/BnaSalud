@@ -5,6 +5,9 @@ Solo permite el ingreso a los módulos habilitados del sistema interno:
 `medico_emergencia` -> Módulo de Medicina de Emergencias
 `medico` -> Módulo de Especialista
 `historias_medicas` -> Módulo de Historia Clínica Integral (CITAB)
+`jefe_farmacia` / `farmaceutico` -> Módulo de Farmacia e Insumos
+`jefe_almacen` -> Módulo de Almacén del centro (uso exclusivo del sistema
+interno: esta cuenta no puede iniciar sesión en el portal web público)
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -31,6 +34,7 @@ MODULOS_INTERNOS = {
     "medico": "especialista",
     "historias_medicas": "historias_medicas",
     "jefe_farmacia": "farmacia",
+    "jefe_almacen": "almacen",
     "farmaceutico": "farmacia",
     "admin_sistemas": "admin_sistemas",
     "recursos_humanos": "recursos_humanos",

@@ -1,11 +1,14 @@
 import React from 'react';
-import { LayoutDashboard, ShieldCheck, Users, LogOut, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, ClipboardList, LayoutDashboard, ShieldCheck, Users, LogOut, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useTheme } from '../ThemeProvider';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'guardias', label: 'Guardias', icon: ShieldCheck },
   { id: 'cola', label: 'Cola de Pacientes', icon: Users },
+  { id: 'solicitudes', label: 'Solicitudes de Citas', icon: ClipboardList },
+  { id: 'postponer', label: 'Postponer Citas', icon: CalendarClock },
+  { id: 'citasprogramadas', label: 'Citas programadas', icon: CalendarDays },
 ];
 
 export default function ReceptionSidebar({ activeSection, onSectionChange, userName, onLogout, collapsed, mobileOpen, onToggleCollapse, onCloseMobile }) {

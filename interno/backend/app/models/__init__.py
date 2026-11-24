@@ -14,6 +14,7 @@ from app.models.farmacia import (
 )
 from app.models.clinica import Clinica
 from app.models.empleado import Empleado, EmpleadoClinica
+from app.models.historias_medicas import HistoriaIntegral, ReposoMedico
 from app.models.usuario import Personal, Usuario
 
 __all__ = [
@@ -24,10 +25,12 @@ __all__ = [
     "Empleado",
     "EmpleadoClinica",
     "EstadoAtencionEnum",
+    "HistoriaIntegral",
     "InsumoCatalogo",
     "Lote",
     "MovimientoInventario",
     "Personal",
+    "ReposoMedico",
     "RutaAtencionEnum",
     "StockPorCentro",
     "TipoMovimientoEnum",

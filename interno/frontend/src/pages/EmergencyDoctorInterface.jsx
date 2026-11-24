@@ -451,7 +451,8 @@ export default function EmergencyDoctorInterface({ userName = 'Médico de Emerge
   const [agendaCargando, setAgendaCargando] = useState(false);
   const [fechaSel, setFechaSel] = useState(null);
   const [horaSel, setHoraSel] = useState(null);
-  const [turnosSel, setTurnosSel] = useState([]);
+  const [jornadasSel, setJornadasSel] = useState([]);
+  const [jornadaSel, setJornadaSel] = useState(null);
   const [turnosCargando, setTurnosCargando] = useState(false);
   const [citaInfo, setCitaInfo] = useState(null);
   const [agendaError, setAgendaError] = useState('');
@@ -1387,7 +1388,8 @@ export default function EmergencyDoctorInterface({ userName = 'Médico de Emerge
     setAvailRango(null);
     setFechaSel(null);
     setHoraSel(null);
-    setTurnosSel([]);
+    setJornadasSel([]);
+    setJornadaSel(null);
     setCitaInfo(null);
     setAgendaError('');
   };
@@ -1448,7 +1450,8 @@ export default function EmergencyDoctorInterface({ userName = 'Médico de Emerge
     setEspecialistaSel(id);
     setFechaSel(null);
     setHoraSel(null);
-    setTurnosSel([]);
+    setJornadasSel([]);
+    setJornadaSel(null);
     setCitaInfo(null);
     setAgendaError('');
     if (!id || !nivelRemision) return;
@@ -1473,20 +1476,27 @@ export default function EmergencyDoctorInterface({ userName = 'Médico de Emerge
   const elegirFecha = async (fecha) => {
     setFechaSel(fecha);
     setHoraSel(null);
-    setTurnosSel([]);
+    setJornadasSel([]);
+    setJornadaSel(null);
     setCitaInfo(null);
     if (!especialistaSel) return;
     setTurnosCargando(true);
     try {
-      const { data } = await axiosClient.get('/agenda/turnos', { params: { medico_id: especialistaSel, fecha } });
-      const d = Array.isArray(data) ? data[0] : data;
-      setTurnosSel((d && d.turnos_libres) || []);
+      const { data } = await axiosClient.get('/agenda/jornadas', { params: { medico_id: especialistaSel, fecha } });
+      setJornadasSel((data && data.turnos) || []);
+      if (data && data.motivo) setAgendaError(data.motivo === 'médico ausente' ? 'El especialista está ausente ese día.' : '');
     } catch (e) {
       setAgendaError(e?.response?.data?.detail || 'No se pudo cargar los turnos.');
-      setTurnosSel([]);
+      setJornadasSel([]);
     } finally {
       setTurnosCargando(false);
     }
+  };
+
+  const elegirJornada = (jornada) => {
+    if (!jornada?.disponible) return;
+    setJornadaSel(jornada.turno_id);
+    setHoraSel(jornada.hora_asignada || null);
   };
 
   const ejecutar = async () => {
@@ -1524,8 +1534,8 @@ export default function EmergencyDoctorInterface({ userName = 'Médico de Emerge
       setError('Elige la fecha de la cita en el calendario.');
       return;
     }
-    if (confirm === 'remitir' && !horaSel) {
-      setError('Elige el turno (hora) de la cita.');
+    if (confirm === 'remitir' && !jornadaSel) {
+      setError('Elige el turno (mañana o tarde) de la cita.');
       return;
     }
 
@@ -3617,7 +3627,7 @@ export default function EmergencyDoctorInterface({ userName = 'Médico de Emerge
                               <div>
                                 <div className="flex items-center justify-between">
                                   <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                                    Turno (hora) para el {fechaSel}
+                                    Turno para el {fechaSel}
                                   </p>
                                   <span
                                     className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${REMISION_NIVEL[nivelRemision].softBg} ${REMISION_NIVEL[nivelRemision].softText}`}
@@ -3629,30 +3639,43 @@ export default function EmergencyDoctorInterface({ userName = 'Médico de Emerge
                                   <div className="flex items-center gap-2 text-[12px] text-slate-400">
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" /> Cargando turnos…
                                   </div>
-                                ) : turnosSel.length === 0 ? (
+                                ) : jornadasSel.length === 0 ? (
                                   <p className="text-[12px] text-slate-400 bg-slate-50 ring-1 ring-slate-200 rounded-xl px-3 py-2.5">
                                     No hay turnos libres ese día.
                                   </p>
                                 ) : (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {turnosSel.map((t) => {
-                                      const esActivo = horaSel === t.hora_inicio;
-                                      return (
-                                        <button
-                                          key={`${t.turno_id}-${t.hora_inicio}`}
-                                          type="button"
-                                          onClick={() => setHoraSel(t.hora_inicio)}
-                                          className={`px-3 py-2 rounded-lg border text-[12px] font-mono font-semibold transition-all ${
-                                            esActivo
-                                              ? REMISION_NIVEL[nivelRemision].chipSel
-                                              : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                                          }`}
-                                        >
-                                          {t.hora_inicio}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
+                                  <>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {jornadasSel.map((j) => {
+                                        const esActivo = jornadaSel === j.turno_id;
+                                        return (
+                                          <button
+                                            key={j.turno_id}
+                                            type="button"
+                                            disabled={!j.disponible}
+                                            onClick={() => elegirJornada(j)}
+                                            className={`px-3 py-2 rounded-lg border text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                                              esActivo
+                                                ? REMISION_NIVEL[nivelRemision].chipSel
+                                                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                            }`}
+                                          >
+                                            <span className="block text-[12px] font-bold">{j.nombre || 'Turno'}</span>
+                                            <span className="block text-[10px] font-mono opacity-80">{j.hora_inicio}–{j.hora_fin}</span>
+                                            <span className="block text-[10px] mt-0.5 opacity-80">
+                                              {j.disponible ? `${j.cupos_libres} cupo(s) libre(s)` : 'Sin cupos'}
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                    {jornadaSel && horaSel && (
+                                      <p className="mt-1.5 text-[10px] text-slate-400">
+                                        Hora asignada: <span className="font-mono font-semibold text-slate-600">{horaSel}</span>{' '}
+                                        (primera franja libre del turno).
+                                      </p>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             )}

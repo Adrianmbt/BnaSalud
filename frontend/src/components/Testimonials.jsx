@@ -1,4 +1,4 @@
-import Icon from './Icon';
+﻿import Icon from './Icon';
 
 const TESTIMONIOS = [
   {
@@ -44,7 +44,7 @@ export default function Testimonials() {
         </div>
         <div className="grid md:grid-cols-3 gap-6">
           {TESTIMONIOS.map((t, i) => (
-            <div key={t.nombre} className="bg-white p-8 rounded-3xl shadow-xl border border-outline-variant/20" data-aos="fade-up" data-aos-delay={100 + i * 100}>
+            <div key={t.nombre} className="bg-white p-8 rounded-3xl shadow-xl border border-outline-variant/20 card-hover-effect" data-aos="fade-up" data-aos-delay={100 + i * 100}>
               <Estrellas valor={t.estrellas} />
               <p className="text-sm text-on-surface-variant leading-relaxed mb-6">{t.texto}</p>
               <div className="flex items-center gap-3">

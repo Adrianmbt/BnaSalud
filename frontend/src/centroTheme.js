@@ -149,6 +149,29 @@ export const CENTRO_THEMES = {
     outline: '#6b7a75',
     outlineVariant: '#b8c9c2',
   },
+  'CLN-ABUELO': {
+    nombre: 'Casa del Adulto Mayor',
+    tipo: 'Municipal · Adulto mayor',
+    lema: 'Acompañar la salud de nuestros mayores',
+    logo: '/identidad visual/CasaAbuelo.jpeg',
+    gradient: 'linear-gradient(135deg, #f59e0b 0%, #b45309 50%, #78350f 100%)',
+    shadow: 'rgba(180, 83, 9, 0.5)',
+    accent: '#b45309',
+    accentDark: '#78350f',
+    accentLight: '#f59e0b',
+    soft: '#fef3c7',
+    softLow: '#fffbeb',
+    primary: '#78350f',
+    primaryDark: '#4a2205',
+    primaryLight: '#92400e',
+    surface: '#fffcf2',
+    container: '#fde9b8',
+    containerLow: '#fef3c7',
+    containerHigh: '#fbd97e',
+    onSurfaceVariant: '#4b4437',
+    outline: '#7c7461',
+    outlineVariant: '#cdc4ad',
+  },
 };
 
 const FALLBACK = {
@@ -198,6 +221,7 @@ export function getCentroTheme(c = {}) {
   if (name.includes('mujer')) return CENTRO_THEMES['CLN-MUJER'];
   if (name.includes('oncológico') || name.includes('oncologico')) return CENTRO_THEMES['CLN-ONCO'];
   if (name.includes('jornada')) return CENTRO_THEMES['CLN-JORNADAS'];
+  if (name.includes('abuelo') || name.includes('adulto mayor')) return CENTRO_THEMES['CLN-ABUELO'];
   if (name.includes('municipal') || name.includes('josé pérez') || name.includes('jose perez')) return CENTRO_THEMES['CLN-MUNICIPAL'];
 
   const base = c.fondoColor || FALLBACK.accent;

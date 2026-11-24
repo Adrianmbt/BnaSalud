@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, X, CheckCircle2, Menu, Clock } from 'lucide-react';
+import { AlertCircle, X, CheckCircle2, Menu, Clock, MessageCircle } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import { useTheme } from '../components/ThemeProvider';
 import ReceptionSidebar from '../components/reception/ReceptionSidebar';
 import ReceptionDashboard from '../components/reception/ReceptionDashboard';
 import ReceptionCola from '../components/reception/ReceptionCola';
+import SolicitudesCitas from '../components/reception/SolicitudesCitas';
+import ReprogramacionCitas from '../components/reception/ReprogramacionCitas';
+import CitasProgramadas from '../components/reception/CitasProgramadas';
 import GuardiaPanel from '../components/GuardiaPanel';
+import WhatsAppModal from '../components/whatsapp/WhatsAppModal';
+import { obtenerEstadoWhatsapp } from '../api/whatsapp';
 
 export default function ReceptionInterface({ userName = 'Recepcionista', clinicaId: clinicaIdProp, clinicaNombre = '', onLogout }) {
   const { centerFullName, centerLogo, centerName } = useTheme();
@@ -20,6 +25,17 @@ export default function ReceptionInterface({ userName = 'Recepcionista', clinica
   const [now, setNow] = useState(new Date());
   const [clinicaId] = useState(clinicaIdProp || null);
   const [guardiasActivas, setGuardiasActivas] = useState([]);
+  const [modalWhatsapp, setModalWhatsapp] = useState(false);
+  const [estadoWa, setEstadoWa] = useState(null);
+
+  const consultarEstadoWa = useCallback(async () => {
+    try {
+      const data = await obtenerEstadoWhatsapp();
+      setEstadoWa(data);
+    } catch {
+      setEstadoWa(null);
+    }
+  }, []);
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
@@ -41,7 +57,10 @@ export default function ReceptionInterface({ userName = 'Recepcionista', clinica
     }
   }, [clinicaId]);
 
-  useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  useEffect(() => {
+    fetchQueue();
+    consultarEstadoWa();
+  }, [fetchQueue, consultarEstadoWa]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -55,6 +74,9 @@ export default function ReceptionInterface({ userName = 'Recepcionista', clinica
     dashboard: { title: 'Dashboard', subtitle: 'Vista general del sistema de atencion' },
     guardias: { title: 'Guardias de Emergencia', subtitle: 'Gestion de turnos para medicos de emergencia' },
     cola: { title: 'Cola de Pacientes', subtitle: 'Registro y seguimiento de pacientes en tiempo real' },
+    solicitudes: { title: 'Solicitudes de Citas', subtitle: 'Citas pendientes y confirmadas para recepcion' },
+    postponer: { title: 'Postponer Citas', subtitle: 'Mueve la cola de hoy de un medico y notifica a los pacientes por WhatsApp' },
+    citasprogramadas: { title: 'Citas programadas', subtitle: 'Asigna día y hora de las citas preasignadas de la semana certificada y notifica por WhatsApp' },
   };
 
   return (
@@ -119,6 +141,19 @@ export default function ReceptionInterface({ userName = 'Recepcionista', clinica
                   <span className="text-[10px] text-slate-400 capitalize block leading-tight">{dateStr}</span>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setModalWhatsapp(true)}
+                title="Estado y vinculación de WhatsApp (Evolution API)"
+                className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ring-1 transition-all ${
+                  estadoWa?.conectado
+                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
+                    : 'bg-amber-50 text-amber-700 ring-amber-200 hover:bg-amber-100'
+                }`}
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{estadoWa?.conectado ? 'WhatsApp Activo' : 'Vincular WhatsApp'}</span>
+              </button>
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 ring-1 ring-emerald-200/60">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse-soft" />
                 <span className="text-[10px] font-semibold text-emerald-700">En linea</span>
@@ -174,6 +209,18 @@ export default function ReceptionInterface({ userName = 'Recepcionista', clinica
                 setSuccess={setSuccess}
               />
             )}
+
+            {activeSection === 'solicitudes' && (
+              <SolicitudesCitas clinicaId={clinicaId} />
+            )}
+
+            {activeSection === 'postponer' && (
+              <ReprogramacionCitas />
+            )}
+
+            {activeSection === 'citasprogramadas' && (
+              <CitasProgramadas clinicaId={clinicaId} />
+            )}
           </div>
         </main>
 
@@ -194,6 +241,14 @@ export default function ReceptionInterface({ userName = 'Recepcionista', clinica
           </div>
         </footer>
       </div>
+
+      <WhatsAppModal
+        isOpen={modalWhatsapp}
+        onClose={() => {
+          setModalWhatsapp(false);
+          consultarEstadoWa();
+        }}
+      />
     </div>
   );
 }

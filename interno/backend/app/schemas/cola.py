@@ -16,6 +16,7 @@ class CheckInRequest(BaseModel):
     apellido: Optional[str] = Field(None, description="Apellido del paciente")
     telefono: Optional[str] = Field(None, description="Teléfono de contacto")
     direccion: Optional[str] = Field(None, description="Dirección de residencia")
+    comuna: Optional[str] = Field(None, description="Comuna de residencia")
     motivo: Optional[str] = Field(
         None, description="Motivo de la consulta / síntoma principal"
     )

@@ -4,6 +4,8 @@ El filtro de especialistas comparaba `cargo = 'Médico'` literal, pero `personal
 guarda variantes con y sin tilde ('Medico' / 'Médico'). Un médico con cargo sin tilde
 quedaba excluido del listado y rechazado por `crear_cita` (404).
 """
+import datetime
+
 from conftest import _hash, auth, token_para
 
 PERSONAL_MEDICO_SIN_TILDE = 999101
@@ -11,10 +13,20 @@ PERSONAL_MEDICO_SIN_TILDE = 999101
 
 async def _usar_especialista_sin_tilde(pg, pid: int):
     await pg.execute(
+        "INSERT INTO turnos (id, nombre, hora_inicio, hora_fin) "
+        "VALUES (3, 'QA Agenda', '07:00', '13:00') ON CONFLICT (id) DO NOTHING"
+    )
+    await pg.execute(
         "INSERT INTO personal (id, cedula, nombre, apellido, cargo, especialidad) "
         "VALUES ($1, $2, 'MedicoQA', 'SinTilde', 'Medico', 'Medicina General') "
         "ON CONFLICT (id) DO NOTHING",
         pid, str(15000000 + pid),
+    )
+    await pg.execute(
+        "INSERT INTO agenda_medicos (medico_id, dia_semana, turno_id, activo) "
+        "VALUES ($1, $2, 3, TRUE) ON CONFLICT DO NOTHING",
+        pid,
+        datetime.date(2099, 1, 1).weekday(),
     )
     await pg.execute(
         "INSERT INTO usuarios (username, password_hash, rol, activo, personal_id) "

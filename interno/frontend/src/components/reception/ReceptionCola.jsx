@@ -27,6 +27,7 @@ const emptyForm = {
   cedula: '',
   telefono: '',
   direccion: '',
+  comuna: '',
   prioridad: '3',
   ruta_atencion: 'EMERGENCIA',
 };
@@ -119,6 +120,7 @@ export default function ReceptionCola({ queue, fetchQueue, clinicaId, loading, s
         apellido: historia.apellido || '',
         telefono: historia.telefono || '',
         direccion: historia.direccion || '',
+        comuna: historia.comuna || '',
       }));
       setPacienteEncontrado(true);
       let tipo = 'general';
@@ -181,6 +183,7 @@ export default function ReceptionCola({ queue, fetchQueue, clinicaId, loading, s
         apellido: nombreParts.apellido,
         telefono: '',
         direccion: '',
+        comuna: '',
       }));
       setAfiliacion(tipo);
       setParentescoInfo(pInfo);
@@ -219,6 +222,7 @@ export default function ReceptionCola({ queue, fetchQueue, clinicaId, loading, s
         apellido: form.apellido.trim() || null,
         telefono: form.telefono.trim() || null,
         direccion: form.direccion.trim() || null,
+        comuna: form.comuna.trim() || null,
         motivo: 'Consulta / urgencia en recepcion',
         especialidad: 'Medicina General',
         prioridad: parseInt(form.prioridad, 10),
@@ -564,6 +568,10 @@ export default function ReceptionCola({ queue, fetchQueue, clinicaId, loading, s
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-600 uppercase tracking-wide mb-1">Direccion</label>
                       <input type="text" value={form.direccion} onChange={(e) => setForm((s) => ({ ...s, direccion: e.target.value }))} placeholder="Direccion" className="cp-input" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 uppercase tracking-wide mb-1">Comuna</label>
+                      <input type="text" value={form.comuna} onChange={(e) => setForm((s) => ({ ...s, comuna: e.target.value }))} placeholder="Comuna" className="cp-input" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">

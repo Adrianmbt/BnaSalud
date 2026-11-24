@@ -20,16 +20,16 @@ Notas para retomar el trabajo desde otro equipo/lugar. Última actualización: 1
 ## 1. Estado actual
 
 - **Seguridad implementada** (backend + frontend):
-  - Pacientes: acceso al portal con **cédula + PIN de 4-8 dígitos** (bcrypt en `historias_clinicas.pin_hash`).
+  - Pacientes: acceso al portal con **cédula + contraseña** (bcrypt en `historias_clinicas.pin_hash`, columna histórica del esquema).
   - Personal: **usuario + contraseña** contra la tabla `usuarios` (rol: superusuario | medico | farmaceutico | enfermero | paciente).
   - Tokens **JWT** (`app/core/security.py`), expiración 8 h por defecto (configurable en `.env` con `JWT_SECRET`, `JWT_ALGORITHM`, `JWT_EXPIRACION_MINUTOS`).
-  - **Recuperación de PIN por correo**: `POST /auth/paciente/recuperar` genera un código de 6 dígitos (15 min, hasheado en `recuperacion_pacientes`); `POST /auth/paciente/reset` lo valida y restablece el PIN. Sin SMTP configurado, la API devuelve el código en `codigo_demo` (desactivar con `PIN_EMITIR_DEMO=false` en producción).
+  - **Restablecimiento de contraseña por correo**: `POST /auth/paciente/recuperar` genera un código de 6 dígitos (15 min, hasheado en `recuperacion_pacientes`); `POST /auth/paciente/reset` lo valida y fija la nueva contraseña. Sin SMTP y con `ENVIRONMENT=development`, la API devuelve el código en `codigo_desarrollo`; en producción solo va por correo.
   - **Rutas protegidas por rol** (`app/api/v1/deps.py`): `pacientes/*`, `citas?cedula=`, `consultas/*`, `estudios/*` (órdenes/resultados/procesar). Un paciente solo ve sus propios datos.
 - **Semilla demo** (`frontend/src/clinical/demo.js`):
   - 4 pacientes con historia clínica, citas, órdenes y médico tratante.
   - 4 doctores con credenciales y su cola de pacientes.
   - Panel flotante **"Demo"** (abajo a la derecha en Paciente/Doctores) para alternar la persona activa (persistida en `bna_persona_demo`).
-- **Home**: sección "Cómo funciona" (registro → historia clínica → médico tratante → evolución) y el modal de cita muestra el **PIN inicial** al registrar al paciente por primera vez.
+- **Home**: sección "Cómo funciona" (registro → historia clínica → médico tratante → evolución) y el paciente crea su contraseña en el portal al registrarse por primera vez.
 
 ## 2. Pasos pendientes (activar datos reales en Supabase)
 
@@ -50,10 +50,10 @@ La base de datos remota **todavía no tiene las migraciones 0010-0013 aplicadas*
    venv\Scripts\python.exe -m app.db.seed
    ```
    - Contraseña de usuarios: `BnaSalud2026!`
-   - PIN de pacientes: `1234` (cambiar después por recuperación)
+   - Contraseña de pacientes: la definida al registrarse (los pacientes de la semilla usan `Paciente2026!`)
 3. **Verificar**:
    ```powershell
-   venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+   venv\Scripts\python.exe -m uvicorn app.main:app --port 8001
    ```
    - `POST /api/v1/auth/login` con `abello` / `BnaSalud2026!` → token + usuario.
    - `POST /api/v1/auth/paciente` con `18234567` / `1234` → token + paciente.
@@ -63,15 +63,15 @@ La base de datos remota **todavía no tiene las migraciones 0010-0013 aplicadas*
 
 | Rol | Usuario | Clave |
 | --- | --- | --- |
-| Pacientes | cédulas `0912345678` (María), `14302771` (Francisco), `24567890` (Ana), `16892345` (Rosa) | PIN `1234` |
+| Pacientes | cédulas `0912345678` (María), `14302771` (Francisco), `24567890` (Ana), `16892345` (Rosa) | Contraseña `Paciente2026!` |
 | Doctores | `lfernandez` (Laura), `avalera` (Antonio), `mgonzalez` (María), `psanchez` (Pedro) | `1234` |
 | Recuperación demo | cualquier correo registrado de un paciente | código `123456` |
 
 ## 4. Cómo correr el proyecto
 
 ```powershell
-# Backend (FastAPI + Supabase)
-venv\Scripts\python.exe -m uvicorn app.main:app --port 8000 --reload
+# Backend (FastAPI + Supabase) — 8001 porque el 8000 es del sistema interno
+venv\Scripts\python.exe -m uvicorn app.main:app --port 8001 --reload
 
 # Frontend (React + Vite)
 cd frontend
@@ -84,6 +84,6 @@ Rutas: `/` (home público), `/paciente` (portal paciente), `/doctores` (módulo 
 
 - Aplicar en Supabase SQL Editor las migraciones **0017 (notificaciones)** y **0018 (bitácora de auditoría)** — sin ellas la bitácora responde 500 y no hay historial de correos.
 - Fases 8-10 del plan: reportes exportables, inventario multi-clínica con `movimientos_stock` (migración 0019) y despliegue.
-- Configurar **SMTP real** para el envío del código de recuperación y poner `PIN_EMITIR_DEMO=false`.
+- Configurar **SMTP real** para el envío del código de restablecimiento; sin él, los pacientes no pueden recuperar su contraseña en producción.
 - Cambiar `JWT_SECRET` por defecto en `.env` (valor seguro ≥ 32 bytes).
-- Probar el flujo completo con backend real: reservar cita → PIN inicial → portal → historial → médico tratante.
+- Probar el flujo completo con backend real: reservar cita → crear contraseña en el portal → historial → médico tratante.

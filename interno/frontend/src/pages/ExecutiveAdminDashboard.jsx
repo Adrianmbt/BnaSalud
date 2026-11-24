@@ -7,6 +7,8 @@ import PatientKpiTab from '../components/dashboard/PatientKpiTab';
 import InventoryKpiTab from '../components/dashboard/InventoryKpiTab';
 import WhatsAppPanel from '../components/dashboard/WhatsAppPanel';
 import CentroConstruccion from '../components/dashboard/CentroConstruccion';
+import MetricasPanel from '../components/historias/MetricasPanel';
+import RepososPanel from '../components/historias/RepososPanel';
 
 const CENTROS_SALUD = [
   { id: 'general', label: 'General (Todas las Sedes)' },
@@ -76,6 +78,17 @@ export default function ExecutiveAdminDashboard({ userName = 'Director General',
   const tieneDatos = CENTROS_CON_DATOS.includes(selectedCentro);
 
   const renderSection = () => {
+    // Los reposos médicos son transversales a las sedes: no dependen de que el
+    // centro tenga datos operativos cargados en el dashboard.
+    if (activeSection === 'reposos') {
+      return (
+        <div className="space-y-5">
+          <MetricasPanel />
+          <RepososPanel />
+        </div>
+      );
+    }
+
     if (!tieneDatos) {
       return <CentroConstruccion nombre={centroActual?.label} />;
     }

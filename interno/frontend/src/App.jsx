@@ -4,6 +4,7 @@ import ReceptionInterface from './pages/ReceptionInterface';
 import EmergencyDoctorInterface from './pages/EmergencyDoctorInterface';
 import SpecialistInterface from './pages/SpecialistInterface';
 import FarmaciaInterface from './pages/FarmaciaInterface';
+import AlmacenInterface from './pages/AlmacenInterface';
 import HistoriasMedicasInterface from './pages/HistoriasMedicasInterface';
 import SystemAdminInterface from './pages/SystemAdminInterface';
 import ExecutiveAdminDashboard from './pages/ExecutiveAdminDashboard';
@@ -143,6 +144,13 @@ function Aplicacion() {
           onLogout={handleLogout}
         />
       )}
+      {currentRole === 'almacen' && (
+        <AlmacenInterface
+          userName={currentUser}
+          clinicaNombre={currentClinicaNombre}
+          onLogout={handleLogout}
+        />
+      )}
       {currentRole === 'historias_medicas' && (
         <HistoriasMedicasInterface
           userName={currentUser}
@@ -172,7 +180,7 @@ function Aplicacion() {
           onLogout={handleLogout}
         />
       )}
-      {!['emergency', 'especialista', 'recepcion', 'farmacia', 'historias_medicas', 'admin_sistemas', 'recursos_humanos', 'director'].includes(currentRole) && (
+      {!['emergency', 'especialista', 'recepcion', 'farmacia', 'almacen', 'historias_medicas', 'admin_sistemas', 'recursos_humanos', 'director'].includes(currentRole) && (
         <Login onLogin={handleLogin} />
       )}
     </ThemeProvider>

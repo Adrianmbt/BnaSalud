@@ -1,34 +1,29 @@
-import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
 import Metrics from '../components/Metrics';
 import ComoFunciona from '../components/ComoFunciona';
 import Specialties from '../components/Specialties';
-import Centros from '../components/Centros';
+import Acceso from '../components/Acceso';
 import Testimonials from '../components/Testimonials';
 import Footer from '../components/Footer';
-import CitaModal from '../components/CitaModal';
 import Chatbot from '../components/Chatbot';
 
 export default function Home() {
-  const [centroModal, setCentroModal] = useState(null);
+  const navigate = useNavigate();
 
   return (
     <>
       <a href="#inicio" className="skip-link">Ir al contenido principal</a>
       <Navbar />
-      <Hero onSolicitarCita={() => window.location.hash = '#sedes'} />
+      <Hero onSolicitarCita={() => navigate('/paciente')} />
       <Metrics />
       <ComoFunciona />
       <Specialties />
-      <Centros onPedirCita={setCentroModal} />
+      <Acceso onAcceder={() => navigate('/paciente')} />
       <Testimonials />
       <Footer />
       <Chatbot />
-
-      {centroModal && (
-        <CitaModal centro={centroModal} onClose={() => setCentroModal(null)} />
-      )}
     </>
   );
 }

@@ -22,6 +22,7 @@ class HistoriaClinica(Base):
     nombre_completo = Column(Text, nullable=False)
     apellido = Column(Text, nullable=True)
     direccion = Column(Text, nullable=True)
+    comuna = Column(Text, nullable=True)
     telefono = Column(Text, nullable=True)
     tipo_sangre = Column(Text, nullable=True)
     antecedentes_medicos = Column(JSON, default=[])

@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import AOS from 'aos';
 import Home from './pages/Home';
 import Paciente from './pages/Paciente';
+import Institucional from './pages/Institucional';
 
 function Proximamente({ titulo }) {
   return (
@@ -32,6 +33,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/paciente" element={<Paciente />} />
+      <Route path="/institucional" element={<Institucional />} />
       <Route path="*" element={<Proximamente titulo="Página no encontrada" />} />
     </Routes>
   );

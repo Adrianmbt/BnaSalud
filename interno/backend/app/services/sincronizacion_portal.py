@@ -40,7 +40,7 @@ async def sincronizar_solicitudes_supabase(db: AsyncSession, centro_id: Optional
     base_url = settings.SUPABASE_URL.rstrip("/")
     citas_url = f"{base_url}/rest/v1/citas"
     params = {
-        "estado": "in.('pendiente','cancelada')",
+        "estado": "in.(pendiente,cancelada)",
         "origen": "eq.cita_web",
         "select": "*",
         "order": "created_at.desc",

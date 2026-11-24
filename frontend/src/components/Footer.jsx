@@ -1,11 +1,11 @@
-import Icon from './Icon';
+﻿import Icon from './Icon';
+import { Link } from 'react-router-dom';
 
 const ENLACES = [
   { href: '#inicio', etiqueta: 'Inicio' },
   { href: '#impacto', etiqueta: 'Impacto' },
   { href: '#como-funciona', etiqueta: 'Cómo Funciona' },
   { href: '#servicios', etiqueta: 'Servicios' },
-  { href: '#sedes', etiqueta: 'Red de Centros' },
   { href: '#testimonios', etiqueta: 'Testimonios' },
 ];
 
@@ -67,17 +67,17 @@ export default function Footer() {
                     href="https://wa.me/584129451597"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-[#43ffbb] transition-colors bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-2.5"
+                    className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-[#43ffbb] transition-all transition-shadow btn-hover-effect bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-2.5"
                   >
                     <WhatsApp className="h-4 w-4 text-[#43ffbb]" /> +58 412 945 1597
                   </a>
                 </li>
                 <li className="flex items-center justify-center md:justify-end">
                   <a
-                    href="https://instagram.com"
+                    href="https://www.instagram.com/isaludbna/ope"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-[#50d9fe] transition-colors bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-2.5"
+                    className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-[#50d9fe] transition-all transition-shadow btn-hover-effect bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-2.5"
                   >
                     <Instagram className="h-4 w-4 text-[#50d9fe]" /> Instagram
                   </a>
@@ -91,8 +91,15 @@ export default function Footer() {
         </div>
 
         <div className="relative border-t border-white/10">
-          <div className="max-w-7xl mx-auto px-6 py-5 text-center">
-            <p className="text-xs text-white/50">&copy; 2026 Instituto de Salud del Municipio Simón Bolívar - Alcaldía de Barcelona. Todos los derechos reservados.</p>
+          <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-white/50 text-center sm:text-left">&copy; 2026 Instituto de Salud del Municipio Simón Bolívar - Alcaldía de Barcelona. Todos los derechos reservados.</p>
+            <Link
+              to="/institucional"
+              className="inline-flex items-center gap-1.5 text-xs text-white/50 hover:text-secondary-container transition-colors"
+            >
+              <Icon name="lock" className="text-sm" />
+              Acceso institucional
+            </Link>
           </div>
         </div>
       </div>

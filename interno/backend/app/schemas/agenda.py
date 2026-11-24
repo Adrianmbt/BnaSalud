@@ -32,6 +32,7 @@ class JornadaDisponible(BaseModel):
     capacidad: int = 0
     cupos_libres: int = 0
     disponible: bool = False
+    hora_asignada: Optional[str] = None
 
 
 class JornadasDia(BaseModel):
@@ -80,6 +81,10 @@ class CitaCrearRequest(BaseModel):
     nivel: str = Field(..., description="Nivel de prioridad: azul | verde | amarillo")
     origen: Optional[str] = "remision"
     motivo: Optional[str] = None
+    preasignada: Optional[bool] = Field(
+        False,
+        description="Si es True, la cita queda preasignada para la semana y RRHH le asigna día al aprobar horario.",
+    )
 
 
 class CitaCreadaResponse(BaseModel):
@@ -128,6 +133,7 @@ class CupoSemanalResponse(BaseModel):
     especialidad: str
     semana_desde: str  # lunes de la semana
     semana_hasta: str  # domingo de la semana
+    certificada: bool = False  # RRHH certificó esa semana concreta
     dias: List[CupoDiaSemana] = []
     cupos_libres_totales: int = 0
 
@@ -137,3 +143,14 @@ class ReprogramarTodasResponse(BaseModel):
     canceladas: int
     fecha: str
     hora_inicio: str
+
+
+class ResumenSemanaItem(BaseModel):
+    offset: int
+    semana_desde: str
+    semana_hasta: str
+    etiqueta: str
+    cupos_libres: int
+    tiene_cupos: bool
+    certificada: bool = False  # semana certificada por RRHH
+

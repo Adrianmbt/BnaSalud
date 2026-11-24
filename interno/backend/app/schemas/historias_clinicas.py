@@ -9,6 +9,7 @@ class HistoriaClinicaCreate(BaseModel):
     nombre_completo: str = Field(..., description="Nombre completo del paciente")
     telefono: Optional[str] = Field(None, description="Teléfono de contacto")
     direccion: Optional[str] = Field(None, description="Dirección de residencia")
+    comuna: Optional[str] = Field(None, description="Comuna de residencia")
     tipo_sangre: Optional[str] = Field(None, description="Tipo de sangre ABO/Rh")
     antecedentes_medicos: Optional[List[str]] = Field(
         default_factory=list, description="Antecedentes médicos previos"
@@ -28,6 +29,7 @@ class HistoriaClinicaResponse(BaseModel):
     apellido: Optional[str]
     telefono: Optional[str]
     direccion: Optional[str]
+    comuna: Optional[str] = None
     tipo_sangre: Optional[str]
     antecedentes_medicos: List[str]
     antecedentes_operatorios: List[str]

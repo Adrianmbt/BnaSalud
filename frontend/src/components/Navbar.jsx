@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from './Icon';
 
@@ -7,7 +7,6 @@ const ENLACES = [
   { href: '#impacto', etiqueta: 'Impacto', icono: 'monitoring' },
   { href: '#como-funciona', etiqueta: 'Cómo Funciona', icono: 'cached' },
   { href: '#servicios', etiqueta: 'Servicios', icono: 'clinical_notes' },
-  { href: '#sedes', etiqueta: 'Red de Centros', icono: 'local_hospital' },
   { href: '#testimonios', etiqueta: 'Testimonios', icono: 'reviews' },
 ];
 
@@ -43,8 +42,8 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 glass transition-all duration-300 h-14 ${
-        scrolled ? 'shadow-lg shadow-primary/10' : ''
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 h-14 ${
+        scrolled || menuAbierto ? 'bg-surface shadow-lg shadow-primary/10' : 'glass'
       }`}
       aria-label="Navegación principal"
     >
@@ -83,7 +82,7 @@ export default function Navbar() {
           </div>
           <Link
             to="/paciente"
-            className="hidden sm:flex w-8 h-8 items-center justify-center hover:bg-secondary/10 rounded-full transition-all text-on-surface"
+            className="hidden sm:flex w-8 h-8 items-center justify-center hover:bg-secondary/10 rounded-full transition-all text-on-surface btn-hover-effect"
             aria-label="Portal del paciente"
             title="Portal del paciente"
           >
@@ -108,7 +107,7 @@ export default function Navbar() {
             onClick={() => setMenuAbierto(false)}
             aria-hidden="true"
           />
-          <div id="menu-movil" className="lg:hidden absolute top-full left-0 right-0 glass border-t border-outline-variant/20 shadow-2xl z-50">
+          <div id="menu-movil" className="lg:hidden absolute top-full left-0 right-0 bg-surface border-t border-outline-variant shadow-2xl z-50 max-h-[calc(100dvh-3.5rem)] overflow-y-auto">
             <div className="max-w-7xl mx-auto px-5 py-4 space-y-1">
               {ENLACES.map((e) => (
                 <a
@@ -126,7 +125,7 @@ export default function Navbar() {
               <Link
                 to="/paciente"
                 onClick={() => setMenuAbierto(false)}
-                className="flex items-center gap-3 py-2.5 px-3 text-sm font-semibold text-primary hover:text-secondary rounded-xl hover:bg-secondary/5"
+                className="flex items-center gap-3 py-2.5 px-3 text-sm font-semibold text-primary hover:text-secondary rounded-xl hover:bg-secondary/5 transition-all btn-hover-effect"
               >
                 <Icon name="account_circle" className="text-xl" /> Portal del paciente
               </Link>

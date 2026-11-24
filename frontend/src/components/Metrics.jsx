@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import { EsqueletoMetricas } from './Skeletons';
 
 const NOTICIAS = [
   {
@@ -57,10 +58,25 @@ function animarContador(el) {
 export default function Metrics() {
   const sectionRef = useRef(null);
   const [noticiaActiva, setNoticiaActiva] = useState(0);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    // Simular carga asincrónica (en producción esto sería la carga real)
+    const timer = setTimeout(() => setCargando(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Carrusel automático de noticias
+  useEffect(() => {
+    const id = setInterval(() => {
+      setNoticiaActiva((p) => (p + 1) % NOTICIAS.length);
+    }, 4500);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const el = sectionRef.current;
-    if (!el) return;
+    if (!el || cargando) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
@@ -71,16 +87,13 @@ export default function Metrics() {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setNoticiaActiva((p) => (p + 1) % NOTICIAS.length);
-    }, 4500);
-    return () => clearInterval(id);
-  }, []);
+  }, [cargando]);
 
   const n = NOTICIAS[noticiaActiva];
+
+  if (cargando) {
+    return <EsqueletoMetricas />;
+  }
 
   return (
     <section id="impacto" ref={sectionRef} className="py-12 md:py-16 bg-surface-container-lowest">
@@ -209,7 +222,7 @@ export default function Metrics() {
                 <button
                   key={i}
                   onClick={() => setNoticiaActiva(i)}
-                  className="group p-0.5"
+                  className="group p-0.5 tab-interactive"
                   aria-label={`Noticia ${i + 1}: ${noticia.titulo}`}
                 >
                   <span

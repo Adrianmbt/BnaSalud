@@ -45,6 +45,9 @@ TEST_URL = _cambiar_db(LIVE_URL, "bnasalud_test")
 os.environ["DATABASE_URL"] = TEST_URL.replace(
     "postgresql://", "postgresql+asyncpg://", 1
 )
+# El mundo de test solo siembra las clínicas 13-18; sin esto los endpoints que
+# caen a CLINICA_ID usarían el 2 de producción y violarían la FK.
+os.environ["CLINICA_ID"] = "13"
 
 PASSWORD = "test123"
 
@@ -62,6 +65,7 @@ SEED_USUARIOS = [
     ("test_admin", "admin_sistemas", None),
     ("test_med", "medico", 13),
     ("test_recep", "recepcionista", 13),
+    ("test_hist", "historias_medicas", 13),
 ]
 
 
@@ -116,7 +120,8 @@ async def _sembrar() -> None:
         await conn.execute(
             "TRUNCATE consultas, cola_atencion, usuarios, clinicas, empleados, beneficiarios, "
             "insumos_catalogo, medicamentos_catalogo, stock_por_centro, "
-            "historias_clinicas RESTART IDENTITY CASCADE"
+            "historias_clinicas, ausencias_medicos, historias_integrales, reposos_medicos "
+            "RESTART IDENTITY CASCADE"
         )
         for cid, nombre, codigo in SEED_CLINICAS:
             await conn.execute(

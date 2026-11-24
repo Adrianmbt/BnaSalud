@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 @import "aos/dist/aos.css";
 
 @theme {
@@ -74,6 +74,16 @@
   --color-mint: #0e7a5a;
   --color-mint-soft: #d7eee1;
 
+  /* === ACENTO "VIDA" ===
+     Un jade fresco que diferencia al portal de las webs de salud
+     genéricas (que suelen quedarse en azul institucional). Se usa solo
+     para señalar bienestar y estado disponible, nunca para texto largo. */
+  --color-health: #0d9f7a;
+  --color-health-light: #3ecfa8;
+  --color-health-dark: #067558;
+  --color-health-soft: #e2f7f0;
+  --color-health-glow: rgba(13, 159, 122, 0.18);
+
   --radius-4xl: 2rem;
   --radius-5xl: 2.5rem;
 
@@ -98,6 +108,14 @@
     0% { transform: scaleX(0); }
     100% { transform: scaleX(1); }
   }
+
+  /* Barrido de los esqueletos de carga */
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
 }
 
 html {
@@ -121,6 +139,25 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* === ESQUELETOS DE CARGA ===
+   Un solo lenguaje para todos los estados de carga del portal: bloques
+   con el mismo gris y el mismo barrido, en lugar de huecos vacíos. */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-container) 25%,
+    var(--color-surface-container-high) 37%,
+    var(--color-surface-container) 63%
+  );
+  background-size: 200% 100%;
+  border-radius: 0.5rem;
+  animation: var(--animate-shimmer);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
 
 .hero-gradient {
   background: radial-gradient(ellipse 80% 60% at 50% -20%, rgba(80, 217, 254, 0.15), transparent),
@@ -368,6 +405,422 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   COMPONENTES COMPARTIDOS — lenguaje visual único del portal
+   ════════════════════════════════════════════════════════════════ */
+
+/* Botón principal: una sola acción destacada por pantalla */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  border-radius: 0.9rem;
+  padding: 0.75rem 1.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  text-transform: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--color-doc);
+  outline-offset: 2px;
+}
+.btn:active { transform: translateY(0) scale(0.985); }
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.btn svg, .btn [class*="material-symbols"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}
+
+/* Botón principal relleno */
+.btn-primary {
+  background: var(--color-doc);
+  color: #ffffff;
+  box-shadow: 0 10px 24px -12px rgba(0, 103, 125, 0.35);
+}
+.btn-primary:not(:disabled):hover {
+  background: var(--color-doc-deep);
+  box-shadow: 0 14px 30px -14px rgba(0, 103, 125, 0.45);
+}
+
+/* Botón secundario (borde) */
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
+}
+.btn-outline:not(:disabled):hover {
+  border-color: var(--color-doc);
+  color: var(--color-doc);
+  background: rgba(0, 103, 125, 0.05);
+}
+
+/* Botón terciario (texto) */
+.btn-text {
+  background: transparent;
+  border: none;
+  color: var(--color-on-surface-variant);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 0.6rem;
+}
+.btn-text:not(:disabled):hover {
+  color: var(--color-doc);
+  background: rgba(0, 103, 125, 0.06);
+}
+
+/* Estado de carga dentro de un botón (sustituye al spinner genérico) */
+.btn-loading {
+  position: relative;
+  pointer-events: none;
+  overflow: hidden;
+  color: transparent !important;
+}
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Tarjeta consistente: borde fino, un solo radio, sombra suave */
+.card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 1.1rem;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+}
+.card:hover {
+  border-color: var(--color-outline);
+  box-shadow: 0 8px 24px -10px rgba(15, 37, 55, 0.08);
+}
+
+/* Campo de entrada consistente (label asociado, foco anillado) */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.field label {
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+.field-input {
+  width: 100%;
+  background: var(--color-card);
+  border: 1px solid var(--color-ink-line);
+  border-radius: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  color: var(--color-ink);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.field-input::placeholder { color: var(--color-ink-faint); }
+.field-input:focus {
+  outline: none;
+  border-color: var(--color-doc);
+  box-shadow: 0 0 0 3px rgba(0, 103, 125, 0.12);
+}
+.field-input:disabled {
+  background: rgba(203, 213, 225, 0.35);
+  color: var(--color-ink-faint);
+  cursor: not-allowed;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ESTADOS DE INTERFAZ (regla 6) — vacío / error / éxito
+   ════════════════════════════════════════════════════════════════ */
+.empty-state, .error-state, .success-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  border-radius: 1.4rem;
+  border: 1px solid transparent;
+  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.empty-state svg, .error-state svg, .success-state svg {
+  width: 4rem;
+  height: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.empty-state h3, .error-state h3, .success-state h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+  color: var(--color-ink);
+}
+
+.empty-state p, .error-state p, .success-state p {
+  font-size: 0.875rem;
+  color: var(--color-on-surface-variant);
+  max-width: 26rem;
+  line-height: 1.55;
+  margin: 0 auto;
+}
+
+.empty-state {
+  background-color: rgba(67, 71, 76, 0.03);
+  border-color: rgba(67, 71, 76, 0.08);
+}
+
+.error-state {
+  background-color: rgba(165, 43, 31, 0.05);
+  border-color: rgba(165, 43, 31, 0.12);
+}
+
+.success-state {
+  background-color: rgba(13, 159, 122, 0.05);
+  border-color: rgba(13, 159, 122, 0.12);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ESQUELETO DE PÁGINA (regla 1) — forma del contenido real
+   ════════════════════════════════════════════════════════════════ */
+.skeleton-page {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  max-width: 42rem;
+  margin: 0 auto;
+  opacity: 0.95;
+}
+.skeleton-page .line {
+  height: 1rem;
+  border-radius: 999px;
+  background: var(--color-surface-container);
+  animation: var(--animate-shimmer);
+}
+.skeleton-page .line.sm { width: 45%; }
+.skeleton-page .line.md { width: 70%; }
+.skeleton-page .line.lg { width: 100%; }
+.skeleton-page .block {
+  height: 3.5rem;
+  border-radius: 1rem;
+  background: var(--color-surface-container);
+  animation: var(--animate-shimmer);
+}
+.skeleton-page .avatar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--color-surface-container);
+  animation: var(--animate-shimmer);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .btn-outline, .btn-text, .card, .field-input { transition: none !important; }
+  .btn-loading::after { animation: none !important; }
+  .skeleton-page .line, .skeleton-page .block, .skeleton-page .avatar { animation: none !important; opacity: 0.45; }
+}
+
+/* === ANIMACIONES ADICIONALES === */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.slide-in {
+  animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === ESTADOS DE INTERACCIÓN - MEJORA 7 === */
+.btn-loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    45deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* === BARRAS DE PROGRESO MEJORADAS - MEJORA 1 === */
+.progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar-indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar-indeterminate::before,
+.progress-bar-indeterminate::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: currentColor;
+  transform: translateX(-100%);
+  animation: progressIndeterminate 1.5s infinite;
+}
+
+.progress-bar-indeterminate::after {
+  animation-delay: 0.75s;
+}
+
+@keyframes progressIndeterminate {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* === ESTADO DE CARGA EN TABLAS - MEJORA 6 === */
+.table-loading {
+  position: relative;
+  min-height: 200px;
+}
+
+.table-loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+/* === MEJORA DE HOVER EN BOTONES - MEJORA 7 === */
+.btn-hover-effect {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-hover-effect:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-hover-effect:active {
+  transform: translateY(0);
+}
+
+/* === MEJORA DE INTERACCIÓN EN INPUTS - MEJORA 7 === */
+.input-focus-effect {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.input-focus-effect:focus-within {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 103, 125, 0.15);
+}
+
+/* === MEJORA DE INTERACCIÓN EN CARDS - MEJORA 7 === */
+.card-hover-effect {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(15, 37, 55, 0.1);
+}
+
+.card-hover-effect:active {
+  transform: translateY(-1px);
+}
+
+/* === MEJORA DE TABS INTERACTIVOS - MEJORA 7 === */
+.tab-interactive {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab-interactive:hover {
+  transform: translateY(-1px);
+}
+
+.tab-interactive:active {
+  transform: translateY(0);
+}
+
+/* === ESTADO DE SELECCIÓN EN LISTAS - MEJORA 7 === */
+.list-item-interactive {
+  transition: all 0.15s ease;
+}
+
+.list-item-interactive:hover {
+  background-color: rgba(0, 103, 125, 0.05);
+}
+
+.list-item-interactive:active {
+  background-color: rgba(0, 103, 125, 0.08);
+}
+
+/* === ESTADO DE CLICK EN BOTONES - MEJORA 7 === */
+.btn-click-effect:active {
+  transform: scale(0.98);
+}
+
+/* === MEJORA DE ACCESIBILIDAD EN ESTADOS - MEJORA 5 === */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* === MOVIMIENTO (módulos clínicos) === */

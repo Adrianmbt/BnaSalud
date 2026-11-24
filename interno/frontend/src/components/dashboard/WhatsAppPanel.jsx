@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Loader2, Send, MessageSquare, CheckCircle2, XCircle, Wifi, WifiOff, Users } from 'lucide-react';
+import { Loader2, Send, MessageSquare, CheckCircle2, XCircle, Wifi, WifiOff, Users, QrCode } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 
 const ESTADO_COLORES = {
@@ -18,6 +18,8 @@ export default function WhatsAppPanel() {
   const [historial, setHistorial] = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState('');
+  const [qrCode, setQrCode] = useState('');
+  const [cargandoQr, setCargandoQr] = useState(false);
 
   const verificarEstado = useCallback(async () => {
     setCargandoEstado(true);
@@ -28,6 +30,20 @@ export default function WhatsAppPanel() {
       setEstado({ conectado: false, estado: 'error', instancia: 'bnasalud' });
     } finally {
       setCargandoEstado(false);
+    }
+  }, []);
+
+  const obtenerQrCode = useCallback(async () => {
+    setCargandoQr(true);
+    try {
+      const { data } = await axiosClient.get('/whatsapp/qr');
+      if (data.qr) {
+        setQrCode(data.qr);
+      }
+    } catch (err) {
+      console.error('Error obteniendo QR:', err);
+    } finally {
+      setCargandoQr(false);
     }
   }, []);
 
@@ -47,6 +63,7 @@ export default function WhatsAppPanel() {
 
   useEffect(() => { verificarEstado(); }, [verificarEstado]);
   useEffect(() => { cargarHistorial(); }, [cargarHistorial]);
+  useEffect(() => { obtenerQrCode(); }, []);
 
   const agregarDestinatario = () => {
     setDestinatarios([...destinatarios, { telefono: '', cedula: '', nombre: '' }]);
@@ -139,6 +156,53 @@ export default function WhatsAppPanel() {
             Actualizar
           </button>
         </div>
+      </div>
+
+      {/* Código QR */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <QrCode className="w-4 h-4" /> Código QR de Conexión
+          </h3>
+          <button
+            onClick={obtenerQrCode}
+            disabled={cargandoQr || estado?.conectado}
+            className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {cargandoQr ? <Loader2 className="w-3.5 h-3.5 animate-spin inline-block mr-1" /> : null}
+            Actualizar QR
+          </button>
+        </div>
+        {cargandoQr ? (
+          <div className="py-8 text-center">
+            <Loader2 className="w-6 h-6 mx-auto animate-spin text-slate-400" />
+          </div>
+        ) : estado?.conectado ? (
+          <div className="py-8 text-center">
+            <Wifi className="w-10 h-10 mx-auto text-brand-success mb-2" />
+            <p className="text-sm text-slate-500">WhatsApp ya está conectado</p>
+            <p className="text-xs text-slate-400 mt-1">No es necesario escanear el QR</p>
+          </div>
+        ) : qrCode ? (
+          <div className="flex flex-col items-center gap-3">
+            <div className="p-3 bg-white border border-slate-200 rounded-lg">
+              <img
+                src={`data:image/png;base64,${qrCode}`}
+                alt="Código QR WhatsApp"
+                className="w-48 h-48 object-contain"
+              />
+            </div>
+            <p className="text-xs text-slate-500 text-center max-w-xs">
+              Escanea este código con WhatsApp en tu celular para conectar tu cuenta
+            </p>
+          </div>
+        ) : (
+          <div className="py-8 text-center">
+            <QrCode className="w-10 h-10 mx-auto text-slate-400 mb-2" />
+            <p className="text-sm text-slate-500">No se pudo generar el código QR</p>
+            <p className="text-xs text-slate-400 mt-1">Intenta nuevamente o verifica la conexión con Evolution API</p>
+          </div>
+        )}
       </div>
 
       {/* Formulario de envío */}

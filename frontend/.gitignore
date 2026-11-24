@@ -12,6 +12,22 @@ dist
 dist-ssr
 *.local
 
+# Variables de entorno (VITE_API_URL) y metadatos de Vercel
+.env
+.env.*
+!.env.example
+.vercel
+
+# Maquetas y diseños (no se suben al repo)
+maquetas/
+
+# Carpetas sueltas de imágenes provisionales
+Nueva carpeta/
+
+# Volcados de base de datos (contienen datos sensibles)
+dump-*.sql
+*.dump
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

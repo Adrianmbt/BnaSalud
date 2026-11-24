@@ -16,16 +16,25 @@ from fastapi import (
     File,
     HTTPException,
     Query,
+    Request,
     UploadFile,
     status,
 )
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.config import settings
+from app.services.certificaciones_horario import (
+    registrar_certificacion,
+    semanas_certificadas,
+)
+from app.services.afiliacion import GENERAL, categorias_por_cedula, normalizar_cedula
+from app.services.reparto_citas import MAX_CUPOS_DIA, elegir_hueco
 
 router = APIRouter(tags=["Admin Sistema"])
 
@@ -41,6 +50,7 @@ class UsuarioCreate(BaseModel):
     apellido: Optional[str] = Field(None, max_length=120)
     especialidad: Optional[str] = Field(None, max_length=120)
     cedula: Optional[str] = Field(None, max_length=20)
+    clinica_id: Optional[int] = Field(None, ge=1, description="Centro de salud del usuario")
     activo: bool = True
 
 
@@ -53,6 +63,7 @@ class UsuarioUpdate(BaseModel):
     apellido: Optional[str] = Field(None, max_length=120)
     especialidad: Optional[str] = Field(None, max_length=120)
     cedula: Optional[str] = Field(None, max_length=20)
+    clinica_id: Optional[int] = Field(None, ge=1)
 
 
 class EmpleadoCreate(BaseModel):
@@ -133,14 +144,27 @@ async def _auditar(db: AsyncSession, accion: str, detalle: dict, usuario: str) -
 ROLES_PERMITIDOS = {
     "recepcionista", "medico_emergencia", "medico",
     "jefe_farmacia", "farmaceutico", "admin_sistemas",
-    "historias_medicas", "recursos_humanos",
+    "historias_medicas", "recursos_humanos", "director",
+    "jefe_almacen",
 }
 
 ROLES_MEDICO = {"medico", "medico_emergencia"}
 
+# Etiqueta que se guarda en `personal.cargo` para cada rol.
+CARGOS_POR_ROL = {
+    "jefe_farmacia": "Jefe de Farmacia",
+    "jefe_almacen": "Jefe de Almacén",
+    "farmaceutico": "Farmacéutico",
+    "recepcionista": "Recepcionista",
+    "historias_medicas": "Historias Médicas",
+    "recursos_humanos": "Recursos Humanos",
+    "admin_sistemas": "Admin de Sistemas",
+    "director": "Director",
+}
+
 
 def _cargo_por_rol(rol: str) -> str:
-    return "Médico" if rol in ROLES_MEDICO else rol
+    return "Médico" if rol in ROLES_MEDICO else CARGOS_POR_ROL.get(rol, rol)
 
 
 async def _crear_personal(
@@ -151,14 +175,19 @@ async def _crear_personal(
     especialidad: Optional[str],
     cedula: Optional[str],
     rol: str,
+    clinica_id: Optional[int] = None,
 ) -> int:
-    """Crea la ficha en `personal` para un usuario nuevo."""
+    """Crea la ficha en `personal` para un usuario nuevo.
+
+    El centro se toma del formulario (antes se fijaba 2 a la fuerza, lo que
+    dejaba al personal de otros centros apuntando a la clínica equivocada).
+    """
     return (
         await db.execute(
             text(
                 "INSERT INTO personal "
                 "(cedula, nombre, apellido, especialidad, cargo, clinica_id) "
-                "VALUES (:ced, :nom, :ape, :esp, :cargo, 2) "
+                "VALUES (:ced, :nom, :ape, :esp, :cargo, :clinica) "
                 "RETURNING id"
             ),
             {
@@ -167,6 +196,7 @@ async def _crear_personal(
                 "ape": (apellido or "").strip() or None,
                 "esp": (especialidad or "").strip() or None,
                 "cargo": _cargo_por_rol(rol),
+                "clinica": clinica_id,
             },
         )
     ).scalar_one()
@@ -180,9 +210,12 @@ async def _actualizar_personal(
     apellido: Optional[str],
     especialidad: Optional[str],
     cedula: Optional[str],
+    clinica_id: Optional[int] = None,
 ) -> None:
     """Actualiza solo los campos enviados de la ficha del personal."""
     updates = {}
+    if clinica_id is not None:
+        updates["clinica_id"] = clinica_id
     if nombre is not None:
         updates["nombre"] = nombre.strip()
     if apellido is not None:
@@ -223,7 +256,7 @@ async def listar_usuarios(
     offset = (page - 1) * per_page
     result = await db.execute(
         text(
-            f"SELECT u.id, u.username, u.rol, u.personal_id, u.activo, u.created_at, "
+            f"SELECT u.id, u.username, u.rol, u.personal_id, u.clinica_id, u.activo, u.created_at, "
             f"p.nombre, p.apellido, p.cedula, p.cargo, p.especialidad "
             f"FROM usuarios u "
             f"LEFT JOIN personal p ON p.id = u.personal_id "
@@ -240,6 +273,7 @@ async def listar_usuarios(
             "username": r["username"],
             "rol": r["rol"],
             "personal_id": r["personal_id"],
+            "clinica_id": r["clinica_id"],
             "activo": r["activo"],
             "created_at": str(r["created_at"])[:19] if r["created_at"] else None,
             "nombre": r["nombre"] or "",
@@ -271,10 +305,30 @@ async def crear_usuario(payload: UsuarioCreate, db: AsyncSession = Depends(get_d
             )
         ).first()
         if not existe_personal:
-            raise HTTPException(404, "El personal indicado no existe.")
-        if any(
+            # Antes esto bloqueaba la creación ("El personal indicado no
+            # existe") cuando el operador escribía un ID que no estaba en
+            # `personal`. Si envió los datos de la persona se crea su ficha.
+            if not nombre:
+                raise HTTPException(
+                    404,
+                    f"El Personal ID {personal_id} no existe. Deje el campo vacío "
+                    "para crear la ficha con el nombre y el centro indicados.",
+                )
+            personal_id = await _crear_personal(
+                db,
+                nombre=nombre,
+                apellido=payload.apellido,
+                especialidad=payload.especialidad,
+                cedula=payload.cedula,
+                rol=payload.rol,
+                clinica_id=payload.clinica_id,
+            )
+        elif any(
             v is not None
-            for v in (payload.nombre, payload.apellido, payload.especialidad, payload.cedula)
+            for v in (
+                payload.nombre, payload.apellido, payload.especialidad,
+                payload.cedula, payload.clinica_id,
+            )
         ):
             await _actualizar_personal(
                 db,
@@ -283,6 +337,7 @@ async def crear_usuario(payload: UsuarioCreate, db: AsyncSession = Depends(get_d
                 apellido=payload.apellido,
                 especialidad=payload.especialidad,
                 cedula=payload.cedula,
+                clinica_id=payload.clinica_id,
             )
     elif nombre:
         personal_id = await _crear_personal(
@@ -292,6 +347,7 @@ async def crear_usuario(payload: UsuarioCreate, db: AsyncSession = Depends(get_d
             especialidad=payload.especialidad,
             cedula=payload.cedula,
             rol=payload.rol,
+            clinica_id=payload.clinica_id,
         )
     elif payload.rol in ROLES_MEDICO:
         raise HTTPException(
@@ -301,21 +357,42 @@ async def crear_usuario(payload: UsuarioCreate, db: AsyncSession = Depends(get_d
 
     password_hash = bcrypt.hashpw(payload.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     new_id = uuid4()
-    await db.execute(
-        text(
-            "INSERT INTO usuarios (id, username, password_hash, rol, personal_id, activo, created_at) "
-            "VALUES (:id, :username, :pw, :rol, :pid, :activo, NOW())"
-        ),
-        {
-            "id": new_id,
-            "username": payload.username.lower().strip(),
-            "pw": password_hash,
-            "rol": payload.rol,
-            "pid": personal_id,
-            "activo": payload.activo,
-        },
-    )
-    await db.commit()
+    try:
+        await db.execute(
+            text(
+                "INSERT INTO usuarios "
+                "(id, username, password_hash, rol, personal_id, clinica_id, activo, created_at) "
+                "VALUES (:id, :username, :pw, :rol, :pid, :clinica, :activo, NOW())"
+            ),
+            {
+                "id": new_id,
+                "username": payload.username.lower().strip(),
+                "pw": password_hash,
+                "rol": payload.rol,
+                "pid": personal_id,
+                "clinica": payload.clinica_id,
+                "activo": payload.activo,
+            },
+        )
+        await db.commit()
+    except IntegrityError as exc:
+        # Las restricciones de la BD no deben llegar al navegador como 500:
+        # se traducen a un mensaje accionable para el administrador.
+        await db.rollback()
+        detalle = str(getattr(exc, "orig", exc))
+        if "usuarios_rol_check" in detalle:
+            raise HTTPException(
+                400,
+                "El rol indicado no está habilitado en la base de datos. "
+                "Aplique la migración 022_almacen_ordenes_entrega.sql.",
+            )
+        if "username" in detalle:
+            raise HTTPException(409, "Ya existe un usuario con ese username.")
+        if "personal_id" in detalle:
+            raise HTTPException(400, "El Personal ID indicado no existe.")
+        if "clinica_id" in detalle:
+            raise HTTPException(400, "El centro indicado no existe.")
+        raise HTTPException(400, "No se pudo crear el usuario con los datos indicados.")
     return {"id": str(new_id), "message": "Usuario creado exitosamente."}
 
 
@@ -339,6 +416,8 @@ async def actualizar_usuario(usuario_id: str, payload: UsuarioUpdate, db: AsyncS
         updates["rol"] = payload.rol
     if payload.activo is not None:
         updates["activo"] = payload.activo
+    if payload.clinica_id is not None:
+        updates["clinica_id"] = payload.clinica_id
 
     personal_id = payload.personal_id if payload.personal_id is not None else fila[2]
     if payload.personal_id is not None:
@@ -354,7 +433,10 @@ async def actualizar_usuario(usuario_id: str, payload: UsuarioUpdate, db: AsyncS
 
     campos_personal = any(
         v is not None
-        for v in (payload.nombre, payload.apellido, payload.especialidad, payload.cedula)
+        for v in (
+            payload.nombre, payload.apellido, payload.especialidad,
+            payload.cedula, payload.clinica_id,
+        )
     )
     if campos_personal:
         if personal_id is None:
@@ -371,6 +453,7 @@ async def actualizar_usuario(usuario_id: str, payload: UsuarioUpdate, db: AsyncS
                 especialidad=payload.especialidad,
                 cedula=payload.cedula,
                 rol=updates.get("rol", fila[1]),
+                clinica_id=payload.clinica_id,
             )
             updates["personal_id"] = personal_id
         else:
@@ -381,6 +464,7 @@ async def actualizar_usuario(usuario_id: str, payload: UsuarioUpdate, db: AsyncS
                 apellido=payload.apellido,
                 especialidad=payload.especialidad,
                 cedula=payload.cedula,
+                clinica_id=payload.clinica_id,
             )
 
     if not updates and not campos_personal:
@@ -448,6 +532,8 @@ async def _medico_especialista(db: AsyncSession, medico_id: int) -> dict:
 @router.get("/medicos")
 async def listar_medicos_horarios(
     q: str = Query(default=""),
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=5, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Médicos especialistas con el número de días que tienen horario cargado."""
@@ -456,6 +542,22 @@ async def listar_medicos_horarios(
     if q.strip():
         filtro_q = " AND (p.nombre ILIKE :q OR p.apellido ILIKE :q OR p.especialidad ILIKE :q)"
         params["q"] = f"%{q.strip()}%"
+
+    # Contar total
+    count_result = await db.execute(
+        text(
+            "SELECT COUNT(*) FROM personal p "
+            "WHERE ( (LOWER(COALESCE(p.cargo, '')) IN ('medico', 'médico') "
+            "         AND p.especialidad IS NOT NULL) "
+            "     OR EXISTS(SELECT 1 FROM usuarios u "
+            "                WHERE u.personal_id = p.id AND u.rol = 'medico_emergencia') ) "
+            f"{filtro_q}"
+        ),
+        params,
+    )
+    total = count_result.scalar() or 0
+
+    offset = (page - 1) * per_page
 
     result = await db.execute(
         text(
@@ -470,11 +572,12 @@ async def listar_medicos_horarios(
             "     OR EXISTS(SELECT 1 FROM usuarios u "
             "                WHERE u.personal_id = p.id AND u.rol = 'medico_emergencia') ) "
             f"{filtro_q} "
-            "ORDER BY p.especialidad NULLS LAST, p.nombre"
+            "ORDER BY p.especialidad NULLS LAST, p.nombre "
+            "LIMIT :limit OFFSET :offset"
         ),
-        params,
+        {**params, "limit": per_page, "offset": offset},
     )
-    return [
+    items = [
         {
             "id": f["id"],
             "nombre": f"{f['nombre']} {f['apellido']}".strip(),
@@ -484,6 +587,7 @@ async def listar_medicos_horarios(
         }
         for f in result.mappings()
     ]
+    return {"items": items, "total": total, "page": page, "per_page": per_page}
 
 
 @router.get("/turnos")
@@ -586,6 +690,11 @@ async def actualizar_horario_medico(
     """
     medico = await _medico_especialista(db, medico_id)
 
+    # Evita que dos ediciones simultáneas del mismo médico se pisen.
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(:mid)"), {"mid": medico_id}
+    )
+
     turnos = {
         f["id"]: f
         for f in (
@@ -639,8 +748,73 @@ async def actualizar_horario_medico(
     return {
         "message": "Horario actualizado.",
         "dias_configurados": len({d for d, _ in seleccion}),
-        "citas_preasignadas_asignadas": await _asignar_citas_preasignadas_de_medico(db, medico_id),
+        "citas_preasignadas_asignadas": await _asignar_citas_preasignadas_de_medico(db, medico_id)
+        if settings.REPARTO_AUTOMATICO
+        else 0,
     }
+
+
+async def _asegurar_columnas_certificacion(db: AsyncSession) -> None:
+    """Sin Alembic: agrega las columnas de certificación si todavía no existen."""
+    await db.execute(
+        text(
+            "ALTER TABLE agenda_medicos "
+            "ADD COLUMN IF NOT EXISTS certificado BOOLEAN DEFAULT FALSE, "
+            "ADD COLUMN IF NOT EXISTS certificado_en TIMESTAMPTZ, "
+            "ADD COLUMN IF NOT EXISTS certificado_por TEXT"
+        )
+    )
+    await db.commit()
+
+
+def _inicio_de_semana(semana_desde: Optional[str], hoy: date) -> date:
+    """Lunes de la semana pedida (cualquier día de esa semana sirve como entrada)."""
+    if not semana_desde:
+        return hoy - timedelta(days=hoy.weekday())
+    try:
+        fecha = datetime.strptime(semana_desde, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail="semana_desde inválida (YYYY-MM-DD)."
+        )
+    return fecha - timedelta(days=fecha.weekday())
+
+
+async def _certificar_dias_de_medico(
+    db: AsyncSession, medico_id: int, certificado_por: str, inicio_semana: date
+) -> int:
+    """Certifica la semana indicada para el médico.
+
+    Marca la plantilla (`agenda_medicos`) y registra la fila de
+    `agenda_certificaciones_semana`, que es la que abre esa semana concreta en
+    la agenda de recepción. Devuelve cuántos días (lunes a viernes) quedaron
+    certificados.
+    """
+    await db.execute(
+        text(
+            "UPDATE agenda_medicos "
+            "SET certificado = TRUE, certificado_en = NOW(), certificado_por = :por "
+            "WHERE medico_id = :mid AND activo AND dia_semana BETWEEN 0 AND 4"
+        ),
+        {"por": certificado_por, "mid": medico_id},
+    )
+    dias = {
+        f["dia_semana"]
+        for f in (
+            await db.execute(
+                text(
+                    "SELECT dia_semana FROM agenda_medicos "
+                    "WHERE medico_id = :mid AND activo AND dia_semana BETWEEN 0 AND 4"
+                ),
+                {"mid": medico_id},
+            )
+        ).mappings()
+    }
+    if dias:
+        await registrar_certificacion(
+            db, medico_id, inicio_semana, len(dias), certificado_por
+        )
+    return len(dias)
 
 
 @router.post("/medicos/{medico_id}/horario/certificar")
@@ -658,57 +832,29 @@ async def certificar_horario_medico(
     turnos de agenda_medicos de ese médico en la semana indicada como
     certificados, con fecha y usuario que certificó.
     """
-    # Asegurar columnas de certificación (sin Alembic, se agregan si faltan).
-    await db.execute(
-        text(
-            "ALTER TABLE agenda_medicos "
-            "ADD COLUMN IF NOT EXISTS certificado BOOLEAN DEFAULT FALSE, "
-            "ADD COLUMN IF NOT EXISTS certificado_en TIMESTAMPTZ, "
-            "ADD COLUMN IF NOT EXISTS certificado_por TEXT"
-        )
-    )
-    await db.commit()
+    await _asegurar_columnas_certificacion(db)
 
     hoy = (await db.execute(text("SELECT CURRENT_DATE AS hoy"))).scalar_one()
-    if semana_desde:
-        try:
-            inicio_semana = datetime.strptime(semana_desde, "%Y-%m-%d").date()
-        except ValueError:
-            raise HTTPException(
-                status_code=400, detail="semana_desde inválida (YYYY-MM-DD)."
-            )
-    else:
-        inicio_semana = hoy - timedelta(days=hoy.weekday())
+    inicio_semana = _inicio_de_semana(semana_desde, hoy)
     fin_semana = inicio_semana + timedelta(days=4)  # Lunes a viernes
 
     # Verificar que el médico exista y tenga horario en esa semana.
     medico = await _medico_especialista(db, medico_id)
 
-    filas = (
-        await db.execute(
-            text(
-                "SELECT id FROM agenda_medicos "
-                "WHERE medico_id = :mid AND dia_semana BETWEEN 0 AND 4 "
-                "  AND activo = TRUE"
-            ),
-            {"mid": medico_id},
-        )
-    ).mappings().all()
-
-    if not filas:
+    dias_certificados = await _certificar_dias_de_medico(
+        db, medico_id, user.get("sub", ""), inicio_semana
+    )
+    if not dias_certificados:
         raise HTTPException(
             400,
             f"El médico {medico['nombre']} no tiene horario cargado para certificar.",
         )
 
-    ids = [f["id"] for f in filas]
-    await db.execute(
-        text(
-            "UPDATE agenda_medicos "
-            "SET certificado = TRUE, certificado_en = NOW(), certificado_por = :por "
-            "WHERE id = ANY(:ids)"
-        ),
-        {"por": user.get("sub", ""), "ids": ids},
+    # Los pacientes que esperan cupo en esa semana se reparten en los días cargados.
+    citas_asignadas = (
+        await _asignar_citas_preasignadas_de_medico(db, medico_id, inicio_semana)
+        if settings.REPARTO_AUTOMATICO
+        else 0
     )
     await db.commit()
 
@@ -720,7 +866,8 @@ async def certificar_horario_medico(
             "medico_nombre": medico["nombre"],
             "semana_desde": inicio_semana.isoformat(),
             "semana_hasta": fin_semana.isoformat(),
-            "dias_certificados": len(ids),
+            "dias_certificados": dias_certificados,
+            "citas_asignadas": citas_asignadas,
             "certificado_por": user.get("sub", ""),
         },
         user.get("sub", ""),
@@ -732,31 +879,164 @@ async def certificar_horario_medico(
         "medico_nombre": medico["nombre"],
         "semana_desde": inicio_semana.isoformat(),
         "semana_hasta": fin_semana.isoformat(),
-        "dias_certificados": len(ids),
+        "dias_certificados": dias_certificados,
+        "citas_asignadas": citas_asignadas,
     }
 
 
-async def _asignar_citas_preasignadas_de_medico(db: AsyncSession, medico_id: int) -> int:
-    """Distribuye automáticamente los pacientes con citas preasignadas de este médico
+@router.post("/medicos/horario/certificar")
+async def certificar_horarios_de_la_semana(
+    semana_desde: Optional[str] = Query(
+        None, description="Lunes de la semana a certificar (YYYY-MM-DD). Por defecto la semana actual."
+    ),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Certifica el horario semanal de todos los especialistas y reparte la cola.
 
-    en los días y turnos que RRHH acaba de cargar/aprobar, respetando el máximo de 10 cupos
-    por turno y el orden de solicitud (FIFO).
+    Se toma la semana elegida, se certifican los días que cada médico tiene
+    cargados y luego se asignan las citas preasignadas (pacientes en cola) de
+    esa semana sobre esos días: primero trabajadores y beneficiarios de la
+    nómina y después público general, con 10 cupos por día de atención y horas
+    escalonadas cada 30 minutos.
     """
-    preasignadas = (
+    await _asegurar_columnas_certificacion(db)
+
+    hoy = (await db.execute(text("SELECT CURRENT_DATE AS hoy"))).scalar_one()
+    inicio_semana = _inicio_de_semana(semana_desde, hoy)
+    fin_semana = inicio_semana + timedelta(days=4)  # Lunes a viernes
+
+    medicos = (
         await db.execute(
             text(
-                "SELECT id, fecha_cita, motivo, especialidad, paciente_id, created_at "
-                "FROM citas "
-                "WHERE medico_id = :mid AND estado = 'preasignada' "
-                "ORDER BY created_at ASC"
-            ),
-            {"mid": medico_id},
+                "SELECT p.id, p.nombre, p.apellido FROM personal p "
+                "WHERE EXISTS (SELECT 1 FROM agenda_medicos a "
+                "              WHERE a.medico_id = p.id AND a.activo "
+                "                AND a.dia_semana BETWEEN 0 AND 4) "
+                "  AND ( (LOWER(COALESCE(p.cargo, '')) IN ('medico', 'médico') "
+                "         AND p.especialidad IS NOT NULL) "
+                "     OR EXISTS (SELECT 1 FROM usuarios u "
+                "                WHERE u.personal_id = p.id "
+                "                  AND u.rol = 'medico_emergencia') ) "
+                "ORDER BY p.especialidad NULLS LAST, p.nombre"
+            )
         )
     ).mappings().all()
 
-    if not preasignadas:
-        return 0
+    detalle = []
+    total_dias = 0
+    total_asignadas = 0
+    total_sin_cupo = 0
 
+    for medico in medicos:
+        dias = await _certificar_dias_de_medico(
+            db, medico["id"], user.get("sub", ""), inicio_semana
+        )
+        asignadas = (
+            await _asignar_citas_preasignadas_de_medico(db, medico["id"], inicio_semana)
+            if settings.REPARTO_AUTOMATICO
+            else 0
+        )
+        sin_cupo = (
+            await db.execute(
+                text(
+                    "SELECT COUNT(*) FROM citas "
+                    "WHERE medico_id = :mid AND estado = 'preasignada' "
+                    "  AND fecha_cita BETWEEN :ini AND :fin"
+                ),
+                {"mid": medico["id"], "ini": inicio_semana, "fin": fin_semana},
+            )
+        ).scalar() or 0
+
+        total_dias += dias
+        total_asignadas += asignadas
+        total_sin_cupo += sin_cupo
+        detalle.append(
+            {
+                "medico_id": medico["id"],
+                "medico_nombre": f"{medico['nombre']} {medico['apellido']}".strip(),
+                "dias_certificados": dias,
+                "citas_asignadas": asignadas,
+                "citas_sin_cupo": sin_cupo,
+            }
+        )
+
+    await db.commit()
+
+    await _auditar(
+        db,
+        "horarios de médicos certificados",
+        {
+            "semana_desde": inicio_semana.isoformat(),
+            "semana_hasta": fin_semana.isoformat(),
+            "medicos": len(medicos),
+            "dias_certificados": total_dias,
+            "citas_asignadas": total_asignadas,
+            "citas_sin_cupo": total_sin_cupo,
+            "certificado_por": user.get("sub", ""),
+        },
+        user.get("sub", ""),
+    )
+
+    return {
+        "message": "Horarios certificados.",
+        "semana_desde": inicio_semana.isoformat(),
+        "semana_hasta": fin_semana.isoformat(),
+        "total_medicos": len(medicos),
+        "total_dias_certificados": total_dias,
+        "total_citas_asignadas": total_asignadas,
+        "total_citas_sin_cupo": total_sin_cupo,
+        "medicos": detalle,
+    }
+
+
+# Prioridad de nómina en la cola de preasignación (menor = antes).
+PRIORIDAD_AFILIACION = {"trabajador": 0, "beneficiario": 1, GENERAL: 2}
+
+
+async def _ocupacion_semana(
+    db: AsyncSession, medico_id: int, inicio_semana: date
+) -> dict:
+    """{fecha: ['HH:MM', ...]} con las horas ya ocupadas de lunes a viernes."""
+    ocupacion = {inicio_semana + timedelta(days=i): [] for i in range(5)}
+    filas = (
+        await db.execute(
+            text(
+                "SELECT fecha_cita, to_char(hora_inicio, 'HH24:MI') AS h "
+                "FROM citas "
+                "WHERE medico_id = :mid AND fecha_cita BETWEEN :ini AND :fin "
+                "  AND estado IN ('confirmada', 'pendiente')"
+            ),
+            {
+                "mid": medico_id,
+                "ini": inicio_semana,
+                "fin": inicio_semana + timedelta(days=4),
+            },
+        )
+    ).mappings()
+    for fila in filas:
+        if fila["h"]:
+            ocupacion.setdefault(fila["fecha_cita"], []).append(fila["h"])
+    return ocupacion
+
+
+async def _asignar_citas_preasignadas_de_medico(
+    db: AsyncSession, medico_id: int, semana_desde: Optional[date] = None
+) -> int:
+    """Reparte las citas preasignadas del médico en los días que va a atender.
+
+    Reglas del reparto:
+    - Solo semanas certificadas por RRHH (`agenda_certificaciones_semana`).
+    - Prioridad de nómina: trabajadores, luego beneficiarios, luego público
+      general; dentro de cada grupo se respeta el orden de solicitud (FIFO).
+    - Cupo: 10 pacientes por día de atención (1 día = 10, 2 = 20, 3 = 30…),
+      sin tope semanal extra, y ningún turno pasa de 10 citas.
+    - Horas escalonadas: cada cita ocupa el primer bloque libre de 30 minutos
+      del turno (08:00, 08:30, 09:00…), no todos a la hora de apertura.
+
+    Si se indica `semana_desde` solo se consideran las citas en cola de esa
+    semana.
+    """
     agenda_filas = (
         await db.execute(
             text(
@@ -765,56 +1045,134 @@ async def _asignar_citas_preasignadas_de_medico(db: AsyncSession, medico_id: int
                 "FROM agenda_medicos a "
                 "JOIN turnos t ON t.id = a.turno_id "
                 "WHERE a.medico_id = :mid AND a.activo = TRUE "
+                "  AND a.dia_semana BETWEEN 0 AND 4 "
                 "ORDER BY a.dia_semana ASC, t.hora_inicio ASC"
             ),
             {"mid": medico_id},
         )
     ).mappings().all()
 
-    if not agenda_filas:
+    dias_atendidos = sorted({f["dia_semana"] for f in agenda_filas})
+    if not dias_atendidos:
         return 0
 
-    MAX_CUPOS_TURNO = 10
+    # 10 cupos por cada día de atención activo (sin tope semanal de 20).
+    cupo_semanal = MAX_CUPOS_DIA * len(dias_atendidos)
+
+    filtro_semana = ""
+    params: dict = {"mid": medico_id}
+    if semana_desde:
+        filtro_semana = " AND c.fecha_cita BETWEEN :ini AND :fin"
+        params["ini"] = semana_desde
+        params["fin"] = semana_desde + timedelta(days=4)
+
+    preasignadas = (
+        await db.execute(
+            text(
+                "SELECT c.id, c.fecha_cita, c.created_at, h.cedula AS paciente_cedula "
+                "FROM citas c "
+                "LEFT JOIN historias_clinicas h ON h.id = c.paciente_id "
+                "WHERE c.medico_id = :mid AND c.estado = 'preasignada'"
+                + filtro_semana
+                + " ORDER BY c.created_at ASC"
+            ),
+            params,
+        )
+    ).mappings().all()
+
+    if not preasignadas:
+        return 0
+
+    # Prioridad institucional: trabajadores y beneficiarios entran primero.
+    categorias = await categorias_por_cedula(
+        db, [c["paciente_cedula"] for c in preasignadas]
+    )
+
+    def _orden(cita) -> tuple:
+        categoria = categorias.get(normalizar_cedula(cita["paciente_cedula"]), GENERAL)
+        return (
+            PRIORIDAD_AFILIACION.get(categoria, PRIORIDAD_AFILIACION[GENERAL]),
+            cita["created_at"] or datetime.min,
+        )
+
+    preasignadas = sorted(preasignadas, key=_orden)
+
+    # Solo se reparte en las semanas que RRHH certificó explícitamente.
+    semanas_ref = {
+        c["fecha_cita"] - timedelta(days=c["fecha_cita"].weekday())
+        for c in preasignadas
+    }
+    certificadas = await semanas_certificadas(
+        db, medico_id, min(semanas_ref), max(semanas_ref)
+    )
+
+    hoy = (await db.execute(text("SELECT CURRENT_DATE AS hoy"))).scalar_one()
+
+    # Turnos agrupados por día para la función pura de reparto.
+    turnos_por_dia: dict = {}
+    for fila in agenda_filas:
+        turnos_por_dia.setdefault(fila["dia_semana"], []).append(fila)
+
     total_asignadas = 0
+    cupos_por_semana: dict = {}
+    ocupacion_por_semana: dict = {}
 
     for cita in preasignadas:
         fecha_ref = cita["fecha_cita"]
         inicio_sem = fecha_ref - timedelta(days=fecha_ref.weekday())
-        fin_sem = inicio_sem + timedelta(days=4)
 
-        asignada = False
-        cur_dia = inicio_sem
-        while cur_dia <= fin_sem and not asignada:
-            dia_sem_num = cur_dia.weekday()
-            turnos_del_dia = [t for t in agenda_filas if t["dia_semana"] == dia_sem_num]
+        if inicio_sem not in certificadas:
+            # Semana sin certificar: la cita sigue en cola de preasignación.
+            continue
 
-            for turno in turnos_del_dia:
-                conteo_res = await db.execute(
+        if inicio_sem not in cupos_por_semana:
+            usadas = (
+                await db.execute(
                     text(
                         "SELECT COUNT(*) FROM citas "
-                        "WHERE medico_id = :mid AND fecha_cita = :fec "
-                        "  AND estado IN ('confirmada', 'pendiente') "
-                        "  AND hora_inicio >= :h_in AND hora_inicio < :h_out"
+                        "WHERE medico_id = :mid "
+                        "  AND fecha_cita BETWEEN :ini AND :fin "
+                        "  AND estado IN ('confirmada', 'pendiente')"
                     ),
-                    {"mid": medico_id, "fec": cur_dia, "h_in": turno["hora_inicio"], "h_out": turno["hora_fin"]},
+                    {
+                        "mid": medico_id,
+                        "ini": inicio_sem,
+                        "fin": inicio_sem + timedelta(days=4),
+                    },
                 )
-                ocupadas = conteo_res.scalar() or 0
-                if ocupadas < MAX_CUPOS_TURNO:
-                    h_asig = turno["hora_inicio"]
-                    await db.execute(
-                        text(
-                            "UPDATE citas SET "
-                            "  fecha_cita = :fec, hora_inicio = :hora, estado = 'confirmada', "
-                            "  motivo = COALESCE(motivo, 'Asignada automáticamente al aprobar horario') "
-                            "WHERE id = :id"
-                        ),
-                        {"fec": cur_dia, "hora": h_asig, "id": cita["id"]},
-                    )
-                    total_asignadas += 1
-                    asignada = True
-                    break
+            ).scalar() or 0
+            cupos_por_semana[inicio_sem] = max(cupo_semanal - usadas, 0)
 
-            cur_dia += timedelta(days=1)
+        if cupos_por_semana[inicio_sem] <= 0:
+            # Semana completa: la cita sigue preasignada para otra semana.
+            continue
+
+        ocupacion = ocupacion_por_semana.get(inicio_sem)
+        if ocupacion is None:
+            ocupacion = await _ocupacion_semana(db, medico_id, inicio_sem)
+            ocupacion_por_semana[inicio_sem] = ocupacion
+
+        # Tope por día + por turno + bloques de 30 minutos (ver reparto_citas).
+        hueco = elegir_hueco(
+            inicio_sem, dias_atendidos, turnos_por_dia, hoy, ocupacion
+        )
+        if hueco is None:
+            continue
+        cur_dia, hora_asignada = hueco
+
+        await db.execute(
+            text(
+                "UPDATE citas SET "
+                "  fecha_cita = :fec, hora_inicio = :hora, estado = 'confirmada', "
+                "  motivo = COALESCE(motivo, 'Asignada automáticamente al certificar horario') "
+                "WHERE id = :id"
+            ),
+            {"fec": cur_dia, "hora": hora_asignada, "id": cita["id"]},
+        )
+        # La hora queda tomada para el resto del reparto de esa semana.
+        ocupacion.setdefault(cur_dia, []).append(_hhmm(hora_asignada))
+        total_asignadas += 1
+        cupos_por_semana[inicio_sem] -= 1
 
     return total_asignadas
 

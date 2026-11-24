@@ -1,5 +1,7 @@
 """Endpoints para gestión de historias clínicas y operaciones de recepción."""
 import json
+import uuid
+from datetime import datetime, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -28,6 +30,7 @@ def _ser_historia(h: "HistoriaClinica") -> dict:
         "apellido": h.apellido,
         "telefono": h.telefono,
         "direccion": h.direccion,
+        "comuna": h.comuna,
         "tipo_sangre": h.tipo_sangre,
         "antecedentes_medicos": h.antecedentes_medicos or [],
         "antecedentes_operatorios": h.antecedentes_operatorios or [],
@@ -79,6 +82,7 @@ async def crear_actualizar_historia_clinica(
         existente.nombre_completo = payload.nombre_completo
         existente.telefono = payload.telefono
         existente.direccion = payload.direccion
+        existente.comuna = payload.comuna
         existente.tipo_sangre = payload.tipo_sangre
         existente.antecedentes_medicos = payload.antecedentes_medicos or []
         existente.antecedentes_operatorios = payload.antecedentes_operatorios or []
@@ -88,15 +92,13 @@ async def crear_actualizar_historia_clinica(
         return _ser_historia(existente)
     else:
         # Crear nueva
-        from sqlalchemy import UUID
-        from datetime import datetime, timezone
-
         nuevo = HistoriaClinica(
             id=uuid.uuid4(),
             cedula=payload.cedula,
             nombre_completo=payload.nombre_completo,
             telefono=payload.telefono,
             direccion=payload.direccion,
+            comuna=payload.comuna,
             tipo_sangre=payload.tipo_sangre,
             antecedentes_medicos=payload.antecedentes_medicos or [],
             antecedentes_operatorios=payload.antecedentes_operatorios or [],

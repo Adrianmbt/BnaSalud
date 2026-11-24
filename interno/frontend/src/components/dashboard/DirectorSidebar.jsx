@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  FileText,
   LogOut,
   MessageSquare,
   Stethoscope,
@@ -23,6 +24,7 @@ const CENTROS_SALUD = [
 const SECCIONES = [
   { id: 'medicos', label: 'Rendimiento Médico', icon: Stethoscope },
   { id: 'pacientes', label: 'Pacientes & Flujo', icon: Users },
+  { id: 'reposos', label: 'Reposos Médicos', icon: FileText },
   { id: 'inventario', label: 'Inventario & Stock', icon: Database },
   { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
 ];

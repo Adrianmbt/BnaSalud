@@ -5,6 +5,13 @@ export const listarCitas = async (params = {}) => {
   return data;
 };
 
+export const listarSemanasCertificadas = async (params = {}) => {
+  const { data } = await axiosClient.get('/agenda/semanas-certificadas', {
+    params,
+  });
+  return data;
+};
+
 export const listarEspecialidades = async () => {
   const { data } = await axiosClient.get('/reprogramaciones/especialidades');
   return data;

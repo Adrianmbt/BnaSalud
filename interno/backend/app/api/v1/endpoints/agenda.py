@@ -14,6 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.services.sincronizacion_portal import notificar_confirmacion_supabase
+from app.services.certificaciones_horario import (
+    asegurar_tabla,
+    semana_certificada,
+    semanas_certificadas,
+)
 from app.models.cola import (
     ColaAtencion,
     ColaAtencionHistorial,
@@ -31,6 +36,7 @@ from app.schemas.agenda import (
     JornadasDia,
     ReprogramarTodasRequest,
     ReprogramarTodasResponse,
+    ResumenSemanaItem,
     TurnoLibre,
 )
 
@@ -240,31 +246,27 @@ async def _dias_disponibles(
             continue
 
         ocupadas_hhmm = ocupadas_por_fecha.get(cur, set())
+        grupos: dict = {}
+        for slot in turnos:
+            grupos.setdefault(slot["turno_id"], []).append(slot)
+
         turnos_libres = []
         cupos_totales = 0
-        for turno in turnos:
-            tid = turno["turno_id"]
-            hh_in = _hhmm(turno["hora_inicio"])
-            hh_out = _hhmm(turno["hora_fin"])
-            inicio = datetime.combine(date.min, time.fromisoformat(hh_in))
-            fin = datetime.combine(date.min, time.fromisoformat(hh_out))
-            paso = timedelta(minutes=30)
-            slots: list = []
-            cur_dt = inicio
-            while cur_dt + paso <= fin:
-                slots.append(cur_dt.strftime("%H:%M"))
-                cur_dt += paso
-            libres = [s for s in slots if s not in ocupadas_hhmm]
-            slots_totales = len(slots)
-            citas_ocupadas = slots_totales - len(libres)
+        for tid, slots in grupos.items():
+            slots.sort(key=lambda s: s["hora_inicio"])
+            libres = [s for s in slots if _hhmm(s["hora_inicio"]) not in ocupadas_hhmm]
+            citas_ocupadas = len(slots) - len(libres)
             cupos_libres_turno = max(0, limite_citas - citas_ocupadas)
             if libres:
+                nombre_turno = slots[0].get("turno_nombre") or (
+                    "Mañana" if slots[0]["hora_inicio"].hour < 13 else "Tarde"
+                )
                 turnos_libres.append(
                     TurnoLibre(
                         turno_id=tid,
-                        turno_nombre=turno.get("turno_nombre") or "",
-                        hora_inicio=hh_in,
-                        hora_fin=hh_out,
+                        turno_nombre=nombre_turno,
+                        hora_inicio=_hhmm(slots[0]["hora_inicio"]),
+                        hora_fin=_hhmm(slots[-1]["hora_fin"]),
                     )
                 )
                 cupos_totales += cupos_libres_turno
@@ -449,6 +451,122 @@ async def calendario_disponibilidad(
     }
 
 
+@router.get("/semanas-resumen", response_model=List[ResumenSemanaItem])
+async def semanas_resumen(
+    medico_id: int,
+    cantidad: int = 6,
+    db: AsyncSession = Depends(get_db),
+) -> List[ResumenSemanaItem]:
+    """Devuelve un resumen de las próximas N semanas con los cupos disponibles.
+
+    Permite mostrar en el desplegable de semanas si están en verde (con cupos)
+    o en rojo (sin cupos / agotadas).
+    """
+    await _especialista(db, medico_id)
+
+    if cantidad < 1 or cantidad > 12:
+        cantidad = 6
+
+    hoy = (await db.execute(text("SELECT CURRENT_DATE AS hoy"))).scalar_one()
+    lunes_base = hoy - timedelta(days=hoy.weekday())
+    fin_total = lunes_base + timedelta(weeks=cantidad - 1, days=4)
+
+    agenda = await _turnos_agenda(db, medico_id)
+
+    filas = (
+        await db.execute(
+            text(
+                "SELECT fecha_cita, to_char(hora_inicio, 'HH24:MI') AS h "
+                "FROM citas WHERE medico_id = :mid AND fecha_cita BETWEEN :d AND :h "
+                "  AND estado NOT IN ('cancelada', 'preasignada')"
+            ),
+            {"mid": medico_id, "d": lunes_base, "h": fin_total},
+        )
+    ).mappings()
+    ocupadas_por_fecha: dict = {}
+    for f in filas:
+        ocupadas_por_fecha.setdefault(f["fecha_cita"], set()).add(f["h"])
+
+    ausentes = await _fechas_ausente(db, medico_id, lunes_base, fin_total)
+
+    # Todas las semanas certificadas por RRHH en el rango, en una sola consulta.
+    certificadas = await semanas_certificadas(db, medico_id, lunes_base, fin_total)
+
+    DIAS_LABORABLES = {0, 1, 2, 3, 4}
+    resumen: List[ResumenSemanaItem] = []
+    MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+    MAX_CUPOS_TURNO = 10
+
+    for offset in range(cantidad):
+        inicio_sem = lunes_base + timedelta(weeks=offset)
+        fin_sem = inicio_sem + timedelta(days=4)
+
+        cupos_sem_total = 0
+        tiene_horario_cargado = False
+
+        cur = inicio_sem
+        while cur <= fin_sem:
+            if cur.weekday() in DIAS_LABORABLES and cur not in ausentes:
+                turnos_dia = agenda.get(cur.weekday(), [])
+                if turnos_dia:
+                    tiene_horario_cargado = True
+                ocupadas_hhmm = ocupadas_por_fecha.get(cur, set())
+                grupos: dict = {}
+                for slot in turnos_dia:
+                    grupos.setdefault(slot["turno_id"], []).append(slot)
+
+                for _, slots in grupos.items():
+                    libres = [s for s in slots if _hhmm(s["hora_inicio"]) not in ocupadas_hhmm]
+                    citas_ocupadas = len(slots) - len(libres)
+                    cupos_libres_turno = max(0, MAX_CUPOS_TURNO - citas_ocupadas)
+                    cupos_sem_total += min(cupos_libres_turno, len(libres))
+            cur += timedelta(days=1)
+
+        # Si aún no tiene horario cargado para esta semana futura, calcular cupos preasignables
+        if not tiene_horario_cargado and offset > 0:
+            citas_preasig_res = await db.execute(
+                text(
+                    "SELECT count(*) FROM citas "
+                    "WHERE medico_id = :mid AND estado = 'preasignada' "
+                    "  AND fecha_cita BETWEEN :d AND :h"
+                ),
+                {"mid": medico_id, "d": inicio_sem, "h": fin_sem},
+            )
+            citas_preasig = citas_preasig_res.scalar() or 0
+            # Bolsa proyectada para preasignación semanal: hasta 20 pacientes preasignables
+            cupos_sem_total = max(0, 20 - citas_preasig)
+
+        # Una semana sin certificar no se muestra como abierta: recepción
+        # solo puede preasignar en ella hasta que RRHH certifique.
+        certificada = inicio_sem in certificadas
+        if not certificada:
+            cupos_sem_total = 0
+
+        d_str = f"{inicio_sem.day:02d} {MESES[inicio_sem.month - 1]}"
+        h_str = f"{fin_sem.day:02d} {MESES[fin_sem.month - 1]}"
+        if offset == 0:
+            etiqueta = f"Esta semana ({d_str} al {h_str})"
+        elif offset == 1:
+            etiqueta = f"Semana próxima ({d_str} al {h_str})"
+        else:
+            etiqueta = f"Semana {d_str} al {h_str}"
+
+        resumen.append(
+            ResumenSemanaItem(
+                offset=offset,
+                semana_desde=inicio_sem.isoformat(),
+                semana_hasta=fin_sem.isoformat(),
+                etiqueta=etiqueta,
+                cupos_libres=cupos_sem_total,
+                tiene_cupos=cupos_sem_total > 0,
+                certificada=certificada,
+            )
+        )
+
+    return resumen
+
+
 @router.get("/cupos-semanal", response_model=CupoSemanalResponse)
 async def cupos_semanal(
     medico_id: int,
@@ -457,8 +575,8 @@ async def cupos_semanal(
 ):
     """Cupos disponibles por día de la semana para un médico.
 
-    Solo días laborables (lunes a viernes). Máximo 20 cupos por semana,
-    asignados por orden de registro/asignación. Se calcula desde
+    Solo días laborables (lunes a viernes) y solo si RRHH certificó la semana.
+    Máximo 10 cupos por turno, sin tope semanal extra. Se calcula desde
     `agenda_medicos` (turnos configurados) menos citas ya registradas
     (no canceladas).
 
@@ -483,6 +601,9 @@ async def cupos_semanal(
         inicio_semana = hoy - timedelta(days=hoy.weekday())
     fin_semana = inicio_semana + timedelta(days=4)  # Lunes a viernes
 
+    # Recepción solo ve la semana abierta si RRHH la certificó.
+    certificada = await semana_certificada(db, medico_id, inicio_semana)
+
     agenda = await _turnos_agenda(db, medico_id)
 
     # Ocupadas de toda la semana (lunes a viernes)
@@ -491,7 +612,7 @@ async def cupos_semanal(
             text(
                 "SELECT fecha_cita, to_char(hora_inicio, 'HH24:MI') AS h, count(*) AS n "
                 "FROM citas WHERE medico_id = :mid AND fecha_cita BETWEEN :d AND :h "
-                "  AND estado <> 'cancelada' "
+                "  AND estado NOT IN ('cancelada', 'preasignada') "
                 "GROUP BY fecha_cita, to_char(hora_inicio, 'HH24:MI')"
             ),
             {"mid": medico_id, "d": inicio_semana, "h": fin_semana},
@@ -510,7 +631,7 @@ async def cupos_semanal(
     DIAS_LABORABLES = {0, 1, 2, 3, 4}  # Lunes a viernes
 
     dias: List[CupoDiaSemana] = []
-    cupos_restantes_semana = 20  # Máximo 20 cupos por semana
+    MAX_CUPOS_TURNO = 10  # Máximo 10 cupos por turno
     cur = inicio_semana
     while cur <= fin_semana:
         # Solo días laborables (lunes a viernes)
@@ -522,38 +643,36 @@ async def cupos_semanal(
         turnos_libres_dia: List[JornadaDisponible] = []
         cupos_dia = 0
 
-        if cur not in ausentes and turnos_del_dia and cupos_restantes_semana > 0:
+        if certificada and cur not in ausentes and turnos_del_dia:
             ocupadas_hhmm = ocupadas_por_fecha.get(cur, set())
-            for turno in turnos_del_dia:
-                if cupos_restantes_semana <= 0:
-                    break
-                hh_in = _hhmm(turno["hora_inicio"])
-                hh_out = _hhmm(turno["hora_fin"])
-                inicio_dt = datetime.combine(date.min, time.fromisoformat(hh_in))
-                fin_dt = datetime.combine(date.min, time.fromisoformat(hh_out))
-                paso = timedelta(minutes=SLOT_MINUTOS)
-                slots: list = []
-                cur_dt = inicio_dt
-                while cur_dt + paso <= fin_dt:
-                    slots.append(cur_dt.strftime("%H:%M"))
-                    cur_dt += paso
-                libres = [s for s in slots if s not in ocupadas_hhmm]
-                # Limitar cupos del día al restante de la semana
-                libres = libres[:cupos_restantes_semana]
-                if libres:
+            grupos: dict = {}
+            for slot in turnos_del_dia:
+                grupos.setdefault(slot["turno_id"], []).append(slot)
+
+            for turno_id, slots in grupos.items():
+                slots.sort(key=lambda s: s["hora_inicio"])
+                libres = [s for s in slots if _hhmm(s["hora_inicio"]) not in ocupadas_hhmm]
+                citas_ocupadas = len(slots) - len(libres)
+                cupos_libres_turno = max(0, MAX_CUPOS_TURNO - citas_ocupadas)
+                libres_disponibles = libres[:cupos_libres_turno]
+                if cupos_libres_turno > 0 and libres_disponibles:
+                    nombre_turno = slots[0].get("turno_nombre") or (
+                        "Mañana" if slots[0]["hora_inicio"].hour < 13 else "Tarde"
+                    )
                     turnos_libres_dia.append(
                         JornadaDisponible(
-                            turno_id=turno["turno_id"],
-                            nombre=turno.get("turno_nombre") or "",
-                            hora_inicio=hh_in,
-                            hora_fin=hh_out,
-                            capacidad=len(slots),
-                            cupos_libres=len(libres),
+                            turno_id=turno_id,
+                            nombre=nombre_turno,
+                            hora_inicio=_hhmm(slots[0]["hora_inicio"]),
+                            hora_fin=_hhmm(slots[-1]["hora_fin"]),
+                            capacidad=MAX_CUPOS_TURNO,
+                            cupos_libres=len(libres_disponibles),
                             disponible=True,
+                            hora_asignada=_hhmm(libres_disponibles[0]["hora_inicio"]),
                         )
                     )
-                    cupos_dia += len(libres)
-                    cupos_restantes_semana -= len(libres)
+                    cupos_dia += len(libres_disponibles)
+            turnos_libres_dia.sort(key=lambda t: t.hora_inicio)
 
         dias.append(
             CupoDiaSemana(
@@ -574,9 +693,51 @@ async def cupos_semanal(
         especialidad=esp["especialidad"],
         semana_desde=inicio_semana.isoformat(),
         semana_hasta=fin_semana.isoformat(),
+        certificada=certificada,
         dias=dias,
         cupos_libres_totales=cupos_libres_totales,
     )
+
+
+@router.get("/semanas-certificadas")
+async def semanas_certificadas_centro(
+    clinica_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Semanas certificadas por RRHH de una clínica, para que recepción sepa
+    cuál está abierta (default: la última certificada)."""
+    await asegurar_tabla(db)
+    cid = clinica_id if clinica_id is not None else settings.id_centro
+    filas = (
+        await db.execute(
+            text(
+                "SELECT acs.semana_desde, acs.semana_hasta, "
+                "       count(DISTINCT acs.medico_id) AS medicos_certificados "
+                "FROM agenda_certificaciones_semana acs "
+                "JOIN personal p ON p.id = acs.medico_id "
+                "WHERE p.clinica_id = :cid "
+                "GROUP BY acs.semana_desde, acs.semana_hasta "
+                "ORDER BY acs.semana_desde DESC"
+            ),
+            {"cid": cid},
+        )
+    ).mappings().all()
+
+    semanas = [
+        {
+            "semana_desde": f["semana_desde"].isoformat(),
+            "semana_hasta": f["semana_hasta"].isoformat(),
+            "medicos_certificados": int(f["medicos_certificados"] or 0),
+            "es_ultima": i == 0,
+        }
+        for i, f in enumerate(filas)
+    ]
+
+    return {
+        "clinica_id": cid,
+        "ultima_semana": semanas[0] if semanas else None,
+        "semanas": semanas,
+    }
 
 
 def _jornadas_de_dia(
@@ -601,15 +762,19 @@ def _jornadas_de_dia(
     for turno_id, slots in grupos.items():
         slots.sort(key=lambda s: s["hora_inicio"])
         libres = [s for s in slots if _hhmm(s["hora_inicio"]) not in ocupadas]
+        nombre_turno = slots[0].get("turno_nombre") or (
+            "Mañana" if slots[0]["hora_inicio"].hour < 13 else "Tarde"
+        )
         turnos.append(
             JornadaDisponible(
                 turno_id=turno_id,
-                nombre=slots[0].get("turno_nombre") or "",
+                nombre=nombre_turno,
                 hora_inicio=_hhmm(slots[0]["hora_inicio"]),
                 hora_fin=_hhmm(slots[-1]["hora_fin"]),
                 capacidad=len(slots),
                 cupos_libres=len(libres),
                 disponible=bool(libres),
+                hora_asignada=_hhmm(libres[0]["hora_inicio"]) if libres else None,
             )
         )
     turnos.sort(key=lambda t: t.hora_inicio)
@@ -641,13 +806,14 @@ async def crear_cita(
     except ValueError:
         raise HTTPException(status_code=400, detail="fecha inválida (YYYY-MM-DD).")
 
-    # Determinar la hora de la cita:
-    # - Si se indica hora_inicio, se usa esa.
-    # - Si se indica turno_id sin hora_inicio, se usa la hora_inicio del turno.
-    # - Si no se indica ninguna, error.
+    # Determinar la hora y estado de la cita:
     hora = None
     turno_rango = None
-    if payload.hora_inicio:
+    es_preasignada = bool(payload.preasignada)
+
+    if es_preasignada:
+        hora = time(8, 0)
+    elif payload.hora_inicio:
         try:
             hora = datetime.strptime(payload.hora_inicio, "%H:%M").time()
         except ValueError:
@@ -721,42 +887,44 @@ async def crear_cita(
                 detail="No se puede asignar una solicitud cancelada o finalizada.",
             )
 
-        agenda = await _turnos_agenda(db, payload.medico_id)
-        turnos = agenda.get(fec.weekday(), [])
-        turno = next(
-            (t for t in turnos if str(t["hora_inicio"])[:5] == str(hora)[:5]),
-            None,
-        )
-        if not turno:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"El especialista no atiende ese día/hora "
-                    f"({payload.fecha} {str(hora)[:5]})."
-                ),
+        if not es_preasignada:
+            agenda = await _turnos_agenda(db, payload.medico_id)
+            turnos = agenda.get(fec.weekday(), [])
+            turno = next(
+                (t for t in turnos if str(t["hora_inicio"])[:5] == str(hora)[:5]),
+                None,
             )
-        ocupadas = await _horas_ocupadas(db, payload.medico_id, fec)
-        misma_cita = (
-            existente["medico_id"] == payload.medico_id
-            and str(existente["fecha_cita"])[:10] == fec.isoformat()
-            and str(existente["hora_inicio"])[:5] == str(hora)[:5]
-        )
-        if str(hora)[:5] in ocupadas and not misma_cita:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Esa hora ({str(hora)[:5]}) ya está ocupada.",
+            if not turno:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"El especialista no atiende ese día/hora "
+                        f"({payload.fecha} {str(hora)[:5]})."
+                    ),
+                )
+            ocupadas = await _horas_ocupadas(db, payload.medico_id, fec)
+            misma_cita = (
+                existente["medico_id"] == payload.medico_id
+                and str(existente["fecha_cita"])[:10] == fec.isoformat()
+                and str(existente["hora_inicio"])[:5] == str(hora)[:5]
             )
+            if str(hora)[:5] in ocupadas and not misma_cita:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Esa hora ({str(hora)[:5]}) ya está ocupada.",
+                )
 
         esp_nombre = (
             payload.especialidad
             or existente["especialidad"]
             or esp["especialidad"]
         )
+        estado_nuevo = "preasignada" if es_preasignada else "confirmada"
         r = await db.execute(
             text(
                 "UPDATE citas SET "
                 "  medico_id = :mid, fecha_cita = :fec, hora_inicio = :hora, "
-                "  estado = 'confirmada', especialidad = :esp, "
+                "  estado = :est, especialidad = :esp, "
                 "  motivo = COALESCE(:mot, motivo) "
                 "WHERE id = :id "
                 "RETURNING id, codigo_confirmacion, especialidad, paciente_id, centro_id, centro_salud"
@@ -765,6 +933,7 @@ async def crear_cita(
                 "mid": payload.medico_id,
                 "fec": fec,
                 "hora": hora,
+                "est": estado_nuevo,
                 "esp": esp_nombre,
                 "mot": payload.motivo,
                 "id": payload.cita_id,
@@ -895,7 +1064,7 @@ async def crear_cita(
             medico_id=payload.medico_id,
             fecha_cita=fec.isoformat(),
             hora_inicio=str(hora)[:5],
-            estado="confirmada",
+            estado="preasignada" if es_preasignada else "confirmada",
             paciente_nombre=paciente_nombre,
             paciente_telefono=telefono,
             medico_nombre=medico_nombre,

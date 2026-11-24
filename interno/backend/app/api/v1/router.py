@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from app.api.v1.endpoints import (
     guardias,
     auth,
+    almacen,
     clinicas,
     cola,
     personal,
@@ -13,6 +14,7 @@ from app.api.v1.endpoints import (
     historias_medicas,
     busqueda,
     agenda,
+    citas_recepcion,
     medicamentos,
     remision_examenes,
     admin_sistema,
@@ -20,6 +22,7 @@ from app.api.v1.endpoints import (
     whatsapp,
     diagnostico,
     reprogramaciones,
+    rrhh,
 )
 from app.core.security import get_current_user, require_roles
 
@@ -31,7 +34,13 @@ api_router.include_router(
     admin_sistema.router,
     prefix="/admin",
     tags=["Admin Sistema"],
-    dependencies=[Depends(require_roles("admin_sistemas", "director"))],
+    dependencies=[Depends(require_roles("admin_sistemas", "director", "recursos_humanos"))],
+)
+api_router.include_router(
+    almacen.router,
+    prefix="/almacen",
+    tags=["Almacén"],
+    dependencies=[Depends(require_roles("jefe_almacen", "admin_sistemas", "director"))],
 )
 api_router.include_router(clinicas.router, prefix="/clinicas", tags=["Clínicas"], dependencies=[Depends(get_current_user)])
 api_router.include_router(cola.router, prefix="/cola", tags=["Cola de Atención"], dependencies=[Depends(get_current_user)])
@@ -53,10 +62,22 @@ api_router.include_router(guardias.router, prefix="/guardias", tags=["Guardias"]
 api_router.include_router(personal.router, prefix="/personal", tags=["Personal"], dependencies=[Depends(get_current_user)])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"], dependencies=[Depends(get_current_user)])
 api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["WhatsApp"], dependencies=[Depends(get_current_user)])
+api_router.include_router(
+    citas_recepcion.router,
+    prefix="/recepcion",
+    tags=["Citas de recepción"],
+    dependencies=[Depends(require_roles("recepcionista", "admin_sistemas", "director"))],
+)
 api_router.include_router(diagnostico.router, prefix="/diagnostico", tags=["Diagnóstico"])
 api_router.include_router(
     reprogramaciones.router,
     prefix="/reprogramaciones",
     tags=["Reprogramación de citas"],
     dependencies=[Depends(get_current_user)],
+)
+api_router.include_router(
+    rrhh.router,
+    prefix="/rrhh",
+    tags=["Recursos Humanos"],
+    dependencies=[Depends(require_roles("recursos_humanos", "admin_sistemas", "superusuario"))],
 )

@@ -280,6 +280,7 @@ async def _crear_o_actualizar_historia(
     apellido: Optional[str],
     telefono: Optional[str],
     direccion: Optional[str],
+    comuna: Optional[str] = None,
 ) -> HistoriaClinica:
     """Localiza la historia clínica por cédula; si no existe, la crea."""
     stmt = select(HistoriaClinica).where(HistoriaClinica.cedula == cedula)
@@ -295,6 +296,8 @@ async def _crear_o_actualizar_historia(
             historia.telefono = telefono
         if direccion is not None:
             historia.direccion = direccion
+        if comuna:
+            historia.comuna = comuna
         return historia
 
     historia = HistoriaClinica(
@@ -304,6 +307,7 @@ async def _crear_o_actualizar_historia(
         apellido=apellido,
         telefono=telefono,
         direccion=direccion,
+        comuna=comuna,
         tipo_sangre=None,
         antecedentes_medicos=[],
         alergias=[],
@@ -373,6 +377,7 @@ async def registrar_checkin(
             payload.apellido,
             payload.telefono,
             payload.direccion,
+            payload.comuna,
         )
         if historia:
             await db.flush()

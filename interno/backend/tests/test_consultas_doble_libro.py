@@ -84,7 +84,8 @@ async def test_consulta_sin_centro_descuenta_solo_global(client, pg):
         "SELECT clinica_id FROM consultas WHERE paciente_id::text = $1 ORDER BY created_at DESC LIMIT 1",
         pac_id,
     )
-    assert row["clinica_id"] is None
+    # auth rellena el centro de la sede (CLINICA_ID) cuando el usuario no tiene uno.
+    assert row["clinica_id"] == 13
 
     await _vaciar_consultas(pg)
 
