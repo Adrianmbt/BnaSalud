@@ -244,6 +244,9 @@ def resumen_panel(_: Dict[str, Any] = Depends(exigir_rol_global)) -> Dict[str, A
             for estado, total in sorted(estados_global.items(), key=lambda kv: -kv[1])
         ],
         "especialidades": _top(especialidades),
-        "personal_por_cargo": _top(cargos),
+        "personal_por_cargo": [
+            {"nombre": str(nombre or "Sin dato"), "total": total}
+            for nombre, total in sorted(cargos.items(), key=lambda kv: -kv[1])
+        ],
         "usuarios_por_rol": usuarios_por_rol,
     }

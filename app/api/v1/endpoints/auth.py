@@ -99,6 +99,14 @@ def _login_con_password(
         fail(ERROR_CREDENCIALES, 401)
     if cuenta.get("rol") == "paciente":
         fail("Esta cuenta usa el portal del paciente (cédula y contraseña).", 403)
+    # El Jefe de Almacén es una cuenta exclusiva del sistema interno (local):
+    # recibe órdenes y lleva el inventario del centro; no usa el portal web.
+    if cuenta.get("rol") == "jefe_almacen":
+        fail(
+            "Las cuentas de Jefe de Almacén son exclusivas del sistema interno "
+            "y no tienen acceso al portal web.",
+            403,
+        )
     if roles_permitidos is not None and cuenta.get("rol") not in roles_permitidos:
         fail("Esta cuenta no tiene acceso al panel institucional.", 403)
 

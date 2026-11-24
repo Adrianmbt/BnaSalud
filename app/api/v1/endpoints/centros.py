@@ -102,6 +102,15 @@ CATALOGO = {
         "tagText": "text-emerald-700",
         "bgTag": "bg-emerald-50",
     },
+    "CLN-ABUELO": {
+        "subtitulo": "Atención integral del adulto mayor",
+        "tipo": "Municipal",
+        "logo": "/identidad visual/CasaAbuelo.jpeg",
+        "fondoColor": "#b45309",
+        "textColor": "amber-700",
+        "tagText": "text-amber-700",
+        "bgTag": "bg-amber-50",
+    },
 }
 
 # Datos de respaldo (si Supabase no responde) para no romper la página
@@ -128,6 +137,10 @@ MAQUETA_FALLBACK: List[dict] = [
     },
     {
         "id": 6, "nombre": "Clínica Municipal José Pérez Fernández", "codigo": "CLN-MUNICIPAL", "parroquia": "El Carmen",
+        "direccion": "Barcelona, Anzoátegui", "activo": True,
+    },
+    {
+        "id": 7, "nombre": "Casa del Adulto Mayor", "codigo": "CLN-ABUELO", "parroquia": "",
         "direccion": "Barcelona, Anzoátegui", "activo": True,
     },
 ]

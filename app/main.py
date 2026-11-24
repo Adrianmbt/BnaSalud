@@ -17,6 +17,8 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.soporte import router as soporte_router
 from app.api.v1.endpoints.panel import router as panel_router
 from app.api.v1.endpoints.usuarios import router as usuarios_router
+from app.api.v1.endpoints.almacen import router as almacen_router, router_ordenes
+from app.api.v1.endpoints.catalogo import router as catalogo_router
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -85,6 +87,9 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["Autenticación"])
 app.include_router(soporte_router, prefix="/api/v1/soporte", tags=["Soporte"])
 app.include_router(panel_router, prefix="/api/v1/panel", tags=["Panel Institucional"])
 app.include_router(usuarios_router, prefix="/api/v1/usuarios", tags=["Usuarios globales"])
+app.include_router(almacen_router, prefix="/api/v1/almacen", tags=["Almacén"])
+app.include_router(catalogo_router, prefix="/api/v1/catalogo", tags=["Catálogo de insumos"])
+app.include_router(router_ordenes, prefix="/api/v1/ordenes-entrega", tags=["Órdenes de entrega"])
 
 # Servir el frontend React (build de Vite en frontend/dist/) solo si existe.
 # En el despliegue el frontend va por separado en Vercel, así que estos montajes
