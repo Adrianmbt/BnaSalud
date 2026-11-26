@@ -117,17 +117,6 @@ const ETIQUETA_ESTADO = {
   sin_estado: 'Sin estado',
 };
 
-const COLORES_CARGO = [
-  'var(--color-secondary)',
-  'var(--color-health)',
-  'var(--color-secondary-light)',
-  'var(--color-amber)',
-  'var(--color-mint)',
-  'var(--color-outline)',
-  'var(--color-primary-light)',
-  'var(--color-secondary-container)',
-];
-
 function sinTildes(texto) {
   return String(texto ?? '')
     .normalize('NFD')
@@ -312,66 +301,18 @@ function BarrasEspecialidades({ datos, vacio }) {
   );
 }
 
-function DesglosePersonal({ datos, registrados, medicos, vacio }) {
-  const total = datos.reduce((suma, d) => suma + d.total, 0);
-
-  return (
-    <section className="rounded-2xl border border-outline-variant/60 bg-white p-4 shadow-sm">
-      <header className="mb-3">
-        <h3 className="font-display text-base font-semibold text-primary">Personal por cargo</h3>
-        <p className="text-[11px] text-on-surface-variant">
-          Toda la red · {numero(registrados)} registrados · {numero(medicos)} médicos
-        </p>
-      </header>
-      {datos.length ? (
-        <>
-          <div
-            className="flex h-3 overflow-hidden rounded-full bg-surface-container"
-            role="img"
-            aria-label={`Personal por cargo: ${datos
-              .map((d) => `${d.etiqueta} ${porcentaje(d.total, total)}%`)
-              .join(', ')}`}
-          >
-            {datos.map((d, indice) => (
-              <span
-                key={d.etiqueta}
-                className="h-full"
-                style={{
-                  width: `${(d.total / total) * 100}%`,
-                  background: COLORES_CARGO[indice % COLORES_CARGO.length],
-                }}
-                title={`${d.etiqueta}: ${numero(d.total)} (${porcentaje(d.total, total)}%)`}
-              />
-            ))}
-          </div>
-          <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-            {datos.map((d, indice) => (
-              <li key={d.etiqueta} className="flex items-center gap-2 text-[11px]">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: COLORES_CARGO[indice % COLORES_CARGO.length] }}
-                />
-                <span className="min-w-0 flex-1 truncate text-on-surface" title={d.etiqueta}>
-                  {d.etiqueta}
-                </span>
-                <span className="font-mono font-semibold text-on-surface">{numero(d.total)}</span>
-                <span className="w-8 text-right text-on-surface-variant">
-                  {porcentaje(d.total, total)}%
-                </span>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : (
-        <p className="py-8 text-center text-xs text-on-surface-variant">{vacio}</p>
-      )}
-    </section>
-  );
-}
-
 function ComparativaCentros({ centros }) {
-  const orden = [...centros].sort((a, b) => (b.citas + b.consultas) - (a.citas + a.consultas));
-  const maximo = Math.max(...orden.map((c) => Math.max(c.citas, c.consultas)), 0);
+  const orden = [...centros].sort(
+    (a, b) =>
+      (b.citas + (b.consultas_programadas ?? b.consultas) + (b.emergencias || 0)) -
+      (a.citas + (a.consultas_programadas ?? a.consultas) + (a.emergencias || 0))
+  );
+  const maximo = Math.max(
+    ...orden.map((c) =>
+      Math.max(c.citas, c.consultas_programadas ?? c.consultas, c.emergencias || 0)
+    ),
+    0
+  );
 
   return (
     <section className="rounded-2xl border border-outline-variant/60 bg-white p-4 shadow-sm">
@@ -379,7 +320,7 @@ function ComparativaCentros({ centros }) {
         <div>
           <h3 className="font-display text-base font-semibold text-primary">Demanda por centro de salud</h3>
           <p className="text-[11px] text-on-surface-variant">
-            Citas y consultas acumuladas · ordenado por demanda
+            Citas, consultas y emergencias (morbilidad) · ordenado por demanda
           </p>
         </div>
         <div className="flex items-center gap-3 text-[10px] text-on-surface-variant">
@@ -391,6 +332,10 @@ function ComparativaCentros({ centros }) {
             <span className="h-2 w-2 rounded-full" style={{ background: 'var(--color-health)' }} />
             Consultas
           </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ background: '#ef4444' }} />
+            Emergencias
+          </span>
         </div>
       </header>
 
@@ -399,8 +344,8 @@ function ComparativaCentros({ centros }) {
           {orden.map((c) => (
             <li
               key={c.id}
-              className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] items-center gap-3 py-2 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]"
-              title={`${c.nombre}: ${numero(c.citas)} citas, ${numero(c.consultas)} consultas`}
+              className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)] items-center gap-3 py-2.5 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]"
+              title={`${c.nombre}: ${numero(c.citas)} citas, ${numero(c.consultas_programadas ?? c.consultas)} consultas, ${numero(c.emergencias || 0)} emergencias`}
             >
               <div className="min-w-0">
                 <p className="truncate text-xs font-semibold text-on-surface">{c.nombre}</p>
@@ -408,20 +353,29 @@ function ComparativaCentros({ centros }) {
               </div>
               <div className="space-y-1">
                 {[
-                  { clave: 'citas', valor: c.citas, color: 'var(--color-secondary)' },
-                  { clave: 'consultas', valor: c.consultas, color: 'var(--color-health)' },
+                  { clave: 'citas', etiqueta: 'Citas', valor: c.citas, color: 'var(--color-secondary)' },
+                  {
+                    clave: 'consultas',
+                    etiqueta: 'Consultas',
+                    valor: c.consultas_programadas ?? c.consultas,
+                    color: 'var(--color-health)',
+                  },
+                  { clave: 'emergencias', etiqueta: 'Emergencias', valor: c.emergencias || 0, color: '#ef4444' },
                 ].map((serie) => (
                   <div key={serie.clave} className="flex items-center gap-2">
                     <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-container">
                       <span
-                        className="block h-full rounded-full"
+                        className="block h-full rounded-full transition-all duration-300"
                         style={{
                           width: `${maximo > 0 ? (serie.valor / maximo) * 100 : 0}%`,
                           background: serie.color,
                         }}
                       />
                     </span>
-                    <span className="w-10 text-right font-mono text-[11px] font-semibold text-on-surface">
+                    <span
+                      className="w-10 text-right font-mono text-[11px] font-semibold text-on-surface"
+                      title={`${serie.etiqueta}: ${numero(serie.valor)}`}
+                    >
                       {numero(serie.valor)}
                     </span>
                   </div>
@@ -590,15 +544,115 @@ function PillsFiltroCentro({ centros, centroId, setCentroId }) {
    Panel: Alcance y atención (KPIs + gráficas)
    ═══════════════════════════════════════════════════════════════ */
 
+function DistribucionTriajeEmergencias({
+  prioridad = {},
+  totalEmergencias = 0,
+  topCie10 = [],
+  alcance = '',
+}) {
+  const prioVerde = prioridad.verde || 0;
+  const prioAmarillo = prioridad.amarillo || 0;
+  const prioRojo = prioridad.rojo || 0;
+  const sumaPrios = prioVerde + prioAmarillo + prioRojo;
+  const baseTotal = sumaPrios > 0 ? sumaPrios : totalEmergencias;
+
+  const niveles = [
+    { nivel: 'ROJO', etiqueta: 'Crítico / Inmediato', total: prioRojo, color: '#ef4444' },
+    { nivel: 'AMARILLO', etiqueta: 'Urgente / Moderado', total: prioAmarillo, color: '#f59e0b' },
+    { nivel: 'VERDE', etiqueta: 'Leve / Estándar', total: prioVerde, color: '#10b981' },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-outline-variant/60 bg-white p-4 shadow-sm">
+      <header className="mb-3 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h3 className="font-display text-base font-semibold text-primary">
+            Personas atendidas por emergencia
+          </h3>
+          <p className="text-[11px] text-on-surface-variant">
+            {alcance} · {numero(totalEmergencias)} personas atendidas en guardia
+          </p>
+        </div>
+      </header>
+
+      {baseTotal > 0 ? (
+        <div className="space-y-3">
+          <div
+            className="flex h-3.5 overflow-hidden rounded-full bg-surface-container"
+            role="img"
+            aria-label={`Prioridad de atención: ${niveles
+              .map((n) => `${n.nivel} ${porcentaje(n.total, baseTotal)}%`)
+              .join(', ')}`}
+          >
+            {niveles.map((n) => (
+              <span
+                key={n.nivel}
+                className="h-full transition-all duration-300"
+                style={{
+                  width: `${(n.total / baseTotal) * 100}%`,
+                  background: n.color,
+                }}
+                title={`${n.nivel}: ${numero(n.total)} (${porcentaje(n.total, baseTotal)}%)`}
+              />
+            ))}
+          </div>
+          <ul className="grid gap-2 sm:grid-cols-3">
+            {niveles.map((n) => (
+              <li
+                key={n.nivel}
+                className="flex items-center justify-between text-[11px] p-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low/30"
+              >
+                <span className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: n.color }} />
+                  <div>
+                    <span className="font-semibold text-on-surface">{n.nivel}</span>
+                    <span className="block text-[10px] text-on-surface-variant">{n.etiqueta}</span>
+                  </div>
+                </span>
+                <span className="text-right">
+                  <span className="block font-mono font-bold text-on-surface text-xs">{numero(n.total)}</span>
+                  <span className="block font-mono text-[10px] text-on-surface-variant">
+                    {porcentaje(n.total, baseTotal)}%
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="py-6 text-center text-xs text-on-surface-variant">
+          Sin registros de atención de emergencias en el período.
+        </p>
+      )}
+
+      {Array.isArray(topCie10) && topCie10.length > 0 && (
+        <div className="mt-4 border-t border-outline-variant/40 pt-3">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
+            Top diagnósticos CIE-10
+          </p>
+          <ul className="space-y-1">
+            {topCie10.map((item, idx) => (
+              <li key={idx} className="flex items-center justify-between text-[11px]">
+                <span className="min-w-0 flex-1 truncate text-on-surface" title={item.diagnostico}>
+                  {item.diagnostico}
+                </span>
+                <span className="font-mono font-semibold text-on-surface">{numero(item.total)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function PanelAlcanceAtencion({
   actual,
   alcance,
   citasPorEstado,
   especialidades,
-  cargos,
   centros,
   medicos,
-  medicosRed,
   mostrarComparativa,
 }) {
   const kpis = [
@@ -611,14 +665,22 @@ function PanelAlcanceAtencion({
     {
       icono: 'clinical_notes',
       etiqueta: 'Consultas',
-      valor: numero(actual.consultas),
-      detalle: 'Registradas en el período',
+      valor: numero(actual.consultas_programadas ?? actual.consultas),
+      detalle: actual.consultas_emergencia != null
+        ? `${numero(actual.consultas_programadas ?? actual.consultas)} programadas · ${numero(actual.consultas_emergencia)} guardia`
+        : 'Registradas en el período',
+    },
+    {
+      icono: 'emergency',
+      etiqueta: 'Emergencias (Morbilidad)',
+      valor: numero(actual.emergencias || 0),
+      detalle: `${numero(actual.emergencias_finalizadas || 0)} finalizadas · ${numero(actual.emergencias_en_atencion || 0)} en atención`,
     },
     {
       icono: 'groups',
       etiqueta: 'Pacientes',
       valor: numero(actual.pacientes),
-      detalle: 'Atendidos o citados',
+      detalle: 'Atendidos o citados (unificado)',
     },
     {
       icono: 'badge',
@@ -631,7 +693,7 @@ function PanelAlcanceAtencion({
   return (
     <div className="space-y-5">
       <section aria-label="Indicadores principales">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
           {kpis.map((kpi) => (
             <TarjetaKpi key={kpi.etiqueta} {...kpi} />
           ))}
@@ -654,11 +716,11 @@ function PanelAlcanceAtencion({
         </div>
       </div>
 
-      <DesglosePersonal
-        datos={cargos}
-        registrados={cargos.reduce((suma, c) => suma + c.total, 0)}
-        medicos={medicosRed}
-        vacio="Todavía no hay personal registrado."
+      <DistribucionTriajeEmergencias
+        prioridad={actual.emergencias_por_prioridad}
+        totalEmergencias={actual.emergencias || 0}
+        topCie10={actual.emergencias_top_cie10}
+        alcance={alcance}
       />
 
       {mostrarComparativa && <ComparativaCentros centros={centros} />}
@@ -1518,6 +1580,7 @@ function TablaCentros({ centros, seleccionado, onSeleccionar, totales }) {
               <th scope="col" className="px-4 py-2.5 font-semibold">Centro</th>
               <th scope="col" className="px-3 py-2.5 text-right font-semibold">Citas</th>
               <th scope="col" className="px-3 py-2.5 text-right font-semibold">Consultas</th>
+              <th scope="col" className="px-3 py-2.5 text-right font-semibold">Emergencias</th>
               <th scope="col" className="px-3 py-2.5 text-right font-semibold">Pacientes</th>
               <th scope="col" className="px-3 py-2.5 text-right font-semibold">Personal</th>
               <th scope="col" className="px-3 py-2.5 text-right font-semibold">Recetas</th>
@@ -1555,7 +1618,8 @@ function TablaCentros({ centros, seleccionado, onSeleccionar, totales }) {
                     </button>
                   </th>
                   <td className="px-3 py-2.5 text-right font-mono text-xs">{numero(centro.citas)}</td>
-                  <td className="px-3 py-2.5 text-right font-mono text-xs">{numero(centro.consultas)}</td>
+                  <td className="px-3 py-2.5 text-right font-mono text-xs">{numero(centro.consultas_programadas ?? centro.consultas)}</td>
+                  <td className="px-3 py-2.5 text-right font-mono text-xs font-semibold text-red-600">{numero(centro.emergencias || 0)}</td>
                   <td className="px-3 py-2.5 text-right font-mono text-xs">{numero(centro.pacientes)}</td>
                   <td className="px-3 py-2.5 text-right font-mono text-xs">
                     {numero(centro.personal_activos)}
@@ -1593,7 +1657,8 @@ function TablaCentros({ centros, seleccionado, onSeleccionar, totales }) {
             <tr className="bg-surface-container-low text-xs font-semibold text-primary">
               <th scope="row" className="px-4 py-2.5 text-left">Total de la red</th>
               <td className="px-3 py-2.5 text-right font-mono">{numero(totales.citas)}</td>
-              <td className="px-3 py-2.5 text-right font-mono">{numero(totales.consultas)}</td>
+              <td className="px-3 py-2.5 text-right font-mono">{numero(totales.consultas_programadas ?? totales.consultas)}</td>
+              <td className="px-3 py-2.5 text-right font-mono font-semibold text-red-600">{numero(totales.emergencias || 0)}</td>
               <td className="px-3 py-2.5 text-right font-mono">{numero(totales.pacientes)}</td>
               <td className="px-3 py-2.5 text-right font-mono">
                 {numero(totales.personal_activos)} / {numero(totales.personal)}
@@ -1768,8 +1833,8 @@ function Panel({ sesion, onSalir }) {
         {cargando && !datos ? (
           <div className="space-y-5">
             <section aria-label="Indicadores principales">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
+                {[1, 2, 3, 4, 5].map((i) => (
                   <EsqueletoKpi key={i} />
                 ))}
               </div>
@@ -1811,10 +1876,8 @@ function Panel({ sesion, onSalir }) {
                     alcance={alcance}
                     citasPorEstado={citasPorEstado}
                     especialidades={especialidades}
-                    cargos={cargos}
                     centros={centros}
                     medicos={medicosKpi}
-                    medicosRed={medicosRed}
                     mostrarComparativa={centroId === 'general'}
                   />
                 )}

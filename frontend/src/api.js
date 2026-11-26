@@ -186,7 +186,15 @@ export const API = {
   /* === Panel institucional (admin_sistemas / director) === */
   loginInstitucional: (username, password) =>
     apiFetch('/auth/institucional', { method: 'POST', body: { username, password } }),
-  resumenPanel: () => apiFetch('/panel/resumen', { tipo: 'staff' }),
+  resumenPanel: (params) => {
+    const query = params
+      ? '?' +
+        new URLSearchParams(
+          Object.entries(params).filter(([, v]) => v != null && v !== '')
+        ).toString()
+      : '';
+    return apiFetch(`/panel/resumen${query}`, { tipo: 'staff' });
+  },
 
   /* === Stock e inventario (panel del Director) === */
   almacenStock: (centroId) =>
