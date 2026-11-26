@@ -2,12 +2,12 @@
 -- PostgreSQL database dump
 --
 
-\restrict CIxukVlE7JTtNVAh601Y16gGclXxmWT7bsfu48dYBnaINPlh5bQqGrNb96WtpJC
+\restrict GeDR6dHcZKTCDx3Aw6iiOQaYZSuTNqHKO0p4AKruZtmzcYQz1fmk5i5yiDMHQ7W
 
 -- Dumped from database version 18.6
 -- Dumped by pg_dump version 18.6
 
--- Started on 2026-11-24 14:37:18
+-- Started on 2026-11-26 09:18:59
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -2409,6 +2409,18 @@ INSERT INTO public.atencion_historial_estados VALUES (97, 93, 'EN_CONSULTA', 'FI
 INSERT INTO public.atencion_historial_estados VALUES (98, 95, 'EN_ESPERA_CONSULTA', 'EN_CONSULTA', NULL, NULL, '2026-10-07 11:12:27.144769-04');
 INSERT INTO public.atencion_historial_estados VALUES (99, 95, 'EN_CONSULTA', 'FINALIZADO', 41, NULL, '2026-10-28 17:46:09.953695-04');
 INSERT INTO public.atencion_historial_estados VALUES (100, 102, 'RECEPCION', 'EN_ESPERA_CONSULTA', NULL, 'Paciente en espera de atencion medica', '2026-11-24 11:47:27.261013-04');
+INSERT INTO public.atencion_historial_estados VALUES (101, 104, 'RECEPCION', 'EN_ESPERA_CONSULTA', NULL, 'Paciente en espera de atencion medica', '2026-11-25 16:39:18.393617-04');
+INSERT INTO public.atencion_historial_estados VALUES (102, 105, 'RECEPCION', 'FINALIZADO', NULL, 'Consulta finalizada desde recepcion', '2026-11-25 19:06:14.512332-04');
+INSERT INTO public.atencion_historial_estados VALUES (103, 106, 'RECEPCION', 'FINALIZADO', NULL, 'Consulta finalizada desde recepcion', '2026-11-25 19:07:56.891123-04');
+INSERT INTO public.atencion_historial_estados VALUES (104, 94, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
+INSERT INTO public.atencion_historial_estados VALUES (105, 96, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
+INSERT INTO public.atencion_historial_estados VALUES (106, 97, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
+INSERT INTO public.atencion_historial_estados VALUES (107, 98, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
+INSERT INTO public.atencion_historial_estados VALUES (108, 99, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
+INSERT INTO public.atencion_historial_estados VALUES (109, 100, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
+INSERT INTO public.atencion_historial_estados VALUES (110, 101, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
+INSERT INTO public.atencion_historial_estados VALUES (111, 102, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
+INSERT INTO public.atencion_historial_estados VALUES (112, 104, 'EN_ESPERA_CONSULTA', 'FINALIZADO', NULL, 'Cierre masivo desde recepcion (limpieza de cola)', '2026-11-25 19:10:55.375571-04');
 
 
 --
@@ -5139,10 +5151,12 @@ INSERT INTO public.catalogo_examenes VALUES ('5df9867f-fae1-4f01-adb4-ba3e7a2d22
 --
 
 INSERT INTO public.citas VALUES ('7bf5af9d-80e4-484b-ada1-3c147aa5c29b', 'f48b5ad9-bb3d-4721-b3fd-9395f6d087c6', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Terapia de Conducta', 33, '2026-11-20', '07:00:00', 'Ansiedad', 'cita_web', 'confirmada', 'CITAB-2026-3E5D', NULL, '2026-11-13 08:56:37.330582-04', NULL);
-INSERT INTO public.citas VALUES ('e7229df3-985e-45c0-aa7d-81aae5c7d5d7', '404abe9e-d1ef-455e-bec5-b9401ba7f735', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Cardiología', NULL, '2026-11-23', '08:00:00', '', 'cita_web', 'pendiente', 'CITAB-2026-3B187BFC', NULL, '2026-11-16 13:03:52.36446-04', NULL);
 INSERT INTO public.citas VALUES ('7032a0f9-f9aa-40e5-9619-ab98dcc34250', '404abe9e-d1ef-455e-bec5-b9401ba7f735', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Oftalmología', NULL, '2026-11-23', '08:00:00', '', 'cita_web', 'cancelada', 'CITAB-2026-5EB3', NULL, '2026-11-13 08:53:56.258012-04', NULL);
 INSERT INTO public.citas VALUES ('75d2f6cf-5baf-4d1d-a44d-ad24cb6ad51b', '404abe9e-d1ef-455e-bec5-b9401ba7f735', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Traumatología', 34, '2026-11-26', '07:00:00', 'Preasignada para Esta semana (23 nov al 27 nov)', 'cita_web', 'confirmada', 'CITAB-2026-712270E4', NULL, '2026-11-23 12:46:12.784071-04', NULL);
 INSERT INTO public.citas VALUES ('520ff603-2150-4ffd-8c81-8fa4a2a54ac8', 'f48b5ad9-bb3d-4721-b3fd-9395f6d087c6', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Traumatología', 34, '2026-11-30', '08:00:00', 'Preasignada para Semana próxima (30 nov al 04 dic)', 'cita_web', 'preasignada', 'CITAB-2026-D9742937', NULL, '2026-11-24 11:17:07.351955-04', NULL);
+INSERT INTO public.citas VALUES ('751a493c-bbb3-47ef-9206-95894e1aa9d0', 'f48b5ad9-bb3d-4721-b3fd-9395f6d087c6', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Medicina Interna', 17, '2026-11-30', '08:00:00', 'Preasignada para Semana próxima (30 nov al 04 dic)', 'cita_web', 'preasignada', 'CITAB-2026-4A185CBB', NULL, '2026-11-25 12:07:06.067765-04', NULL);
+INSERT INTO public.citas VALUES ('e7229df3-985e-45c0-aa7d-81aae5c7d5d7', '404abe9e-d1ef-455e-bec5-b9401ba7f735', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Cardiología', 2, '2026-11-30', '08:00:00', 'Preasignada para Semana próxima (30 nov al 04 dic)', 'cita_web', 'preasignada', 'CITAB-2026-3B187BFC', NULL, '2026-11-16 13:03:52.36446-04', NULL);
+INSERT INTO public.citas VALUES ('b9b4d417-f1e8-4a0a-ad0f-d0feef516dd5', '127c1f45-5643-4aa6-aae5-7e0cc832c3b9', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Ginecología', 24, '2026-11-27', '13:00:00', NULL, 'recepcion_interna', 'confirmada', 'RC-2-0H6SVA', NULL, '2026-11-26 08:44:28.103945-04', 1);
 INSERT INTO public.citas VALUES ('9840e3e4-fd91-426e-9e19-aa8e4ed9f03f', '404abe9e-d1ef-455e-bec5-b9401ba7f735', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Cardiología', 2, '2026-11-20', '13:00:00', 'Asignación de cita', 'cita_web', 'confirmada', 'CITAB-2026-1AA7', NULL, '2026-11-05 14:36:13.509964-04', NULL);
 INSERT INTO public.citas VALUES ('d42fa7a8-010f-478f-92f1-691f12eef40e', 'f48b5ad9-bb3d-4721-b3fd-9395f6d087c6', 2, 'Clínica de los Trabajadores (CITAB)', NULL, 'Oftalmología', 21, '2026-11-27', '07:00:00', 'Miopía', 'cita_web', 'confirmada', 'CITAB-2026-24F1A9F8', NULL, '2026-11-24 08:49:37.059254-04', NULL);
 
@@ -5162,6 +5176,7 @@ INSERT INTO public.citas_examenes VALUES ('3be0916b-3b1b-4307-a030-a8341cc05ca7'
 -- Data for Name: citas_sync_outbox; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO public.citas_sync_outbox VALUES (2, 'cita', 'upsert', 'b9b4d417-f1e8-4a0a-ad0f-d0feef516dd5', '{"id": "b9b4d417-f1e8-4a0a-ad0f-d0feef516dd5", "estado": "confirmada", "motivo": null, "origen": "recepcion_interna", "centro_id": 2, "medico_id": 24, "fecha_cita": "2026-11-26", "hora_inicio": "13:00", "paciente_id": "127c1f45-5643-4aa6-aae5-7e0cc832c3b9", "centro_salud": "Clínica de los Trabajadores (CITAB)", "especialidad": "Ginecología", "codigo_confirmacion": "RC-2-0H6SVA"}', 32, 'Portal pacientes HTTP 400: {"code":"PGRST204","details":null,"hint":null,"message":"Could not find the ''direccion'' column of ''historias_clinicas'' in the schema cache"}', NULL, '2026-11-26 08:44:28.103945-04');
 
 
 --
@@ -5219,18 +5234,21 @@ INSERT INTO public.cola_atencion VALUES (82, 'C-15283', '404abe9e-d1ef-455e-bec5
 INSERT INTO public.cola_atencion VALUES (83, 'C-83214', '1b0aa5cf-6045-45cc-ac86-222cda751a1a', '28360288', 'HECTOR ALFREDO', 2, 'FINALIZADO', 'EMERGENCIA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Consulta / urgencia en recepcion', 'Cardiología', 17, NULL, '2026-09-20 14:06:52.577102-04', NULL, '2026-09-20 14:07:58.580843-04', '2026-09-20 14:08:12.021756-04', '2026-09-22 18:24:04.337246-04', NULL, NULL, NULL, NULL, NULL, false, true, 2, NULL, NULL, NULL, 'AMARILLO');
 INSERT INTO public.cola_atencion VALUES (59, 'C-66822', '2ee03c09-ab61-4c21-a7de-6b3348014fee', '302918148', 'Test Remisión', 2, 'FINALIZADO', 'EMERGENCIA', false, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Dolor torácico agudo', 'Cardiología', 17, NULL, '2026-09-06 12:51:53.665466-04', NULL, NULL, '2026-09-06 12:51:53.746829-04', '2026-09-06 12:51:54.104365-04', NULL, NULL, NULL, NULL, NULL, false, true, NULL, NULL, NULL, NULL, 'AMARILLO');
 INSERT INTO public.cola_atencion VALUES (85, 'C-68225', 'c2c0630e-6e55-461f-a366-97580b59febc', '19329475', 'ROSIRYS BELEN', 2, 'FINALIZADO', 'EMERGENCIA', false, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Consulta / urgencia en recepcion', 'Medicina General', 17, NULL, '2026-09-22 17:36:48.628781-04', NULL, '2026-09-22 17:36:55.408669-04', '2026-09-22 18:24:21.815767-04', '2026-09-24 21:34:52.440262-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
-INSERT INTO public.cola_atencion VALUES (94, 'C-14364', 'cd0f0464-3c4c-4ccc-8d34-0fe2079f00e7', '13599140', 'QA BENEFICIARIO 213653', 2, 'EN_ESPERA_CONSULTA', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'QA E2E dolor abdominal y fiebre', NULL, NULL, NULL, '2026-09-24 21:36:53.397153-04', NULL, '2026-10-04 16:14:49.27936-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
 INSERT INTO public.cola_atencion VALUES (92, 'C-63186', 'f0b29008-371b-4b4d-947f-1bbd68092c7f', 'QA213653-P', 'QA PUBLICO 213653', 2, 'FINALIZADO', 'EMERGENCIA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'QA E2E dolor abdominal y fiebre', NULL, 17, NULL, '2026-09-24 21:36:53.242331-04', NULL, '2026-09-24 21:36:54.037382-04', '2026-09-24 21:36:54.055224-04', '2026-09-24 21:36:54.150801-04', NULL, NULL, NULL, 'c6e43534-0ac1-41af-ba96-93d5b8465692', NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
 INSERT INTO public.cola_atencion VALUES (93, 'C-24508', 'be8ade57-f061-4d27-b2be-2e255f66c955', '8204047', 'QA TRABAJADOR 213653', 2, 'FINALIZADO', 'EMERGENCIA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'QA E2E dolor abdominal y fiebre', 'Medicina General', 17, NULL, '2026-09-24 21:36:53.364654-04', NULL, '2026-09-24 21:36:54.074518-04', '2026-09-25 08:02:58.015343-04', '2026-10-06 05:50:47.937942-04', NULL, NULL, NULL, '5f7806f1-ab77-4c9e-b37e-7696bbcee368', NULL, false, true, 41, NULL, NULL, NULL, 'AMARILLO');
 INSERT INTO public.cola_atencion VALUES (95, 'C-20077', 'be8ade57-f061-4d27-b2be-2e255f66c955', '8204047', 'QA TRABAJADOR 213653', 13, 'FINALIZADO', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Dolor de estomago', 'Medicina General', 41, 'a20c1b7f-9b15-4915-ae08-6faf552e2a80', '2026-10-06 06:53:30.49863-04', NULL, '2026-10-06 06:53:30.498632-04', '2026-10-07 11:12:27.144769-04', '2026-10-28 17:46:09.953695-04', NULL, NULL, NULL, NULL, NULL, false, true, 41, NULL, NULL, NULL, 'AMARILLO');
-INSERT INTO public.cola_atencion VALUES (96, 'DEMO-90000101-2026-10-29', '5fd89129-b3bf-4218-8956-34b360f547b5', '90000101', 'Laura Méndez Demo', 2, 'EN_ESPERA_CONSULTA', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Cardiología', 'Cardiología', 2, 'ea720fe1-cd18-4538-b891-5ee673b1d2f0', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
-INSERT INTO public.cola_atencion VALUES (97, 'DEMO-90000102-2026-10-29', '6d26aedb-cfe3-4299-ab6b-44e2533b7b5e', '90000102', 'Jorge Salas Demo', 2, 'EN_ESPERA_CONSULTA', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Cardiología', 'Cardiología', 2, '3155f7c7-fb4b-4780-a7de-db54558131b9', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
-INSERT INTO public.cola_atencion VALUES (98, 'DEMO-90000103-2026-10-29', 'c4f6c959-d16b-4197-a6cb-27bf16b65136', '90000103', 'Carmen Rivas Demo', 2, 'EN_ESPERA_CONSULTA', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Pediatría', 'Pediatría', 3, '57a563a0-0384-448b-99ee-f69cdb9c921d', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
 INSERT INTO public.cola_atencion VALUES (64, 'C-28764', '73dc3832-4a50-44a8-acbe-97f39292bb46', '304994733', 'Test Remisión', 2, 'FINALIZADO', 'CITA', false, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Síndrome coronario agudo - requiere evaluación cardiológica urgente', 'Cardiología', 2, 'f7ac5f09-aacd-48f3-bb1e-f724e96490ca', '2026-09-06 12:56:09.114165-04', NULL, '2026-09-06 12:56:10.157194-04', '2026-09-06 12:56:10.499692-04', '2026-09-06 12:56:10.519818-04', NULL, NULL, NULL, NULL, NULL, false, true, NULL, NULL, NULL, NULL, 'AMARILLO');
-INSERT INTO public.cola_atencion VALUES (99, 'DEMO-90000104-2026-10-29', '6ca4a5ed-b036-4150-b1da-5b93074d5656', '90000104', 'Pedro Aguilar Demo', 2, 'EN_ESPERA_CONSULTA', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Pediatría', 'Pediatría', 3, '18eb8121-4513-46b9-9354-8fd8f501b266', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
-INSERT INTO public.cola_atencion VALUES (100, 'DEMO-90000105-2026-10-29', 'f6990ab1-f1ed-4acf-ae03-e9df17387921', '90000105', 'Daniela Suárez Demo', 2, 'EN_ESPERA_CONSULTA', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Ginecología', 'Ginecología', 4, '3ea9396f-585c-40f2-b32a-94cbe4acc571', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
-INSERT INTO public.cola_atencion VALUES (101, 'DEMO-90000106-2026-10-29', '3edc6b92-a520-4ecc-9586-2a808cd6ccf1', '90000106', 'Luis Moreno Demo', 2, 'EN_ESPERA_CONSULTA', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Ginecología', 'Ginecología', 4, 'bc505637-7485-477d-b0ca-4fba7943c0c6', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
-INSERT INTO public.cola_atencion VALUES (102, 'C-56601', '404abe9e-d1ef-455e-bec5-b9401ba7f735', '19674244', 'Adrian Bello', 2, 'EN_ESPERA_CONSULTA', 'CITA', false, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Consulta / urgencia en recepcion', 'Medicina General', NULL, NULL, '2026-11-24 11:47:21.553794-04', NULL, '2026-11-24 11:47:27.261013-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (105, 'C-51076', '4f9c9dda-3e9f-4497-bdae-24a70c33d44f', '25666854', 'roger', 2, 'FINALIZADO', 'EMERGENCIA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Consulta / urgencia en recepcion', 'Medicina General', NULL, NULL, '2026-11-25 18:25:10.978218-04', NULL, NULL, NULL, '2026-11-25 19:06:14.512332-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (106, 'C-23819', 'b387e0a2-9e80-4395-bc01-32352647b2f9', '19668557', 'arianny', 2, 'FINALIZADO', 'EMERGENCIA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Consulta / urgencia en recepcion', 'Medicina General', NULL, NULL, '2026-11-25 19:07:54.421558-04', NULL, NULL, NULL, '2026-11-25 19:07:56.891123-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (94, 'C-14364', 'cd0f0464-3c4c-4ccc-8d34-0fe2079f00e7', '13599140', 'QA BENEFICIARIO 213653', 2, 'FINALIZADO', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'QA E2E dolor abdominal y fiebre', NULL, NULL, NULL, '2026-09-24 21:36:53.397153-04', NULL, '2026-10-04 16:14:49.27936-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (96, 'DEMO-90000101-2026-10-29', '5fd89129-b3bf-4218-8956-34b360f547b5', '90000101', 'Laura Méndez Demo', 2, 'FINALIZADO', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Cardiología', 'Cardiología', 2, 'ea720fe1-cd18-4538-b891-5ee673b1d2f0', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (97, 'DEMO-90000102-2026-10-29', '6d26aedb-cfe3-4299-ab6b-44e2533b7b5e', '90000102', 'Jorge Salas Demo', 2, 'FINALIZADO', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Cardiología', 'Cardiología', 2, '3155f7c7-fb4b-4780-a7de-db54558131b9', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (98, 'DEMO-90000103-2026-10-29', 'c4f6c959-d16b-4197-a6cb-27bf16b65136', '90000103', 'Carmen Rivas Demo', 2, 'FINALIZADO', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Pediatría', 'Pediatría', 3, '57a563a0-0384-448b-99ee-f69cdb9c921d', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (99, 'DEMO-90000104-2026-10-29', '6ca4a5ed-b036-4150-b1da-5b93074d5656', '90000104', 'Pedro Aguilar Demo', 2, 'FINALIZADO', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Pediatría', 'Pediatría', 3, '18eb8121-4513-46b9-9354-8fd8f501b266', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (100, 'DEMO-90000105-2026-10-29', 'f6990ab1-f1ed-4acf-ae03-e9df17387921', '90000105', 'Daniela Suárez Demo', 2, 'FINALIZADO', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Ginecología', 'Ginecología', 4, '3ea9396f-585c-40f2-b32a-94cbe4acc571', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (101, 'DEMO-90000106-2026-10-29', '3edc6b92-a520-4ecc-9586-2a808cd6ccf1', '90000106', 'Luis Moreno Demo', 2, 'FINALIZADO', 'CITA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Control de Ginecología', 'Ginecología', 4, 'bc505637-7485-477d-b0ca-4fba7943c0c6', '2026-10-29 06:52:02.813636-04', NULL, '2026-10-29 06:52:02.813636-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (102, 'C-56601', '404abe9e-d1ef-455e-bec5-b9401ba7f735', '19674244', 'Adrian Bello', 2, 'FINALIZADO', 'CITA', false, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Consulta / urgencia en recepcion', 'Medicina General', NULL, NULL, '2026-11-24 11:47:21.553794-04', NULL, '2026-11-24 11:47:27.261013-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
+INSERT INTO public.cola_atencion VALUES (104, 'C-22010', '404abe9e-d1ef-455e-bec5-b9401ba7f735', '19674244', 'Adrian Bello', 2, 'FINALIZADO', 'EMERGENCIA', false, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Consulta / urgencia en recepcion', 'Medicina General', NULL, NULL, '2026-11-25 16:39:16.66103-04', NULL, '2026-11-25 16:39:18.393617-04', NULL, '2026-11-25 19:10:55.375571-04', NULL, NULL, NULL, NULL, NULL, false, false, NULL, NULL, NULL, NULL, 'AMARILLO');
 
 
 --
@@ -12233,7 +12251,10 @@ INSERT INTO public.guardias VALUES (9, 17, 2, 1, '2026-10-06', '2026-10-06 05:47
 INSERT INTO public.guardias VALUES (10, 17, 2, 1, '2026-10-08', '2026-10-08 14:53:03.177502-04', '2026-10-14 13:08:35.307165-04', 'FINALIZADA', NULL, NULL, '2026-10-08 14:53:03.174009-04');
 INSERT INTO public.guardias VALUES (11, 17, 2, 1, '2026-10-14', '2026-10-14 13:09:42.55843-04', '2026-10-28 17:40:48.084666-04', 'FINALIZADA', NULL, NULL, '2026-10-14 13:09:42.5494-04');
 INSERT INTO public.guardias VALUES (12, 17, 2, 1, '2026-10-28', '2026-10-28 17:44:29.271151-04', '2026-11-24 14:32:28.113366-04', 'FINALIZADA', NULL, NULL, '2026-10-28 17:44:29.263597-04');
-INSERT INTO public.guardias VALUES (13, 17, 2, 1, '2026-11-24', '2026-11-24 14:32:35.270129-04', NULL, 'ACTIVA', NULL, NULL, '2026-11-24 14:32:35.266469-04');
+INSERT INTO public.guardias VALUES (13, 17, 2, 1, '2026-11-24', '2026-11-24 14:32:35.270129-04', '2026-11-25 16:28:48.795101-04', 'FINALIZADA', NULL, NULL, '2026-11-24 14:32:35.266469-04');
+INSERT INTO public.guardias VALUES (14, 41, 2, 1, '2026-11-25', '2026-11-25 16:38:29.750251-04', '2026-11-25 17:54:01.637105-04', 'FINALIZADA', NULL, NULL, '2026-11-25 16:38:29.74445-04');
+INSERT INTO public.guardias VALUES (16, 63, 2, 1, '2026-11-25', '2026-11-25 17:54:06.859751-04', '2026-11-26 09:09:17.128586-04', 'FINALIZADA', NULL, NULL, '2026-11-25 17:54:06.854727-04');
+INSERT INTO public.guardias VALUES (17, 64, 2, 1, '2026-11-25', '2026-11-25 17:57:11.255988-04', '2026-11-26 09:09:18.275798-04', 'FINALIZADA', NULL, NULL, '2026-11-25 17:57:11.249803-04');
 
 
 --
@@ -12263,7 +12284,6 @@ INSERT INTO public.historias_clinicas VALUES ('d53a804b-7168-4d72-bcd4-4b0e3a598
 INSERT INTO public.historias_clinicas VALUES ('2c367aa6-f2ef-4ec5-9c92-97d17b654d73', 'V', '309905283', 'Test Remisión', NULL, '0414-1234567', NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-06 12:54:14.588618-04', 'Auto Generado', 'Barcelona, Anzoátegui', '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('d0035543-3709-4e69-8c7d-b8e1a0588611', 'V', '308510386', 'Test Remisión', NULL, '0414-1234567', NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-06 12:55:42.209734-04', 'Auto Generado', 'Barcelona, Anzoátegui', '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('73dc3832-4a50-44a8-acbe-97f39292bb46', 'V', '304994733', 'Test Remisión', NULL, '0414-1234567', NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-06 12:56:09.117662-04', 'Auto Generado', 'Barcelona, Anzoátegui', '[]', NULL);
-INSERT INTO public.historias_clinicas VALUES ('f48b5ad9-bb3d-4721-b3fd-9395f6d087c6', 'V', '30566244', 'Oswaldo García', NULL, '04248688827', 'oswaldogarciastudio@gmail.com', NULL, '[]', '[]', 'HIS-V30566244', '$2b$12$6b4Zm2y4d5FlOA7dC2c2hurG/TBr1x9LlnxKlx4T5GGnussvAmvhy', '2026-08-27 22:06:01.593447-04', NULL, NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('ecd9d4db-f461-4ade-832b-582b40d42fd9', 'V', 'FLOWTEST1', 'Flor', NULL, '0414', NULL, NULL, '[]', '[]', NULL, NULL, '2026-08-30 23:11:29.613907-04', 'Test', 'Calle 1', '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('562e0462-8a4c-4e94-8e83-e0f55750128f', 'V', 'PROXYTEST1', 'Nora', NULL, '0416', NULL, NULL, '[]', '[]', NULL, NULL, '2026-08-30 23:14:18.308637-04', 'Proxy', 'Calle 2', '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('afbfe699-d2a5-4983-8d4e-ccb2c55c8ddf', 'V', '99999999', 'Test', NULL, NULL, NULL, NULL, '{}', '{}', 'HIS-V-99999999', NULL, '2026-08-29 17:06:35.322958-04', 'Remision', NULL, '[]', NULL);
@@ -12275,7 +12295,7 @@ INSERT INTO public.historias_clinicas VALUES ('f214c628-598b-45ae-880a-82c199023
 INSERT INTO public.historias_clinicas VALUES ('afae2752-1bb3-4879-978a-631d24348b35', 'V', '10000001', 'Juan', NULL, '04125556586', NULL, NULL, '[]', '[]', 'HIS-V-10000001', NULL, '2026-08-29 17:06:35.288395-04', 'Perez', 'boyaca 3', '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('37e2ca46-1888-4654-b780-1b6398ab7201', 'V', '99920260910130535001', 'Test Duplicado 1', NULL, NULL, NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-10 13:05:38.41591-04', NULL, NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('62d226de-c8ae-48a7-8761-987c37ad5ac4', 'V', '10000002', 'Maria', NULL, '04125568589', NULL, 'O+', '["hipertesion arterial"]', '["penicilina"]', 'HIS-V-10000002', NULL, '2026-08-29 17:06:35.304949-04', 'Perez', 'boyaca', '["cesarea 2023"]', NULL);
-INSERT INTO public.historias_clinicas VALUES ('127c1f45-5643-4aa6-aae5-7e0cc832c3b9', 'V', '31087369', 'kali', NULL, '04122873602', NULL, 'O-', '["asma"]', '["aspirina"]', 'HIS-V31087369', '$2b$12$n72mgPKmB5MfYlXuHdiiY.jIBhaDANRWLZgQaQgomFj4MpkDgVdlG', '2026-08-28 14:20:57.051749-04', 'rondon', 'tronconal', '["cesarea 2023"]', NULL);
+INSERT INTO public.historias_clinicas VALUES ('127c1f45-5643-4aa6-aae5-7e0cc832c3b9', 'V', '31087369', 'kali', NULL, '04122870983', NULL, 'O-', '["asma"]', '["aspirina"]', 'HIS-V31087369', '$2b$12$n72mgPKmB5MfYlXuHdiiY.jIBhaDANRWLZgQaQgomFj4MpkDgVdlG', '2026-08-28 14:20:57.051749-04', 'rondon', 'tronconal', '["cesarea 2023"]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('c2c0630e-6e55-461f-a366-97580b59febc', 'V', '19329475', 'ROSIRYS BELEN', NULL, NULL, NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-22 17:36:48.659003-04', 'YANEZ ASCANIO', NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('1c4399ce-65dd-417b-a83d-f0a020bd3ae8', 'V', '99920260910130535002', 'Test Duplicado 2', NULL, NULL, NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-10 13:05:38.456745-04', NULL, NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('cca28e0a-c542-4307-85dc-49fcee9a53be', 'V', '99920260910130556001', 'Test Duplicado 1', NULL, NULL, NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-10 13:05:59.118271-04', NULL, NULL, '[]', NULL);
@@ -12289,6 +12309,7 @@ INSERT INTO public.historias_clinicas VALUES ('931a789b-fcd7-40b8-85c8-e4d9a3d97
 INSERT INTO public.historias_clinicas VALUES ('34197d84-a4ff-4dce-9fac-b2bc252b15fc', 'V', '30500123', 'Carlos', NULL, '04129998877', NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-10 16:22:39.089528-04', 'TestFinalizado', NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('be8ade57-f061-4d27-b2be-2e255f66c955', 'V', '8204047', 'QA TRABAJADOR 213653', NULL, NULL, NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-24 21:32:57.981164-04', NULL, NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('cd0f0464-3c4c-4ccc-8d34-0fe2079f00e7', 'V', '13599140', 'QA BENEFICIARIO 213653', NULL, NULL, NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-24 21:32:58.01435-04', NULL, NULL, '[]', NULL);
+INSERT INTO public.historias_clinicas VALUES ('f48b5ad9-bb3d-4721-b3fd-9395f6d087c6', 'V', '30566244', 'Oswaldo García', NULL, '04248688827', 'oswaldogarciastudio@gmail.com', NULL, '[]', '[]', 'HIS-V30566244', '$2b$12$6b4Zm2y4d5FlOA7dC2c2hurG/TBr1x9LlnxKlx4T5GGnussvAmvhy', '2026-08-27 22:06:01.593447-04', NULL, NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('f0b29008-371b-4b4d-947f-1bbd68092c7f', 'V', 'QA213653-P', 'QA PUBLICO 213653', NULL, NULL, NULL, NULL, '[]', '[]', NULL, NULL, '2026-09-24 21:36:53.3197-04', NULL, NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('5fd89129-b3bf-4218-8956-34b360f547b5', 'V', '90000101', 'Laura', NULL, '0414-9000101', NULL, 'O+', '[]', '[]', 'HC-DEMO-0001', NULL, '2026-10-29 06:40:14.235592-04', 'Méndez Demo', NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('6d26aedb-cfe3-4299-ab6b-44e2533b7b5e', 'V', '90000102', 'Jorge', NULL, '0414-9000102', NULL, 'A+', '[]', '[]', 'HC-DEMO-0002', NULL, '2026-10-29 06:40:14.235592-04', 'Salas Demo', NULL, '[]', NULL);
@@ -12298,8 +12319,10 @@ INSERT INTO public.historias_clinicas VALUES ('f6990ab1-f1ed-4acf-ae03-e9df17387
 INSERT INTO public.historias_clinicas VALUES ('3edc6b92-a520-4ecc-9586-2a808cd6ccf1', 'V', '90000106', 'Luis', NULL, '0414-9000106', NULL, 'A-', '[]', '[]', 'HC-DEMO-0006', NULL, '2026-10-29 06:52:02.813636-04', 'Moreno Demo', NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('77be06da-5e2a-405d-b0a4-2bb8b34c378b', 'V', '90000107', 'Gabriela', NULL, '0414-9000107', NULL, 'B-', '[]', '[]', 'HC-DEMO-0007', NULL, '2026-10-29 06:52:02.813636-04', 'Paredes Demo', NULL, '[]', NULL);
 INSERT INTO public.historias_clinicas VALUES ('9cfb4086-c976-4bab-afd6-d5a57adb7327', 'V', '90000108', 'Andrés', NULL, '0414-9000108', NULL, 'AB-', '[]', '[]', 'HC-DEMO-0008', NULL, '2026-10-29 06:52:02.813636-04', 'Rojas Demo', NULL, '[]', NULL);
+INSERT INTO public.historias_clinicas VALUES ('4f9c9dda-3e9f-4497-bdae-24a70c33d44f', 'V', '25666854', 'roger', NULL, '04124152265', NULL, NULL, '[]', '[]', NULL, NULL, '2026-11-25 18:25:10.992937-04', 'marin', NULL, '[]', 'las vallitas');
 INSERT INTO public.historias_clinicas VALUES ('ca50e7b6-df5d-4650-86c4-d7ec7134620a', 'V', '18674244', 'angel', NULL, '0412553365', NULL, NULL, '[]', '[]', NULL, NULL, '2026-11-24 14:34:37.936742-04', 'bellorin', 'boyaca', '[]', 'GUERREROS DE BOYACA');
 INSERT INTO public.historias_clinicas VALUES ('404abe9e-d1ef-455e-bec5-b9401ba7f735', 'V', '19674244', 'Adrian Bello', '1991-03-08', '04129451597', 'adrianmbet1@gmail.com', 'O-', '[]', '["Pepino", "Calabacin"]', 'HIS-V19674244', '$2b$12$bMGRPZpEL9ojalXC36Q7ru0pHntPRjArK6I/G7lRtEYrrwwCfxCgW', '2026-08-27 15:09:23.104331-04', 'Bello', 'barcelona troconal 4', '[]', NULL);
+INSERT INTO public.historias_clinicas VALUES ('b387e0a2-9e80-4395-bc01-32352647b2f9', 'V', '19668557', 'arianny', NULL, '04126585658', NULL, NULL, '[]', '[]', NULL, NULL, '2026-11-25 19:07:54.440953-04', 'arreaza', NULL, '[]', 'tronconal');
 
 
 --
@@ -12526,7 +12549,6 @@ INSERT INTO public.personal VALUES (37, NULL, 'Paula', 'Díaz', 'Recepci?n', NUL
 INSERT INTO public.personal VALUES (39, '20000001', 'Maria', 'Gonzalez', NULL, NULL, NULL, 'Jefe de Farmacia', NULL, 1, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (999, 'V-00000001', 'Oswaldo', 'Garcia', NULL, NULL, NULL, 'Encargado de Informatica y Sistemas', NULL, NULL, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (998, 'V-00000002', 'Adolfo', 'Farias', NULL, NULL, NULL, 'Presidente del Instituto de Salud', NULL, NULL, 'DISPONIBLE', 'ACTIVO');
-INSERT INTO public.personal VALUES (41, NULL, 'Doctor', 'CITAB', 'Medicina General', NULL, NULL, 'Medico', NULL, 13, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (42, NULL, 'Farmacia', 'CITAB', NULL, NULL, NULL, 'Jefe de Farmacia', NULL, 13, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (43, NULL, 'Recepcionista', 'CMUJER', NULL, NULL, NULL, 'Recepcionista', NULL, 14, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (44, NULL, 'Doctora', 'CMUJER', 'Ginecologia', NULL, NULL, 'Medico', NULL, 14, 'DISPONIBLE', 'ACTIVO');
@@ -12538,23 +12560,26 @@ INSERT INTO public.personal VALUES (49, NULL, 'Recepcionista', 'CAPJPF', NULL, N
 INSERT INTO public.personal VALUES (50, NULL, 'Doctor', 'CAPJPF', 'Medicina General', NULL, NULL, 'Medico', NULL, 16, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (51, NULL, 'Farmacia', 'CAPJPF', NULL, NULL, NULL, 'Jefe de Farmacia', NULL, 16, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (52, NULL, 'Recepcionista', 'CAMAYOR', NULL, NULL, NULL, 'Recepcionista', NULL, 17, 'DISPONIBLE', 'ACTIVO');
-INSERT INTO public.personal VALUES (53, NULL, 'Doctora', 'CAMAYOR', 'Gerontologia', NULL, NULL, 'Medico', NULL, 17, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (54, NULL, 'Farmacia', 'CAMAYOR', NULL, NULL, NULL, 'Jefe de Farmacia', NULL, 17, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (55, NULL, 'Recepcionista', 'OMARUJA', NULL, NULL, NULL, 'Recepcionista', NULL, 18, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (56, NULL, 'Doctor', 'OMARUJA', 'Oncologia', NULL, NULL, 'Medico', NULL, 18, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (57, NULL, 'Farmacia', 'OMARUJA', NULL, NULL, NULL, 'Jefe de Farmacia', NULL, 18, 'DISPONIBLE', 'ACTIVO');
-INSERT INTO public.personal VALUES (17, '10220380', 'Rosmary Del Carmen', 'Sánchez Hernández', 'Medicina Interna', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (18, '15533733', 'Yira Del Valle', 'Sandoval Castro', 'Medicina Interna', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (22, '19275238', 'Migdelia José', 'Arenas Barrios', 'Oftalmología', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (23, '24829475', 'Carlos José', 'Ortiz Pérez', 'Ginecología', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (24, '8266233', 'José Arcenio', 'Rivero Brito', 'Ginecología', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (25, '13368680', 'Maira Josefina', 'Marín Báez', 'Pediatría', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
+INSERT INTO public.personal VALUES (17, '10220380', 'Rosmary Del Carmen', 'Sánchez Hernández', 'Medicina Interna', NULL, NULL, 'Médico', 2, 13, 'DISPONIBLE', 'ACTIVO');
+INSERT INTO public.personal VALUES (41, '11518188', 'medico de', 'emergencia', 'Medicina General', NULL, NULL, 'Medico', NULL, 13, 'DISPONIBLE', 'ACTIVO');
+INSERT INTO public.personal VALUES (53, NULL, 'Doctora', 'CAMAYOR', 'Gerontologia', NULL, NULL, 'Medico', NULL, 17, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (28, '19709911', 'Andrés Emilio', 'Laya Hernández', 'Cirugía General', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (31, '22705329', 'Lucía Del Valle', 'Obando Urbáez', 'Ecografía', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (32, '8265857', 'Arcenio José', 'Rivero Brito', 'Fisiatría', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (34, '20874654', 'Andreína', 'Itriago', 'Traumatología', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (36, '11423291', 'Eneida Del Carmen', 'Tiapa Pérez', 'Nefrología', NULL, NULL, 'Médico', 2, 2, 'DISPONIBLE', 'ACTIVO');
 INSERT INTO public.personal VALUES (61, '123456', 'almacen', 'citab', NULL, NULL, NULL, 'Jefe de Almacén', NULL, 2, 'DISPONIBLE', 'ACTIVO');
+INSERT INTO public.personal VALUES (63, '19555641', 'medico', 'de emergencia', NULL, NULL, NULL, 'Médico', NULL, 13, 'DISPONIBLE', 'ACTIVO');
+INSERT INTO public.personal VALUES (64, '1581818', 'emer', 'gencia', NULL, NULL, NULL, 'Médico', NULL, 13, 'DISPONIBLE', 'ACTIVO');
 
 
 --
@@ -12591,6 +12616,7 @@ INSERT INTO public.recetas VALUES (2, 'RX-2026-0893', 'V-98765432', 'Juan Pérez
 -- Data for Name: reprogramaciones_citas; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
+INSERT INTO public.reprogramaciones_citas VALUES ('13b76727-3292-4352-9e49-4f789d1f2fe1', 'b9b4d417-f1e8-4a0a-ad0f-d0feef516dd5', NULL, '2026-11-26', '13:00:00', '2026-11-27', '13:00:00', 'confirmada', 'pendiente', NULL, NULL, NULL, '2026-11-26 08:44:55.403875-04', '2026-11-26 08:44:55.403875-04');
 
 
 --
@@ -12711,7 +12737,6 @@ INSERT INTO public.usuarios VALUES ('178b830e-72a5-4f77-ac23-c4ab0d150abc', 'luc
 INSERT INTO public.usuarios VALUES ('188e2ce5-154f-46ab-9675-e1f918bf5931', 'eneidatiapa', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 36, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('334815a3-d23d-4c58-a795-556cc5eee036', 'carlosortiz', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 23, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('41f0b4e8-806e-4cb9-baff-27c466daf07e', 'jhoniercardona', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 33, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
-INSERT INTO public.usuarios VALUES ('5cdf1edf-3471-4213-b132-fa6f16445c7d', 'adrianaramirez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 26, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('60b99203-21e0-4dbc-99da-57cf1ac35cda', 'cruiz', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'enfermero', 15, NULL, true, '2026-08-27 14:59:22.24756-04', NULL);
 INSERT INTO public.usuarios VALUES ('68e55642-c064-48ca-8f77-3971dce5b9a4', 'arcenorivero', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 32, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('6b684f57-98fd-4805-b01a-8c4fa39ed9da', 'pgarcia', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'paciente', NULL, 'ab033278-b561-4652-9b93-800198763475', true, '2026-08-27 14:59:22.24756-04', NULL);
@@ -12725,12 +12750,10 @@ INSERT INTO public.usuarios VALUES ('848faf08-919b-4ed6-a777-bcef9fc4a808', 'and
 INSERT INTO public.usuarios VALUES ('87a6c8c7-404f-4614-a135-3f336328c4c7', 'yirasandoval', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 18, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('8b3840f7-28ad-41ba-a5c6-52fa62baf6a7', 'arodriguez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'paciente', NULL, 'b6d97a49-5a6d-4c6d-a791-83e0cb4a6ad6', true, '2026-08-27 14:59:22.24756-04', NULL);
 INSERT INTO public.usuarios VALUES ('9dc018e9-de90-49dd-a21d-3139538c55e1', 'joserivero', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 24, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
-INSERT INTO public.usuarios VALUES ('a183535c-ba85-414e-99e0-57ec3c81c5dd', 'lperez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 4, NULL, true, '2026-08-27 14:59:22.24756-04', NULL);
 INSERT INTO public.usuarios VALUES ('acaf5826-0015-4404-8dd2-0947df649773', 'abello', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'superusuario', 1, NULL, true, '2026-08-27 14:59:22.24756-04', NULL);
 INSERT INTO public.usuarios VALUES ('b1752ec4-b4c2-4417-b04d-ea764675653e', 'mairamarin', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 25, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('bb504772-7c18-4acb-abb8-ab58da4ddc00', 'xiomaramendez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 30, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('c7599cd6-f4b4-4d6c-829c-04adbb88645f', 'sramos', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 9, NULL, true, '2026-08-27 14:59:22.24756-04', NULL);
-INSERT INTO public.usuarios VALUES ('c7d13024-4803-4bab-b64e-4e0ee8be0cbb', 'rosmaryhernandez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 17, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('cc27acfb-377f-4d8c-beec-08ddaa839c67', 'psanchez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 5, NULL, true, '2026-08-27 14:59:22.24756-04', NULL);
 INSERT INTO public.usuarios VALUES ('d2bb1ec1-b3c1-4f76-aafc-6d4cde4e2951', 'ruthlopez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 35, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
 INSERT INTO public.usuarios VALUES ('d8fc70c7-dd8a-469b-a652-4ddbbe9e15d3', 'lmendoza', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'enfermero', 16, NULL, true, '2026-08-27 14:59:22.24756-04', NULL);
@@ -12747,7 +12770,6 @@ INSERT INTO public.usuarios VALUES ('0bdc7b76-d026-4b12-b71f-6d8e3ef40d31', 'rpr
 INSERT INTO public.usuarios VALUES ('51ad1659-286e-459e-8ea8-fe172e3ac518', 'rec_citab', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'recepcionista', 40, NULL, true, '2026-09-20 11:29:08.573511-04', 2);
 INSERT INTO public.usuarios VALUES ('5aa782f0-12ca-4d1d-8132-55cc7387c8dc', 'oswaldo', '$2b$12$N9BjKVvAriIFOzfFYvwvyOQZHwzfFDRWA053oRvV9gioSrC/U7Pkq', 'admin_sistemas', 999, NULL, true, '2026-09-17 22:52:41.619591-04', NULL);
 INSERT INTO public.usuarios VALUES ('34e441e0-19bf-4ea8-a1c2-d581b12762e3', 'director', '$2b$12$3A/8fnibG9u0Hi1PET/LwuwCXgr/VQsmby.KCByxVYValykFOCZ9i', 'director', 998, NULL, true, '2026-09-17 23:17:55.333939-04', NULL);
-INSERT INTO public.usuarios VALUES ('fd2cb7d8-d3ba-401c-b784-fc6eb9990d70', 'med_citab', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'medico', 41, NULL, true, '2026-09-20 11:29:08.573511-04', 13);
 INSERT INTO public.usuarios VALUES ('105cffa1-8a15-4b16-9d70-7f4156e4d607', 'avalera', '$2b$12$jvR3CZ0lxLqimcb0eQ4acuzPTtJeGx4Q1V3xkwmuwXf6A65kwjHym', 'medico', 2, NULL, true, '2026-08-27 14:59:22.24756-04', NULL);
 INSERT INTO public.usuarios VALUES ('31b07441-6a54-4fff-ae63-69ffa99c4105', 'farmacia', '$2b$12$Hq6v/XmJY3t99JClntyMEOk3Mvtm5nhdzWUpFM3Yqy/L0SbogRnua', 'jefe_farmacia', 39, NULL, true, '2026-09-17 15:23:50.172575-04', NULL);
 INSERT INTO public.usuarios VALUES ('30c8292b-9f29-4cd8-87e3-562ffc2fb4db', 'farm_citab', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'jefe_farmacia', 42, NULL, true, '2026-09-20 11:29:08.573511-04', 13);
@@ -12757,20 +12779,24 @@ INSERT INTO public.usuarios VALUES ('280e9c68-6a76-4d9a-8fca-6a4dc513cdf7', 'far
 INSERT INTO public.usuarios VALUES ('933d79d7-a7d6-4cfb-808a-b77a5093b3cd', 'rec_cinos', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'recepcionista', 46, NULL, true, '2026-09-20 11:29:08.573511-04', 15);
 INSERT INTO public.usuarios VALUES ('112f1018-f217-425e-8cde-7d8de082ac9e', 'med_cinos', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'medico', 47, NULL, true, '2026-09-20 11:29:08.573511-04', 15);
 INSERT INTO public.usuarios VALUES ('875f3302-892a-4bc2-a776-8d583e724ff2', 'farm_cinos', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'jefe_farmacia', 48, NULL, true, '2026-09-20 11:29:08.573511-04', 15);
+INSERT INTO public.usuarios VALUES ('5cdf1edf-3471-4213-b132-fa6f16445c7d', 'adrianaramirez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 26, NULL, true, '2026-08-27 15:02:52.198961-04', NULL);
+INSERT INTO public.usuarios VALUES ('a183535c-ba85-414e-99e0-57ec3c81c5dd', 'lperez', '$2b$12$oV8tx83yd/n/1LOhB6.7q.t7Oi3Q2Hwtli5B.IplL/hxdlugMfyWO', 'medico', 4, NULL, true, '2026-08-27 14:59:22.24756-04', NULL);
 INSERT INTO public.usuarios VALUES ('d10676be-1e91-44b8-bca2-44e524032839', 'rec_capjpf', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'recepcionista', 49, NULL, true, '2026-09-20 11:29:08.573511-04', 16);
 INSERT INTO public.usuarios VALUES ('c5a0b4fc-d3c1-4866-816d-8c1e12196e7c', 'med_capjpf', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'medico', 50, NULL, true, '2026-09-20 11:29:08.573511-04', 16);
 INSERT INTO public.usuarios VALUES ('332138ec-f3d3-486a-91ee-edf50c484118', 'farm_capjpf', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'jefe_farmacia', 51, NULL, true, '2026-09-20 11:29:08.573511-04', 16);
 INSERT INTO public.usuarios VALUES ('78ea6316-e494-4af8-b42d-327da7c6f4eb', 'rec_camayor', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'recepcionista', 52, NULL, true, '2026-09-20 11:29:08.573511-04', 17);
-INSERT INTO public.usuarios VALUES ('fe02e984-d0bf-452d-93dd-88fb8764f21c', 'med_camayor', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'medico', 53, NULL, true, '2026-09-20 11:29:08.573511-04', 17);
 INSERT INTO public.usuarios VALUES ('c6c11c37-2549-41c2-a446-650b4786b0e5', 'farm_camayor', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'jefe_farmacia', 54, NULL, true, '2026-09-20 11:29:08.573511-04', 17);
 INSERT INTO public.usuarios VALUES ('7a1ef012-f786-4758-8241-8c564b352c1d', 'rec_omaruja', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'recepcionista', 55, NULL, true, '2026-09-20 11:29:08.573511-04', 18);
 INSERT INTO public.usuarios VALUES ('daf73197-ea87-4741-a57d-95ceea6140c1', 'med_omaruja', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'medico', 56, NULL, true, '2026-09-20 11:29:08.573511-04', 18);
 INSERT INTO public.usuarios VALUES ('c94bbb22-bbfc-464f-9ffa-a08d642589d8', 'farm_omaruja', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'jefe_farmacia', 57, NULL, true, '2026-09-20 11:29:08.573511-04', 18);
 INSERT INTO public.usuarios VALUES ('2c088d97-9257-4393-9c43-492c54b2ff34', 'adrianbello', '$2b$12$AVeSrtoQ9i5uGl2bXcZPiO0aIbICDothPOV5qfYKToSCB2RSokSRC', 'admin_sistemas', NULL, NULL, true, '2026-09-22 16:36:59.944574-04', NULL);
-INSERT INTO public.usuarios VALUES ('1fb9f7ea-ec91-4081-874f-a86c9ec87a12', 'eprueba', '$2b$12$A9VPpqt1kVy2.Wh5pEOaVukPcFfwmYfJv0V.HoM0KAB96PCVzJHD2', 'medico_emergencia', 17, NULL, true, '2026-08-29 17:05:37.280282-04', NULL);
 INSERT INTO public.usuarios VALUES ('9b81ee90-c53c-4a1e-87d2-5db2da9bc334', 'hist_citab', '$2b$12$j.bPhVlat3ZNq0I5sqDsQeRwODdVK5darPl9hImtmvAshaXOJhgTq', 'historias_medicas', NULL, NULL, true, '2026-10-28 23:06:32.933811-04', 2);
 INSERT INTO public.usuarios VALUES ('0b934fcb-612d-4782-a1da-5624194db9b4', 'recursoshumanos', '$2b$12$776KUEqU4nPk600BlvGD5ebyViWdK7eSXtIt1/FXs/BqWqCeoxofi', 'recursos_humanos', NULL, NULL, true, '2026-11-13 15:27:52.819339-04', NULL);
 INSERT INTO public.usuarios VALUES ('93c78996-3aeb-488f-93d6-c8f8a37461c5', 'almacencitab', '$2b$12$9vEEvjiTChinotVq1R651.gKPH/VaV774PeK17TAzImPbxuIKPwOO', 'jefe_almacen', 61, NULL, true, '2026-11-24 10:09:45.251886-04', 2);
+INSERT INTO public.usuarios VALUES ('c7d13024-4803-4bab-b64e-4e0ee8be0cbb', 'rosmaryhernandez', '$2b$12$lLqJM9rhvSRjdktRTFeBk.qa3I.wx2dajZWOz.7OIix6DegUJhgbG', 'medico', 17, NULL, true, '2026-08-27 15:02:52.198961-04', 13);
+INSERT INTO public.usuarios VALUES ('fe02e984-d0bf-452d-93dd-88fb8764f21c', 'med_camayor', '$2b$12$Uykz7zIfyRznEDXncGCFm.9lZJT6hKy88ygxbXunaywNR1q0.oNi.', 'medico', 53, NULL, true, '2026-09-20 11:29:08.573511-04', 17);
+INSERT INTO public.usuarios VALUES ('1f1d2113-f8ad-4ebc-8fa5-321db3b2b08a', 'med_citab', '$2b$12$ii5IwWUCd681eKYmqhmc5Or5G6tT7J3BUzHHvwFzVx3kWKX2PUxgi', 'medico_emergencia', 63, NULL, true, '2026-11-25 17:53:23.2419-04', 13);
+INSERT INTO public.usuarios VALUES ('05b0b9d9-d160-4383-813d-86b9e4871fa6', 'emergencia', '$2b$12$1BP8OARr0GH1rw5m7UjipurY2JshTVLFZPrKLEjLcYwjswHn2U6WC', 'medico_emergencia', 64, NULL, true, '2026-11-25 17:56:00.319982-04', 13);
 
 
 --
@@ -12806,7 +12832,7 @@ SELECT pg_catalog.setval('public.almacen_sync_outbox_id_seq', 1, false);
 -- Name: atencion_historial_estados_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.atencion_historial_estados_id_seq', 100, true);
+SELECT pg_catalog.setval('public.atencion_historial_estados_id_seq', 112, true);
 
 
 --
@@ -12842,7 +12868,7 @@ SELECT pg_catalog.setval('public.cargos_id_seq', 4, true);
 -- Name: citas_sync_outbox_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.citas_sync_outbox_id_seq', 1, true);
+SELECT pg_catalog.setval('public.citas_sync_outbox_id_seq', 2, true);
 
 
 --
@@ -12860,7 +12886,7 @@ SELECT pg_catalog.setval('public.clinicas_id_seq', 18, true);
 -- Name: cola_atencion_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.cola_atencion_id_seq', 103, true);
+SELECT pg_catalog.setval('public.cola_atencion_id_seq', 106, true);
 
 
 --
@@ -12887,7 +12913,7 @@ SELECT pg_catalog.setval('public.examenes_ofrecidos_id_seq', 28, true);
 -- Name: guardias_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.guardias_id_seq', 13, true);
+SELECT pg_catalog.setval('public.guardias_id_seq', 17, true);
 
 
 --
@@ -12950,7 +12976,7 @@ SELECT pg_catalog.setval('public.ordenes_entrega_items_id_seq', 1, false);
 -- Name: personal_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.personal_id_seq', 61, true);
+SELECT pg_catalog.setval('public.personal_id_seq', 64, true);
 
 
 --
@@ -14833,11 +14859,11 @@ ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_personal_id_fkey FOREIGN KEY (personal_id) REFERENCES public.personal(id);
 
 
--- Completed on 2026-11-24 14:37:19
+-- Completed on 2026-11-26 09:19:00
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict CIxukVlE7JTtNVAh601Y16gGclXxmWT7bsfu48dYBnaINPlh5bQqGrNb96WtpJC
+\unrestrict GeDR6dHcZKTCDx3Aw6iiOQaYZSuTNqHKO0p4AKruZtmzcYQz1fmk5i5yiDMHQ7W
 
