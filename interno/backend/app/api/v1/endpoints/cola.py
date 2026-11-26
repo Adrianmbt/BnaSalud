@@ -172,6 +172,8 @@ TRANSICIONES_VALIDAS = {
         EstadoAtencionEnum.TRIAJE,
         EstadoAtencionEnum.EN_ESPERA_CONSULTA,
         EstadoAtencionEnum.EN_CONSULTA,
+        # Recepción puede cerrar al paciente sin pasarlo por la cola médica.
+        EstadoAtencionEnum.FINALIZADO,
         EstadoAtencionEnum.CANCELADO,
         EstadoAtencionEnum.NO_ASISTIO,
     ],
@@ -183,6 +185,7 @@ TRANSICIONES_VALIDAS = {
     ],
     EstadoAtencionEnum.EN_ESPERA_CONSULTA: [
         EstadoAtencionEnum.EN_CONSULTA,
+        EstadoAtencionEnum.FINALIZADO,
         EstadoAtencionEnum.CANCELADO,
         EstadoAtencionEnum.NO_ASISTIO,
     ],

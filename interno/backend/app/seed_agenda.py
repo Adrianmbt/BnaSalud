@@ -52,17 +52,16 @@ async def seed():
             await engine.dispose()
             return
 
-        # Especialistas: personal con cargo 'Médico' y especialidad no nula
-        # (+ el médico de emergencia, que siempre queda disponible).
+        # Especialistas: personal con cargo 'Médico' y especialidad no nula.
+        # Los médicos de emergencia quedan fuera: no llevan agenda semanal,
+        # su disponibilidad se maneja con guardias (panel de recepción).
         r = await db.execute(
             text(
-                "SELECT p.id, p.nombre, p.especialidad, "
-                "       EXISTS(SELECT 1 FROM usuarios u "
-                "              WHERE u.personal_id = p.id AND u.rol = 'medico_emergencia') AS emergencia "
+                "SELECT p.id, p.nombre, p.especialidad "
                 "FROM personal p "
-                "WHERE (p.cargo = 'Médico' AND p.especialidad IS NOT NULL) "
-                "   OR EXISTS(SELECT 1 FROM usuarios u "
-                "              WHERE u.personal_id = p.id AND u.rol = 'medico_emergencia') "
+                "WHERE p.cargo = 'Médico' AND p.especialidad IS NOT NULL "
+                "  AND NOT EXISTS(SELECT 1 FROM usuarios u "
+                "                 WHERE u.personal_id = p.id AND u.rol = 'medico_emergencia') "
                 "ORDER BY p.especialidad NULLS LAST, p.nombre"
             )
         )

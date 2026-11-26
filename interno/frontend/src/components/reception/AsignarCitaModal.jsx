@@ -68,6 +68,7 @@ export default function AsignarCitaModal({
   citaId,
   pacienteData,
   especialistasCache = null,
+  centroId = null,
   onClose,
   onAsignada,
   // Desplaza el modal fuera del sidebar de 256 px (lg) para que no lo tape.
@@ -127,11 +128,11 @@ export default function AsignarCitaModal({
     }
     let vivo = true;
     axiosClient
-      .get('/agenda/especialistas')
+      .get('/agenda/especialistas', { params: centroId ? { centro_id: centroId } : {} })
       .then((r) => { if (vivo) setEspecialistas(r.data || []); })
       .catch(() => { if (vivo) setEspecialistas([]); });
     return () => { vivo = false; };
-  }, [especialistasCache]);
+  }, [especialistasCache, centroId]);
 
   const paciente = data?.paciente;
   const cita = data?.cita;

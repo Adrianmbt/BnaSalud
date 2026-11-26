@@ -16,6 +16,9 @@ export const listarCatalogoMedicamentos = (q = '') =>
 export const crearPaciente = (payload) =>
   axiosClient.post(`${BASE}/pacientes`, payload).then((r) => r.data);
 
+export const actualizarContactoPaciente = (historiaId, payload) =>
+  axiosClient.patch(`${BASE}/pacientes/${historiaId}/contacto`, payload).then((r) => r.data);
+
 export const obtenerPaciente = (historiaId) =>
   axiosClient.get(`${BASE}/pacientes/${historiaId}`).then((r) => r.data);
 

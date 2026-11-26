@@ -368,3 +368,14 @@ select {
 .keyboard-safe {
   padding-bottom: calc(6rem + var(--safe-bottom));
 }
+
+/* Los diálogos de SweetAlert2 deben quedar por encima de los modales de la
+   aplicación (estos usan z-index 9999) y heredar la tipografía del tema. */
+.swal2-container {
+  z-index: 10000 !important;
+}
+
+.swal2-popup {
+  font-family: inherit;
+  border-radius: 0.9rem;
+}

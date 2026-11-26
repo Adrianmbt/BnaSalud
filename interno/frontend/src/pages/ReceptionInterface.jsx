@@ -215,7 +215,7 @@ export default function ReceptionInterface({ userName = 'Recepcionista', clinica
             )}
 
             {activeSection === 'postponer' && (
-              <ReprogramacionCitas />
+              <ReprogramacionCitas clinicaId={clinicaId} />
             )}
 
             {activeSection === 'citasprogramadas' && (

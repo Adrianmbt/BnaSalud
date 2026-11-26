@@ -11,6 +11,7 @@ import ExecutiveAdminDashboard from './pages/ExecutiveAdminDashboard';
 import { ThemeProvider } from './components/ThemeProvider';
 import { ModalStackProvider } from './components/ModalStack';
 import { cargarSesion, guardarSesion, borrarSesion } from './sesion';
+import axiosClient from './api/axiosClient';
 import './index.css';
 
 export default function App() {
@@ -40,17 +41,51 @@ function Aplicacion() {
       .catch(() => {});
   }, []);
 
+  // El <title> de index.html estaba fijo en "Recepción": la pestaña mentía en
+  // todos los demás módulos y no había forma de saber dónde estabas.
   useEffect(() => {
-    cargarSesion().then((s) => {
+    const MODULO = {
+      recepcion: 'Recepción',
+      emergency: 'Emergencias',
+      especialista: 'Especialista',
+      farmacia: 'Farmacia',
+      almacen: 'Almacén',
+      historias_medicas: 'Historias Médicas',
+      admin_sistemas: 'Administración',
+      recursos_humanos: 'Recursos Humanos',
+      director: 'Dirección',
+    };
+    document.title = loggedIn
+      ? `${MODULO[currentRole] || 'Sistema Interno'} · CITAB — Salud Barcelona`
+      : 'Sistema Interno CITAB — Salud Barcelona';
+  }, [loggedIn, currentRole]);
+
+  useEffect(() => {
+    cargarSesion().then(async (s) => {
       if (s.citab_role && s.citab_user && s.citab_token) {
-        setCurrentRole(s.citab_role);
-        setCurrentUser(s.citab_user);
-        setCurrentEspecialidad(s.citab_especialidad ?? '');
-        setCurrentPersonalId(s.citab_personal_id ? Number(s.citab_personal_id) : null);
-        setCurrentClinicaId(s.citab_clinica_id ? Number(s.citab_clinica_id) : null);
-        setCurrentClinicaCode(s.citab_clinica_code ?? '');
-        setCurrentClinicaNombre(s.citab_clinica_nombre ?? '');
-        setLoggedIn(true);
+        try {
+          // El rol del usuario pudo cambiar en Administración desde que se guardó
+          // la sesión (o su guardia pudo cerrarse): se revalida contra el servidor
+          // para no pintar una interfaz que ya no le corresponde.
+          const { data } = await axiosClient.get('/auth/sesion');
+          handleLogin(data);
+        } catch (e) {
+          if (e?.response) {
+            // 401/403: usuario desactivado, eliminado o sin guardia activa.
+            borrarSesion().catch(() => {});
+          } else {
+            // Sin conexión se mantiene la sesión guardada, como antes.
+            aplicarSesion({
+              rol: s.citab_role,
+              nombre: s.citab_user,
+              especialidad: s.citab_especialidad,
+              personal_id: Number(s.citab_personal_id) || null,
+              clinica_id: Number(s.citab_clinica_id) || null,
+              clinica_code: s.citab_clinica_code,
+              clinica_nombre: s.citab_clinica_nombre,
+            });
+          }
+        }
       }
       setArrancando(false);
     }).catch(() => {
@@ -61,15 +96,19 @@ function Aplicacion() {
     });
   }, []);
 
-  const handleLogin = (session) => {
+  const aplicarSesion = (session) => {
     setCurrentRole(session.rol);
-    setCurrentUser(session.nombre);
+    setCurrentUser(session.nombre || '');
     setCurrentEspecialidad(session.especialidad || '');
     setCurrentPersonalId(session.personal_id || null);
     setCurrentClinicaId(session.clinica_id || null);
     setCurrentClinicaCode(session.clinica_code || '');
     setCurrentClinicaNombre(session.clinica_nombre || '');
     setLoggedIn(true);
+  };
+
+  const handleLogin = (session) => {
+    aplicarSesion(session);
 
     guardarSesion({
       citab_role: session.rol,

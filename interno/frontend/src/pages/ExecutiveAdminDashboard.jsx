@@ -165,11 +165,12 @@ export default function ExecutiveAdminDashboard({ userName = 'Director General',
               </div>
             ) : (
               <div
-                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2"
+                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2"
                 role="region"
                 aria-label="Indicadores principales"
               >
                 <KpiCard icon={Activity} label="Consultas Hoy" value={s.consultas_hoy ?? 0} color="blue" sub={`promedio: ${s.promedio_diario_mes ?? 0}/día`} trend={s.variacion_vs_promedio_diario ?? 0} />
+                <KpiCard icon={CalendarClock} label="Citas web / recepción" value={`${s.citas_web_mes ?? 0} / ${s.citas_recepcion_mes ?? 0}`} color="blue" sub="aprobadas este mes" />
                 <KpiCard icon={Users} label="Total Atendidos" value={s.total_atenciones_mes ?? 0} color="emerald" sub={`${s.variacion_atenciones_pct ?? 0}% vs mes anterior`} trend={s.variacion_atenciones_pct ?? 0} />
                 <KpiCard icon={Pill} label="Stock Bajo" value={stockBajo} color="amber" sub={`${s.meds_stock_bajo ?? 0} meds · ${s.ins_stock_bajo ?? 0} ins`} />
                 <KpiCard icon={CalendarClock} label="Lotes por Vencer" value={s.lotes_por_vencer ?? 0} color="red" sub="próximos 30 días" />

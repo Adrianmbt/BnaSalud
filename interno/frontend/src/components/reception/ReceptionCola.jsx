@@ -12,6 +12,7 @@ import {
   UserPlus,
   Users,
   CheckCircle2,
+  Clock,
   Cross,
   Search,
   Shield,
@@ -263,6 +264,23 @@ export default function ReceptionCola({ queue, fetchQueue, clinicaId, loading, s
     }
   };
 
+  const finalizarEnEspera = async (p) => {
+    setLoading(true);
+    clearFlags();
+    try {
+      await axiosClient.patch(`/cola/${p.id}/transicion`, {
+        nuevo_estado: 'FINALIZADO',
+        observacion: 'Consulta finalizada desde recepcion',
+      });
+      setSuccess(`${p.paciente_nombre} marcado como atendido.`);
+      await fetchQueue();
+    } catch (err) {
+      flashError(err, 'No se pudo finalizar la consulta.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openEdit = (p) => {
     setEditing(p);
     setEditForm({
@@ -404,6 +422,9 @@ export default function ReceptionCola({ queue, fetchQueue, clinicaId, loading, s
                       </td>
                       <td className="pr-5 pl-3 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => finalizarEnEspera(p)} disabled={loading} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-brand-success hover:bg-brand-primary text-white text-[11px] font-semibold transition-all hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed" title="Finalizar consulta">
+                            <CheckCircle2 className="w-3 h-3" /> Atendido
+                          </button>
                           <button onClick={() => pasarPaciente(p)} disabled={loading} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-brand-deep hover:bg-brand-primary text-white text-[11px] font-semibold transition-all hover:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed" title="Pasar a cola de espera">
                             <ArrowRight className="w-3.5 h-3.5" /> Espera
                           </button>
@@ -440,6 +461,9 @@ export default function ReceptionCola({ queue, fetchQueue, clinicaId, loading, s
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-2.5">
+                    <button onClick={() => finalizarEnEspera(p)} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-1 min-h-11 px-3 rounded-xl bg-brand-success active:bg-brand-primary text-white text-xs font-semibold transition-colors disabled:opacity-50" title="Finalizar consulta">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Atendido
+                    </button>
                     <button onClick={() => pasarPaciente(p)} disabled={loading} className="flex-1 inline-flex items-center justify-center gap-1 min-h-11 px-3 rounded-xl bg-brand-deep active:bg-brand-primary text-white text-xs font-semibold transition-colors disabled:opacity-50" >
                       <ArrowRight className="w-3.5 h-3.5" /> A espera
                     </button>

@@ -120,6 +120,15 @@ async def summary(db: AsyncSession = Depends(get_db)):
               AND ca.creado_en >= date_trunc('month', (SELECT fecha FROM hoy))
               AND ca.creado_en < date_trunc('month', (SELECT fecha FROM hoy)) + INTERVAL '1 month'
         ),
+        citas_mes AS (
+            SELECT
+                COUNT(*) FILTER (WHERE c.origen = 'cita_web') AS web,
+                COUNT(*) FILTER (WHERE COALESCE(c.origen, '') <> 'cita_web') AS recepcion
+            FROM citas c
+            WHERE c.estado IN ('preasignada', 'confirmada')
+              AND c.created_at >= date_trunc('month', (SELECT fecha FROM hoy))
+              AND c.created_at < date_trunc('month', (SELECT fecha FROM hoy)) + INTERVAL '1 month'
+        ),
         promedio_diario_mes AS (
             SELECT
                 CASE
@@ -153,6 +162,8 @@ async def summary(db: AsyncSession = Depends(get_db)):
             cb.trabajadores,
             cb.beneficiarios,
             cb.publico_general,
+            cm.web AS citas_web_mes,
+            cm.recepcion AS citas_recepcion_mes,
             pdm.promedio AS promedio_diario_mes,
             CASE
                 WHEN pdm.promedio > 0 AND ch.total > 0
@@ -164,7 +175,7 @@ async def summary(db: AsyncSession = Depends(get_db)):
              lotes_vencidos lv, lotes_por_vencer lpv,
              atenciones_mes am, atenciones_mes_ant ama,
              stock_total st, consumo_30d c30, cobertura cb,
-             promedio_diario_mes pdm
+             citas_mes cm, promedio_diario_mes pdm
     """))
     r = result.mappings().first()
     if not r:

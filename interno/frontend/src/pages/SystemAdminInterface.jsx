@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
+import { confirmar, exito } from '../utils/alertas';
 
 const ROLES = [
   { value: 'recepcionista', label: 'Recepcionista' },
@@ -125,6 +126,7 @@ function UsuariosSection({ onEditarHorario }) {
   const [editando, setEditando] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
   const PER_PAGE = 5;
 
   const cargar = useCallback(async () => {
@@ -157,6 +159,7 @@ function UsuariosSection({ onEditarHorario }) {
     setForm(formVacio());
     setEditando(null);
     setError('');
+    setAviso('');
     setModal('crear');
   };
 
@@ -185,6 +188,7 @@ function UsuariosSection({ onEditarHorario }) {
 
   const abrirEditar = (u) => {
     setEditando(u);
+    setAviso('');
     setForm({
       username: u.username,
       password: '',
@@ -210,7 +214,17 @@ function UsuariosSection({ onEditarHorario }) {
         ...datosPersonales(),
       };
       if (form.password) payload.password = form.password;
-      await axiosClient.put(`/admin/usuarios/${editando.id}`, payload);
+      const { data } = await axiosClient.put(`/admin/usuarios/${editando.id}`, payload);
+      // Confirmación con lo que devolvió el servidor: si el valor guardado no
+      // coincide con lo elegido, se ve en el aviso y no queda la duda de si
+      // el cambio se aplicó.
+      const g = data?.usuario;
+      setAviso(
+        g
+          ? `Guardado en el servidor: ${editando.username} · rol ${g.rol}` +
+            ` · especialidad ${g.especialidad || 'sin especialidad'}`
+          : `Usuario ${editando.username} actualizado.`
+      );
       setModal(null); setEditando(null); setForm(formVacio());
       cargar();
     } catch (e) { setError(e?.response?.data?.detail || 'Error al editar usuario.'); } finally { setGuardando(false); }
@@ -230,7 +244,13 @@ function UsuariosSection({ onEditarHorario }) {
 
   const eliminar = async (id) => {
     if (!confirm('Eliminar este usuario?')) return;
-    try { await axiosClient.delete(`/admin/usuarios/${id}`); cargar(); } catch {}
+    setError('');
+    try {
+      await axiosClient.delete(`/admin/usuarios/${id}`);
+      cargar();
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'No se pudo eliminar el usuario.');
+    }
   };
 
   const rolColor = (rol) => {
@@ -254,6 +274,10 @@ function UsuariosSection({ onEditarHorario }) {
           <Plus className="w-4 h-4" /> Nuevo
         </button>
       </div>
+
+      {aviso && (
+        <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-lg">{aviso}</div>
+      )}
 
       {error && (
         <div className="px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>
@@ -317,7 +341,7 @@ function UsuariosSection({ onEditarHorario }) {
 
       {modal === 'crear' && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-brand-primary/10 flex items-center justify-center">
@@ -372,7 +396,7 @@ function UsuariosSection({ onEditarHorario }) {
 
       {modal === 'editar' && editando && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModal(null)}>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-brand-primary/10 flex items-center justify-center">
@@ -1210,22 +1234,26 @@ function HorariosSection({ medicoInicial = null, onInicialAbierto, userRole = 'a
   const certificarSemana = async () => {
     if (!semana) return;
     const semanaIso = fechaIso(lunesDeLaSemana(new Date(`${semana}T00:00:00`)));
-    if (!window.confirm(
-      `¿Certificar los horarios de la semana del ${semanaIso}?\n\n` +
-      'Se validan los días cargados de cada especialista y se asignan las citas en cola de esa ' +
-      'semana: 10 cupos por día de atención, priorizando trabajadores y beneficiarios de la nómina.'
-    )) return;
+    const confirmado = await confirmar({
+      titulo: `¿Certificar la semana del ${semanaIso}?`,
+      texto:
+        'Se validan los días cargados de cada especialista y se asignan las citas en cola de esa ' +
+        'semana: 10 cupos por día de atención, priorizando trabajadores y beneficiarios de la nómina.',
+      confirmar: 'Sí, certificar',
+    });
+    if (!confirmado) return;
     setCertificandoSemana(true); setError(''); setAviso('');
     try {
       const { data } = await axiosClient.post('/admin/medicos/horario/certificar', null, {
         params: { semana_desde: semanaIso },
       });
-      setAviso(
-        `Semana ${data.semana_desde} al ${data.semana_hasta}: ${data.total_dias_certificados} día(s) ` +
-        `certificados en ${data.total_medicos} especialista(s) y ${data.total_citas_asignadas} cita(s) asignadas` +
-        (data.total_citas_sin_cupo
-          ? `; ${data.total_citas_sin_cupo} paciente(s) siguen en cola sin cupo esta semana.`
-          : '.')
+      await exito(
+        'Semana certificada',
+        `Del ${data.semana_desde} al ${data.semana_hasta}: ${data.total_dias_certificados} día(s) ` +
+          `certificados en ${data.total_medicos} especialista(s) y ${data.total_citas_asignadas} cita(s) asignadas` +
+          (data.total_citas_sin_cupo
+            ? `; ${data.total_citas_sin_cupo} paciente(s) siguen en cola sin cupo esta semana.`
+            : '.')
       );
       cargar();
     } catch (e) {
@@ -1237,14 +1265,20 @@ function HorariosSection({ medicoInicial = null, onInicialAbierto, userRole = 'a
     const id = medicoId || horario?.medico?.id;
     if (!id) return;
     const nombre = nombreMedico || horario?.medico?.nombre || 'este médico';
-    if (!window.confirm(`¿Certificar el horario semanal de ${nombre}?`)) return;
+    const confirmado = await confirmar({
+      titulo: `¿Certificar el horario semanal de ${nombre}?`,
+      texto: 'Se validan los días cargados y se asignan las citas en cola que esperan ese horario.',
+      confirmar: 'Sí, certificar',
+    });
+    if (!confirmado) return;
     setCertificando(id); setError(''); setAviso('');
     try {
       const { data } = await axiosClient.post(`/admin/medicos/${id}/horario/certificar`);
-      setAviso(
-        `Horario de ${data.medico_nombre || nombre} certificado: ${data.dias_certificados} día(s) ` +
-        `de la semana ${data.semana_desde} al ${data.semana_hasta}` +
-        (data.citas_asignadas ? ` y ${data.citas_asignadas} cita(s) asignadas.` : '.')
+      await exito(
+        'Horario certificado',
+        `${data.medico_nombre || nombre}: ${data.dias_certificados} día(s) de la semana ` +
+          `${data.semana_desde} al ${data.semana_hasta}` +
+          (data.citas_asignadas ? ` y ${data.citas_asignadas} cita(s) asignadas.` : '.')
       );
       cargar();
     } catch (e) {

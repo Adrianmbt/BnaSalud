@@ -473,9 +473,40 @@ async def actualizar_usuario(usuario_id: str, payload: UsuarioUpdate, db: AsyncS
     if updates:
         set_clause = ", ".join(f"{k} = :{k}" for k in updates)
         updates["id"] = usuario_id
-        await db.execute(text(f"UPDATE usuarios SET {set_clause} WHERE id = :id"), updates)
-    await db.commit()
-    return {"message": "Usuario actualizado."}
+        try:
+            await db.execute(text(f"UPDATE usuarios SET {set_clause} WHERE id = :id"), updates)
+            await db.commit()
+        except IntegrityError as exc:
+            # Si la BD rechaza el rol (usuarios_rol_check viejo) el panel debe
+            # decir por qué, no quedarse con un 500 y un "no guardó".
+            await db.rollback()
+            raise HTTPException(409, f"La base de datos rechazó el cambio: {exc.orig}")
+    else:
+        await db.commit()
+
+    # Se devuelve lo que quedó realmente guardado: el panel lo muestra como
+    # confirmación para que un cambio no aplicado no parezca "guardado".
+    guardado = (
+        await db.execute(
+            text(
+                "SELECT u.rol, u.activo, u.personal_id, p.nombre, p.apellido, p.especialidad "
+                "FROM usuarios u LEFT JOIN personal p ON p.id = u.personal_id "
+                "WHERE u.id = :id"
+            ),
+            {"id": usuario_id},
+        )
+    ).mappings().first()
+    return {
+        "message": "Usuario actualizado.",
+        "usuario": {
+            "rol": guardado["rol"],
+            "activo": guardado["activo"],
+            "personal_id": guardado["personal_id"],
+            "nombre": guardado["nombre"] or "",
+            "apellido": guardado["apellido"] or "",
+            "especialidad": guardado["especialidad"] or "",
+        } if guardado else None,
+    }
 
 
 @router.delete("/usuarios/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -486,7 +517,17 @@ async def eliminar_usuario(usuario_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "Usuario no encontrado.")
     if row[1] == "admin":
         raise HTTPException(403, "No se puede eliminar el usuario administrador principal.")
-    await db.execute(text("DELETE FROM usuarios WHERE id = :id"), {"id": usuario_id})
+    try:
+        await db.execute(text("DELETE FROM usuarios WHERE id = :id"), {"id": usuario_id})
+        await db.commit()
+    except IntegrityError:
+        # Hay FKs en RESTRICT (por ejemplo ordenes_medicas.medico_id).
+        await db.rollback()
+        raise HTTPException(
+            409,
+            "No se puede eliminar el usuario porque tiene registros asociados "
+            "(por ejemplo órdenes médicas). Desactívalo con el botón de estado.",
+        )
 
 
 # ─── HORARIOS DE MÉDICOS ─────────────────────────────────────────

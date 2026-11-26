@@ -58,6 +58,14 @@ function rangoTurno(inicio, fin) {
   return `${horaHumana(inicio)} – ${horaHumana(fin)}`;
 }
 
+function vinculoPaciente(p) {
+  if (!p?.vinculo) return '';
+  if (p.vinculo === 'trabajador') return 'Trabajador';
+  const parentesco = (p.parentesco || '').toLowerCase();
+  const trabajador = p.empleado_nombre ? ` de ${p.empleado_nombre}` : '';
+  return `Beneficiario${parentesco ? ` · ${parentesco}` : ''}${trabajador}`;
+}
+
 const FORM_NUEVO_VACIO = {
   cedula: '',
   nombre_completo: '',
@@ -92,14 +100,15 @@ export default function NuevaSolicitudCitaModal({ clinicaId, onClose, onCreada }
   const [error, setError] = useState('');
   const [resultado, setResultado] = useState(null);
 
+  // Cartera del centro: solo los médicos que pertenecen a esta clínica.
   useEffect(() => {
     let vivo = true;
     axiosClient
-      .get('/agenda/especialistas')
+      .get('/agenda/especialistas', { params: clinicaId ? { centro_id: clinicaId } : {} })
       .then((r) => { if (vivo) setEspecialistas(r.data || []); })
       .catch(() => { if (vivo) setEspecialistas([]); });
     return () => { vivo = false; };
-  }, []);
+  }, [clinicaId]);
 
   useEffect(() => {
     const alPresionar = (e) => { if (e.key === 'Escape' && !enviando) onClose?.(); };
@@ -201,8 +210,17 @@ export default function NuevaSolicitudCitaModal({ clinicaId, onClose, onCreada }
         motivo: motivo.trim() || null,
         centro_id: clinicaId || null,
       };
-      if (pacienteSel) {
+      if (pacienteSel?.id) {
         payload.paciente_id = pacienteSel.id;
+      } else if (pacienteSel) {
+        // Trabajador o beneficiario sin historia clínica: el backend crea la
+        // ficha a partir de estos datos al confirmar la cita.
+        payload.paciente = {
+          cedula: pacienteSel.cedula,
+          nombre_completo: pacienteSel.nombre_completo,
+          telefono: pacienteSel.telefono || null,
+          fecha_nacimiento: pacienteSel.fecha_nacimiento || null,
+        };
       } else {
         payload.paciente = {
           cedula: formNuevo.cedula.trim(),
@@ -352,10 +370,16 @@ export default function NuevaSolicitudCitaModal({ clinicaId, onClose, onCreada }
                   <div className="flex items-center justify-between gap-3 rounded-md bg-emerald-50 px-2.5 py-2 ring-1 ring-emerald-200">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-900">{pacienteSel.nombre_completo}</p>
-                      <p className="font-mono text-[11px] text-slate-600">
-                        V-{pacienteSel.cedula || '—'}
+                      <p className="truncate text-[11px] text-slate-600">
+                        <span className="font-mono">V-{pacienteSel.cedula || '—'}</span>
                         {pacienteSel.telefono ? ` · ${pacienteSel.telefono}` : ''}
+                        {vinculoPaciente(pacienteSel) ? ` · ${vinculoPaciente(pacienteSel)}` : ''}
                       </p>
+                      {!pacienteSel.id && (
+                        <p className="mt-0.5 text-[11px] font-semibold text-amber-700">
+                          Sin historia clínica: se crea al confirmar la cita.
+                        </p>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -411,7 +435,7 @@ export default function NuevaSolicitudCitaModal({ clinicaId, onClose, onCreada }
                       <input
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
-                        placeholder="Buscar por cédula o nombre"
+                        placeholder="Cédula o nombre de paciente, trabajador o beneficiario"
                         className={`${CAMPO} pl-9`}
                         aria-label="Buscar paciente"
                       />
@@ -421,25 +445,45 @@ export default function NuevaSolicitudCitaModal({ clinicaId, onClose, onCreada }
                     </div>
                     {resultados.length > 0 && (
                       <ul className="max-h-36 divide-y divide-slate-100 overflow-y-auto rounded-md ring-1 ring-slate-200">
-                        {resultados.map((p) => (
-                          <li key={p.id}>
-                            <button
-                              type="button"
-                              onClick={() => seleccionarPaciente(p)}
-                              className="flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left hover:bg-slate-50"
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate text-sm font-semibold text-slate-800">{p.nombre_completo}</span>
-                                <span className="block font-mono text-[11px] text-slate-500">V-{p.cedula || '—'}</span>
-                              </span>
-                              {p.telefono && (
-                                <span className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500">
-                                  <Phone className="h-3 w-3" /> {p.telefono}
+                        {resultados.map((p) => {
+                          const parentesco = p.vinculo === 'beneficiario'
+                            ? [p.parentesco?.toLowerCase(), p.empleado_nombre ? `de ${p.empleado_nombre}` : '']
+                              .filter(Boolean).join(' ')
+                            : '';
+                          return (
+                            <li key={p.id || `${p.vinculo}-${p.cedula}`}>
+                              <button
+                                type="button"
+                                onClick={() => seleccionarPaciente(p)}
+                                className="flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left hover:bg-slate-50"
+                              >
+                                <span className="min-w-0 flex-1">
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="truncate text-sm font-semibold text-slate-800">{p.nombre_completo}</span>
+                                    {p.vinculo && (
+                                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                        p.vinculo === 'trabajador'
+                                          ? 'bg-brand-deep/10 text-brand-deep'
+                                          : 'bg-slate-100 text-slate-600'
+                                      }`}>
+                                        {p.vinculo === 'trabajador' ? 'Trabajador' : 'Beneficiario'}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="block truncate text-[11px] text-slate-500">
+                                    <span className="font-mono">V-{p.cedula || '—'}</span>
+                                    {parentesco && <span> · {parentesco}</span>}
+                                  </span>
                                 </span>
-                              )}
-                            </button>
-                          </li>
-                        ))}
+                                {p.telefono && (
+                                  <span className="flex shrink-0 items-center gap-1 text-[11px] text-slate-500">
+                                    <Phone className="h-3 w-3" /> {p.telefono}
+                                  </span>
+                                )}
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                     )}
                     {q.trim().length >= 2 && !buscando && resultados.length === 0 && (

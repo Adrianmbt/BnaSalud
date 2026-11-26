@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, Edit, Trash2, Package, ChevronLeft, ChevronRight } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import InsumoFormModal from './InsumoFormModal';
+import { confirmar, errorAlerta, exitoRapido } from '../../utils/alertas';
 
 const PER_PAGE = 8;
 
@@ -45,6 +46,7 @@ export default function InsumosSection() {
   }, [searchInput]);
 
   const handleSubmit = async (form) => {
+    const esEdicion = Boolean(editing);
     try {
       if (editing) {
         await axiosClient.put(`/farmacia/insumos/${editing.id}`, form);
@@ -54,18 +56,32 @@ export default function InsumosSection() {
       setModalOpen(false);
       setEditing(null);
       fetchData();
+      exitoRapido(esEdicion ? 'Insumo actualizado' : 'Insumo cargado con éxito');
     } catch (err) {
-      console.error('Error saving insumo:', err);
+      await errorAlerta(
+        'No se pudo guardar el insumo',
+        err?.response?.data?.detail || 'Revise la conexión e intente de nuevo.'
+      );
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Eliminar este insumo?')) return;
+    const confirmado = await confirmar({
+      titulo: '¿Eliminar este insumo?',
+      texto: 'Se quitará del catálogo de farmacia. Esta acción no se puede deshacer.',
+      confirmar: 'Sí, eliminar',
+      peligro: true,
+    });
+    if (!confirmado) return;
     try {
       await axiosClient.delete(`/farmacia/insumos/${id}`);
       fetchData();
+      exitoRapido('Insumo eliminado');
     } catch (err) {
-      console.error('Error deleting insumo:', err);
+      await errorAlerta(
+        'No se pudo eliminar el insumo',
+        err?.response?.data?.detail || 'Puede que esté en uso. Intente de nuevo.'
+      );
     }
   };
 

@@ -1,25 +1,27 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  CalendarDays,
+  AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Copy,
-  FileText,
   Loader2,
   MessageCircle,
+  Pencil,
   Phone,
-  Search,
-  Send,
   UserRound,
   X,
 } from 'lucide-react';
-import axiosClient from '../../api/axiosClient';
 import {
   listarCitas,
+  listarEspecialidades,
   listarSemanasCertificadas,
 } from '../../api/reprogramaciones';
 import AsignarCitaModal from './AsignarCitaModal';
+import EditarPacienteModal from './EditarPacienteModal';
+
+// Estados que cuentan como cita vigente de la semana (las canceladas y las ya
+// atendidas no entran en el control de pacientes registrados).
+const ESTADOS_ACTIVOS = ['preasignada', 'pendiente', 'confirmada'];
 
 function fechaLarga(iso) {
   if (!iso) return 'Sin fecha';
@@ -33,10 +35,20 @@ function fechaLarga(iso) {
   });
 }
 
+function fechaCorta(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString('es-VE', {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
 function horaHumana(hhmm) {
   if (!hhmm) return '';
   const [hStr, mStr] = hhmm.split(':');
-  let h = parseInt(hStr, 10, 10);
+  let h = parseInt(hStr, 10);
   const m = mStr || '00';
   if (h === 12 && m === '00') return '12:00 m';
   const ampm = h >= 12 ? 'pm' : 'am';
@@ -45,12 +57,21 @@ function horaHumana(hhmm) {
   return `${h}:${m} ${ampm}`;
 }
 
+// La BD mezcla especialidades con y sin tilde ("Cardiologia"/"Cardiología");
+// el filtro las compara sin tildes, igual que el backend.
+function sinTildes(texto) {
+  return (texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function telefonoWa(telefono) {
   const digitos = String(telefono || '').replace(/\D/g, '');
   if (!digitos) return '';
   if (digitos.startsWith('58')) return digitos;
   if (digitos.startsWith('0')) return `58${digitos.slice(1)}`;
-  if (digitos.length === 10) return `58${digitos}`;
   return `58${digitos}`;
 }
 
@@ -76,6 +97,36 @@ function estadoBadge(estado) {
   );
 }
 
+function contar(items) {
+  return items.reduce(
+    (acc, c) => {
+      acc.total += 1;
+      if (c.tipo_afiliacion === 'trabajador') acc.trabajadores += 1;
+      else if (c.tipo_afiliacion === 'beneficiario') acc.beneficiarios += 1;
+      else acc.publico_general += 1;
+      return acc;
+    },
+    { total: 0, trabajadores: 0, beneficiarios: 0, publico_general: 0 }
+  );
+}
+
+function TarjetaConteo({ label, valor, detalle, tono }) {
+  const tonos = {
+    total: 'bg-brand-deep/5 ring-brand-deep/20 text-brand-deep',
+    nomina: 'bg-sky-50 ring-sky-200 text-sky-800',
+    trabajadores: 'bg-indigo-50 ring-indigo-200 text-indigo-800',
+    beneficiarios: 'bg-teal-50 ring-teal-200 text-teal-800',
+    general: 'bg-amber-50 ring-amber-200 text-amber-800',
+  };
+  return (
+    <div className={`rounded-lg px-2.5 py-2 ring-1 ${tonos[tono] || tonos.total}`}>
+      <div className="text-[9px] font-semibold uppercase tracking-wide opacity-70">{label}</div>
+      <div className="font-display font-bold text-base leading-tight tabular-nums">{valor}</div>
+      {detalle && <div className="text-[9px] opacity-60 leading-tight">{detalle}</div>}
+    </div>
+  );
+}
+
 export default function CitasProgramadas({ clinicaId }) {
   const [semanas, setSemanas] = useState([]);
   const [semanaActiva, setSemanaActiva] = useState(null);
@@ -84,16 +135,19 @@ export default function CitasProgramadas({ clinicaId }) {
   const [total, setTotal] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
+  const [especialidades, setEspecialidades] = useState([]);
   const [especialidadFiltro, setEspecialidadFiltro] = useState('');
+  const [medicoFiltro, setMedicoFiltro] = useState('');
 
   // Modal de asignación (reusa AsignarCitaModal).
   const [citaEditar, setCitaEditar] = useState(null);
 
+  // Modal para corregir los datos del paciente (teléfono mal capturado, etc.).
+  const [pacienteEditar, setPacienteEditar] = useState(null);
+
   // Modal de notificación.
   const [abiertoNotificar, setAbiertoNotificar] = useState(false);
   const [citasNotificar, setCitasNotificar] = useState([]);
-
-  const semanasRef = useRef([]);
 
   const cargarSemanas = useCallback(async () => {
     setCargando(true);
@@ -104,24 +158,47 @@ export default function CitasProgramadas({ clinicaId }) {
       const data = await listarSemanasCertificadas(params);
       const lista = data.semanas || [];
       setSemanas(lista);
-      semanasRef.current = lista;
-      if (!semanaActiva && lista.length > 0) {
-        const ultima = lista.find((s) => s.es_ultima) || lista[0];
-        setSemanaActiva(ultima);
-      }
+      setSemanaActiva((actual) => {
+        const misma = actual && lista.find((s) => s.semana_desde === actual.semana_desde);
+        if (misma) return misma;
+        return (
+          lista.find((s) => s.es_actual) ||
+          lista.find((s) => s.es_ultima) ||
+          lista[lista.length - 1] ||
+          null
+        );
+      });
     } catch (err) {
-      setError('No se pudieron cargar las semanas certificadas.');
+      setError('No se pudieron cargar las semanas.');
     } finally {
       setCargando(false);
     }
-  }, [clinicaId, semanaActiva]);
+  }, [clinicaId]);
 
   useEffect(() => {
     cargarSemanas();
   }, [cargarSemanas]);
 
+  useEffect(() => {
+    let vivo = true;
+    listarEspecialidades()
+      .then((data) => {
+        if (vivo) setEspecialidades(data.items || []);
+      })
+      .catch(() => {
+        if (vivo) setEspecialidades([]);
+      });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
   const cargarCitas = useCallback(async () => {
-    if (!semanaActiva) return;
+    if (!semanaActiva) {
+      setItems([]);
+      setTotal(0);
+      return;
+    }
     setCargando(true);
     setError('');
     try {
@@ -129,11 +206,9 @@ export default function CitasProgramadas({ clinicaId }) {
         centro_id: clinicaId,
         fecha_desde: semanaActiva.semana_desde,
         fecha_hasta: semanaActiva.semana_hasta,
-        estado: pestana === 'por_asignar' ? 'preasignada' : 'confirmada',
         page: 1,
         limit: 200,
       };
-      if (especialidadFiltro) params.especialidad = especialidadFiltro;
       const data = await listarCitas(params);
       const lista = (data.items || []).map((c) => ({
         ...c,
@@ -146,23 +221,52 @@ export default function CitasProgramadas({ clinicaId }) {
     } finally {
       setCargando(false);
     }
-  }, [semanaActiva, pestana, clinicaId, especialidadFiltro]);
+  }, [semanaActiva, clinicaId]);
 
   useEffect(() => {
     cargarCitas();
   }, [cargarCitas]);
 
-  const especialidades = useMemo(
-    () => {
-      const set = new Set(items.map((c) => c.especialidad).filter(Boolean));
-      return Array.from(set).sort();
-    },
-    [items]
+  const indiceSemana = semanas.findIndex(
+    (s) => s.semana_desde === semanaActiva?.semana_desde
   );
 
-  const porAsignar = items.filter((c) => c.estado === 'preasignada');
-  const programadas = items.filter((c) => c.estado === 'confirmada');
+  const medicos = useMemo(() => {
+    const mapa = new Map();
+    items.forEach((c) => {
+      if (c.medico_id && c.medico_nombre) mapa.set(String(c.medico_id), c.medico_nombre);
+    });
+    return Array.from(mapa, ([id, nombre]) => ({ id, nombre })).sort((a, b) =>
+      a.nombre.localeCompare(b.nombre)
+    );
+  }, [items]);
+
+  // Si el médico filtrado no tiene citas en la semana elegida, se limpia el
+  // filtro para no dejar una tabla vacía sin explicación.
+  useEffect(() => {
+    if (!medicoFiltro) return;
+    const sigue = items.some((c) => String(c.medico_id || '') === String(medicoFiltro));
+    if (!sigue) setMedicoFiltro('');
+  }, [items, medicoFiltro]);
+
+  const filtradas = useMemo(() => {
+    const esp = sinTildes(especialidadFiltro);
+    return items.filter((c) => {
+      if (esp && sinTildes(c.especialidad) !== esp) return false;
+      if (medicoFiltro && String(c.medico_id || '') !== String(medicoFiltro)) return false;
+      return true;
+    });
+  }, [items, especialidadFiltro, medicoFiltro]);
+
+  const vigentes = filtradas.filter((c) => ESTADOS_ACTIVOS.includes(c.estado));
+  const resumen = contar(vigentes);
+  const porAsignar = filtradas.filter((c) => c.estado === 'preasignada');
+  const programadas = filtradas.filter((c) => c.estado === 'confirmada');
+  const visibles = pestana === 'por_asignar' ? porAsignar : programadas;
   const conTelefono = programadas.filter((c) => c.telefonoWa);
+
+  const hayFiltro = Boolean(especialidadFiltro || medicoFiltro);
+  const sinAsignarSemana = semanaActiva?.total_citas ?? 0;
 
   const pacienteData = useCallback(
     (cita) => ({
@@ -190,6 +294,7 @@ export default function CitasProgramadas({ clinicaId }) {
   const manejarAsignada = () => {
     cerrarAsignar();
     cargarCitas();
+    cargarSemanas();
   };
 
   const abrirNotificar = () => {
@@ -207,10 +312,18 @@ export default function CitasProgramadas({ clinicaId }) {
   };
 
   const semanaLabel = semanaActiva
-    ? `${fechaLarga(semanaActiva.semana_desde)} al ${fechaLarga(
+    ? `del ${fechaLarga(semanaActiva.semana_desde)} al ${fechaLarga(
         semanaActiva.semana_hasta
       )}`
     : '—';
+
+  const estadoSemana = !semanaActiva
+    ? '—'
+    : semanaActiva.certificada
+      ? semanaActiva.es_ultima
+        ? 'Última verificada'
+        : 'Verificada'
+      : 'Sin verificar';
 
   return (
     <div className="space-y-4">
@@ -221,7 +334,7 @@ export default function CitasProgramadas({ clinicaId }) {
             Citas programadas
           </h2>
           <p className="text-[10px] text-slate-500 font-medium">
-            Semana certificada: {semanaLabel}
+            Semana {semanaLabel} · {estadoSemana}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -237,50 +350,60 @@ export default function CitasProgramadas({ clinicaId }) {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-3 py-2 text-[12px]">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 text-rose-700 px-3 py-2 text-[12px] flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" /> {error}
         </div>
       )}
 
       {/* Semana y pestañas */}
-      <div className="flex flex-col sm:flex-row items-center gap-4 sm:items-start">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col lg:flex-row lg:items-start gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-slate-500">Semana</span>
           <button
             onClick={() => {
-              const idx = semanasRef.current.findIndex(
-                (s) => s.semana_desde === semanaActiva?.semana_desde
-              );
-              const anterior = semanasRef.current[idx + 1];
+              const anterior = semanas[indiceSemana - 1];
               if (anterior) setSemanaActiva(anterior);
             }}
-            className="p-1.5 rounded hover:bg-slate-100 text-slate-500"
-            disabled={
-              !semanaActiva ||
-              semanasRef.current.length <= 1 ||
-              semanasRef.current.indexOf(semanaActiva) ===
-                semanasRef.current.length - 1
-            }
+            className="p-1.5 rounded hover:bg-slate-100 text-slate-500 disabled:opacity-40"
+            aria-label="Semana anterior"
+            disabled={indiceSemana <= 0}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="px-2 py-0.5 rounded text-[11px] font-bold border">
-            {semanaActiva?.es_ultima ? 'Última verificada' : 'Verificada'}
+          <select
+            value={semanaActiva?.semana_desde || ''}
+            onChange={(e) => {
+              const elegida = semanas.find((s) => s.semana_desde === e.target.value);
+              if (elegida) setSemanaActiva(elegida);
+            }}
+            className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 bg-white focus:ring-1 focus:ring-brand-deep max-w-[260px]"
+          >
+            {semanas.length === 0 && <option value="">Sin semanas</option>}
+            {semanas.map((s) => (
+              <option key={s.semana_desde} value={s.semana_desde}>
+                {fechaCorta(s.semana_desde)} – {fechaCorta(s.semana_hasta)} ·{' '}
+                {s.total_citas} cita(s) ·{' '}
+                {s.certificada ? (s.es_ultima ? 'última verificada' : 'verificada') : 'sin verificar'}
+              </option>
+            ))}
+          </select>
+          <span
+            className={`px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${
+              semanaActiva?.certificada
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-amber-50 text-amber-700 border-amber-200'
+            }`}
+          >
+            {estadoSemana}
           </span>
           <button
             onClick={() => {
-              const idx = semanasRef.current.findIndex(
-                (s) => s.semana_desde === semanaActiva?.semana_desde
-              );
-              const siguiente = semanasRef.current[idx - 1];
+              const siguiente = semanas[indiceSemana + 1];
               if (siguiente) setSemanaActiva(siguiente);
             }}
-            className="p-1.5 rounded hover:bg-slate-100 text-slate-500"
-            disabled={
-              !semanaActiva ||
-              semanasRef.current.length <= 1 ||
-              semanasRef.current.indexOf(semanaActiva) === 0
-            }
+            className="p-1.5 rounded hover:bg-slate-100 text-slate-500 disabled:opacity-40"
+            aria-label="Semana siguiente"
+            disabled={indiceSemana < 0 || indiceSemana >= semanas.length - 1}
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -309,45 +432,57 @@ export default function CitasProgramadas({ clinicaId }) {
           </button>
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Filtrar por especialidad"
-              value={especialidadFiltro}
-              onChange={(e) => setEspecialidadFiltro(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-[11px] border border-slate-200 rounded-lg focus:ring-1 focus:ring-brand-deep bg-white"
-            />
-          </div>
-          {especialidades.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
-              <button
-                onClick={() => setEspecialidadFiltro('')}
-                className="px-2 py-0.5 rounded text-[10px] text-slate-600 border border-slate-200 bg-white hover:bg-slate-100"
-              >
-                Todas
-              </button>
-              {especialidades.map((esp) => (
-                <button
-                  key={esp}
-                  onClick={() => setEspecialidadFiltro(esp)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-colors ${
-                    especialidadFiltro === esp
-                      ? 'bg-brand-deep text-white border-brand-deep'
-                      : 'text-slate-600 border-slate-200 bg-white hover:bg-slate-100'
-                  }`}
-                >
-                  {esp}
-                </button>
-              ))}
-            </div>
-          )}
+        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 min-w-0">
+          <select
+            value={especialidadFiltro}
+            onChange={(e) => setEspecialidadFiltro(e.target.value)}
+            className="w-full text-[11px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:ring-1 focus:ring-brand-deep"
+            aria-label="Filtrar por especialidad"
+          >
+            <option value="">Todas las especialidades</option>
+            {especialidades.map((esp) => (
+              <option key={esp} value={esp}>
+                {esp}
+              </option>
+            ))}
+          </select>
+          <select
+            value={medicoFiltro}
+            onChange={(e) => setMedicoFiltro(e.target.value)}
+            className="w-full text-[11px] border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:ring-1 focus:ring-brand-deep"
+            aria-label="Filtrar por médico"
+          >
+            <option value="">Todos los médicos</option>
+            {medicos.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nombre}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
+      {/* Control de pacientes registrados en la semana */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <TarjetaConteo
+          label="Registradas"
+          valor={resumen.total}
+          detalle={hayFiltro ? 'con filtros' : `semana: ${sinAsignarSemana}`}
+          tono="total"
+        />
+        <TarjetaConteo label="Nómina" valor={resumen.trabajadores + resumen.beneficiarios} detalle="trabajadores + beneficiarios" tono="nomina" />
+        <TarjetaConteo label="Trabajadores" valor={resumen.trabajadores} tono="trabajadores" />
+        <TarjetaConteo label="Beneficiarios" valor={resumen.beneficiarios} tono="beneficiarios" />
+        <TarjetaConteo label="Público general" valor={resumen.publico_general} tono="general" />
+      </div>
+
       {/* Tabla */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto relative">
+        {cargando && (
+          <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+            <Loader2 className="w-5 h-5 animate-spin text-brand-primary" />
+          </div>
+        )}
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
@@ -359,6 +494,9 @@ export default function CitasProgramadas({ clinicaId }) {
               </th>
               <th className="text-left px-3 py-2 text-[11px] font-semibold text-slate-500">
                 Teléfono
+              </th>
+              <th className="text-left px-3 py-2 text-[11px] font-semibold text-slate-500">
+                Afiliación
               </th>
               <th className="text-left px-3 py-2 text-[11px] font-semibold text-slate-500">
                 Especialidad
@@ -378,14 +516,14 @@ export default function CitasProgramadas({ clinicaId }) {
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 ? (
+            {visibles.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-slate-400 text-[12px]">
+                <td colSpan={9} className="px-3 py-6 text-center text-slate-400 text-[12px]">
                   No hay citas {pestana === 'por_asignar' ? 'preasignadas' : 'programadas'} en esta semana.
                 </td>
               </tr>
             ) : (
-              items.map((cita) => {
+              visibles.map((cita) => {
                 const asignada =
                   cita.fecha_cita && cita.hora_inicio && cita.hora_inicio !== '08:00';
                 return (
@@ -411,6 +549,13 @@ export default function CitasProgramadas({ clinicaId }) {
                         <span className="text-rose-500">Sin teléfono</span>
                       )}
                     </td>
+                    <td className="px-3 py-2.5 text-slate-600 capitalize">
+                      {cita.tipo_afiliacion === 'trabajador'
+                        ? 'Trabajador'
+                        : cita.tipo_afiliacion === 'beneficiario'
+                          ? 'Beneficiario'
+                          : 'Público general'}
+                    </td>
                     <td className="px-3 py-2.5 text-slate-700">
                       {cita.especialidad || '—'}
                     </td>
@@ -424,24 +569,38 @@ export default function CitasProgramadas({ clinicaId }) {
                     </td>
                     <td className="px-3 py-2.5 text-center">{estadoBadge(cita.estado)}</td>
                     <td className="px-3 py-2.5 text-right">
-                      {cita.estado === 'preasignada' ? (
+                      <div className="inline-flex items-center gap-1.5">
                         <button
-                          onClick={() => abrirAsignar(cita)}
-                          className="px-2.5 py-1 rounded text-[10px] font-semibold bg-brand-deep text-white hover:bg-brand-deep/90"
+                          onClick={() => setPacienteEditar(cita)}
+                          disabled={!cita.paciente_id}
+                          title={
+                            cita.paciente_id
+                              ? 'Editar nombre y datos de contacto del paciente'
+                              : 'La cita no tiene historia clínica asociada'
+                          }
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          Asignar
+                          <Pencil className="w-3 h-3" /> Datos
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setCitasNotificar([cita]);
-                            setAbiertoNotificar(true);
-                          }}
-                          className="px-2.5 py-1 rounded text-[10px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
-                        >
-                          Notificar
-                        </button>
-                      )}
+                        {cita.estado === 'preasignada' ? (
+                          <button
+                            onClick={() => abrirAsignar(cita)}
+                            className="px-2.5 py-1 rounded text-[10px] font-semibold bg-brand-deep text-white hover:bg-brand-deep/90"
+                          >
+                            Asignar
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setCitasNotificar([cita]);
+                              setAbiertoNotificar(true);
+                            }}
+                            className="px-2.5 py-1 rounded text-[10px] font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                          >
+                            Notificar
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -452,10 +611,11 @@ export default function CitasProgramadas({ clinicaId }) {
       </div>
 
       <div className="text-[10px] text-slate-400 mt-1">
-        {total} cita(s) de la semana{' '}
+        {total} cita(s) en la semana{' '}
         {pestana === 'por_asignar'
-          ? `${porAsignar.length} por asignar`
-          : `${programadas.length} programadas`}
+          ? `· ${porAsignar.length} por asignar`
+          : `· ${programadas.length} programadas`}
+        {hayFiltro && ' (filtros aplicados)'}
       </div>
 
       {/* Modal asignar */}
@@ -465,6 +625,25 @@ export default function CitasProgramadas({ clinicaId }) {
           pacienteData={pacienteData(citaEditar)}
           onClose={cerrarAsignar}
           onAsignada={manejarAsignada}
+          centroId={clinicaId}
+          offsetConSidebar
+        />
+      )}
+
+      {/* Modal editar datos del paciente */}
+      {pacienteEditar && (
+        <EditarPacienteModal
+          paciente={{
+            id: pacienteEditar.paciente_id,
+            nombre_completo: pacienteEditar.paciente_nombre,
+            cedula: pacienteEditar.paciente_cedula,
+            telefono: pacienteEditar.paciente_telefono,
+          }}
+          onClose={() => setPacienteEditar(null)}
+          onGuardado={() => {
+            setPacienteEditar(null);
+            cargarCitas();
+          }}
           offsetConSidebar
         />
       )}

@@ -20,6 +20,15 @@ class PacienteCreate(BaseModel):
     email: Optional[str] = Field(default=None, max_length=120)
 
 
+class PacienteContactoUpdate(BaseModel):
+    """Corrección de los datos del paciente desde recepción (sin tocar la cédula)."""
+
+    nombre_completo: Optional[str] = Field(default=None, min_length=2, max_length=200)
+    telefono: Optional[str] = Field(default=None, max_length=40)
+    direccion: Optional[str] = None
+    email: Optional[str] = Field(default=None, max_length=120)
+
+
 class PacienteOut(BaseModel):
     id: str
     cedula: str

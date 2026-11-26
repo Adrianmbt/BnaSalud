@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, Edit, Trash2, Pill, ChevronLeft, ChevronRight } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
 import MedicamentoFormModal from './MedicamentoFormModal';
+import { confirmar, errorAlerta, exitoRapido } from '../../utils/alertas';
 
 const PER_PAGE = 8;
 
@@ -46,6 +47,7 @@ export default function MedicamentosSection() {
   }, [searchInput]);
 
   const handleSubmit = async (form) => {
+    const esEdicion = Boolean(editing);
     try {
       if (editing) {
         await axiosClient.put(`/farmacia/medicamentos/${editing.id}`, form);
@@ -55,18 +57,32 @@ export default function MedicamentosSection() {
       setModalOpen(false);
       setEditing(null);
       fetchData();
+      exitoRapido(esEdicion ? 'Medicamento actualizado' : 'Medicamento cargado con éxito');
     } catch (err) {
-      console.error('Error saving medicamento:', err);
+      await errorAlerta(
+        'No se pudo guardar el medicamento',
+        err?.response?.data?.detail || 'Revise la conexión e intente de nuevo.'
+      );
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Eliminar este medicamento?')) return;
+    const confirmado = await confirmar({
+      titulo: '¿Eliminar este medicamento?',
+      texto: 'Se quitará del catálogo de farmacia. Esta acción no se puede deshacer.',
+      confirmar: 'Sí, eliminar',
+      peligro: true,
+    });
+    if (!confirmado) return;
     try {
       await axiosClient.delete(`/farmacia/medicamentos/${id}`);
       fetchData();
+      exitoRapido('Medicamento eliminado');
     } catch (err) {
-      console.error('Error deleting medicamento:', err);
+      await errorAlerta(
+        'No se pudo eliminar el medicamento',
+        err?.response?.data?.detail || 'Puede que esté en uso. Intente de nuevo.'
+      );
     }
   };
 

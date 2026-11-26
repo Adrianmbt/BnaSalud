@@ -51,7 +51,7 @@ function fechaLarga(iso) {
   });
 }
 
-export default function ReprogramacionCitas() {
+export default function ReprogramacionCitas({ clinicaId = null }) {
   const [medicos, setMedicos] = useState([]);
   const [cargandoMedicos, setCargandoMedicos] = useState(true);
   const [medicoId, setMedicoId] = useState('');
@@ -80,10 +80,11 @@ export default function ReprogramacionCitas() {
     [turnos, turnoId],
   );
 
+  // Cartera del centro: solo los médicos que pertenecen a esta clínica.
   useEffect(() => {
     let activo = true;
     axiosClient
-      .get('/agenda/especialistas')
+      .get('/agenda/especialistas', { params: clinicaId ? { centro_id: clinicaId } : {} })
       .then(({ data }) => {
         if (activo) setMedicos(Array.isArray(data) ? data : []);
       })
@@ -96,7 +97,7 @@ export default function ReprogramacionCitas() {
     return () => {
       activo = false;
     };
-  }, []);
+  }, [clinicaId]);
 
   // Turnos de hoy del médico seleccionado.
   useEffect(() => {
@@ -427,6 +428,11 @@ export default function ReprogramacionCitas() {
                 <option value="">
                   {cargandoMedicos ? 'Cargando médicos…' : 'Selecciona un médico'}
                 </option>
+                {!cargandoMedicos && medicos.length === 0 && (
+                  <option value="" disabled>
+                    Sin médicos registrados en este centro
+                  </option>
+                )}
                 {medicos.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.nombre} — {m.especialidad || 'Sin especialidad'}

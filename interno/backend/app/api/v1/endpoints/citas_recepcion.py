@@ -40,7 +40,7 @@ async def buscar_pacientes(
     q: str = Query(..., min_length=2, description="Cédula o nombre"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Buscador rápido de pacientes para el alta de la cita."""
+    """Buscador de pacientes, trabajadores y beneficiarios para la cita."""
     return {"items": await svc.buscar_pacientes(db, q)}
 
 

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models.clinica import Clinica
 from app.models.guardia import Guardia
 from app.models.usuario import Personal, Usuario
@@ -106,27 +107,36 @@ async def login(
             detail="Credenciales inválidas o usuario inactivo.",
         )
 
-    # Solo el médico de emergencia con guardia ACTIVA que cubra HOY puede
-    # ingresar al módulo de emergencia (la guardia la gestiona recepción).
-    # La guardia puede haberse iniciado ayer (turno nocturno/24h que cruza medianoche).
-    if usuario.rol == "medico_emergencia":
-        guardia = (
-            await db.execute(
-                select(func.count()).select_from(Guardia).where(
-                    Guardia.medico_id == usuario.personal_id,
-                    Guardia.fecha.in_([func.current_date(), func.current_date() - 1]),
-                    Guardia.estado == "ACTIVA",
-                )
-            )
-        ).scalar_one()
-        if not guardia:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No tiene una guardia activa asignada para hoy. "
-                       "Solo el médico de emergencia de guardia puede ingresar. "
-                       "Solicite a recepción que inicie su guardia.",
-            )
+    await _verificar_guardia_emergencia(db, usuario)
+    return await _armar_sesion(db, usuario)
 
+
+async def _verificar_guardia_emergencia(db: AsyncSession, usuario: Usuario) -> None:
+    """Solo el médico de emergencia con guardia ACTIVA que cubra HOY puede
+    ingresar al módulo de emergencia (la guardia la gestiona recepción).
+    La guardia puede haberse iniciado ayer (turno nocturno/24h que cruza medianoche)."""
+    if usuario.rol != "medico_emergencia":
+        return
+    guardia = (
+        await db.execute(
+            select(func.count()).select_from(Guardia).where(
+                Guardia.medico_id == usuario.personal_id,
+                Guardia.fecha.in_([func.current_date(), func.current_date() - 1]),
+                Guardia.estado == "ACTIVA",
+            )
+        )
+    ).scalar_one()
+    if not guardia:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene una guardia activa asignada para hoy. "
+                   "Solo el médico de emergencia de guardia puede ingresar. "
+                   "Solicite a recepción que inicie su guardia.",
+        )
+
+
+async def _armar_sesion(db: AsyncSession, usuario: Usuario) -> LoginResponse:
+    """Datos de sesión que consume la interfaz (rol ya mapeado, nombre y centro)."""
     # Nombre de la persona vinculada (tabla personal) para mostrar en la UI.
     nombre = f"Usuario: {usuario.username}"
     especialidad = None
@@ -193,3 +203,33 @@ async def login(
         clinica_code=clinica_code,
         clinica_nombre=clinica_nombre,
     )
+
+
+@router.get(
+    "/sesion",
+    response_model=LoginResponse,
+    summary="Revalida el token guardado y devuelve el rol vigente",
+)
+async def sesion_actual(
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+) -> LoginResponse:
+    """La app restauraba el rol guardado en el dispositivo y nunca lo revalidaba:
+    si Administración cambiaba el rol del usuario (o se cerraba su guardia), la
+    sesión abierta seguía mostrando la interfaz anterior. Al arrancar se consulta
+    aquí para pintar el módulo correcto o volver al login."""
+    usuario = (
+        await db.execute(select(Usuario).where(Usuario.username == user.get("sub", "")))
+    ).scalar_one_or_none()
+    if not usuario or not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="La sesión ya no es válida: el usuario fue desactivado o eliminado.",
+        )
+    if usuario.rol not in MODULOS_INTERNOS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Este rol no tiene acceso al módulo interno.",
+        )
+    await _verificar_guardia_emergencia(db, usuario)
+    return await _armar_sesion(db, usuario)

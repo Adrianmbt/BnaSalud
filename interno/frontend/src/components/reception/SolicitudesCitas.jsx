@@ -395,13 +395,15 @@ export default function SolicitudesCitas({ clinicaId }) {
       .then((data) => { if (vivo) setEspecialidades(data.items || []); })
       .catch(() => { if (vivo) setEspecialidades([]); });
 
+    // Cartera del centro: el selector de asignación no debe ofrecer médicos
+    // de otras clínicas.
     axiosClient
-      .get('/agenda/especialistas')
+      .get('/agenda/especialistas', { params: clinicaId ? { centro_id: clinicaId } : {} })
       .then((r) => { if (vivo) setEspecialistas(r.data || []); })
       .catch(() => { if (vivo) setEspecialistas([]); });
 
     return () => { vivo = false; };
-  }, []);
+  }, [clinicaId]);
 
   const cargar = useCallback(async (pagina, datos) => {
     setCargando(true);

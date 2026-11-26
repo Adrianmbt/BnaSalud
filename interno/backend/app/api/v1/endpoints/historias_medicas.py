@@ -22,6 +22,7 @@ from app.schemas.historias_medicas import (
     FichaIntegralUpsert,
     MedicoOut,
     MetricaRepososOut,
+    PacienteContactoUpdate,
     PacienteCreate,
     PacienteDetalleOut,
     PacienteOut,
@@ -44,6 +45,10 @@ LECTURA = require_roles(
     "director",
 )
 ESCRITURA = require_roles("historias_medicas")
+# Recepción corrige datos de contacto capturados con errores al agendar.
+ESCRITURA_CONTACTO = require_roles(
+    "historias_medicas", "recepcionista", "admin_sistemas", "director"
+)
 ANULACION = require_roles("historias_medicas", "admin_sistemas", "director")
 
 CLINICA_CITAB_ID = 2
@@ -522,6 +527,67 @@ async def detalle_paciente(
         "atenciones": [_serializar_atencion(a) for a in atenciones],
         "reposos": [_serializar_reposo(r) for r in reposos],
     }
+
+
+@router.patch("/pacientes/{historia_id}/contacto", response_model=PacienteOut)
+async def actualizar_contacto_paciente(
+    historia_id: str,
+    payload: PacienteContactoUpdate,
+    db: AsyncSession = Depends(get_db),
+    _usuario: dict = Depends(ESCRITURA_CONTACTO),
+):
+    """Corrige nombre y datos de contacto del paciente.
+
+    Solo se actualizan los campos enviados; la cédula y la ficha clínica no se
+    tocan. Lo usa recepción cuando se registra un dato equivocado al agendar.
+    """
+    await _paciente_o_404(db, historia_id)
+    cambios = payload.model_dump(exclude_unset=True)
+
+    asignaciones: list[str] = []
+    params: dict = {"id": historia_id}
+
+    if "nombre_completo" in cambios:
+        nombre = (cambios["nombre_completo"] or "").strip()
+        if not nombre:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "El nombre del paciente no puede quedar vacío."
+            )
+        asignaciones.append("nombre_completo = :nombre")
+        params["nombre"] = nombre
+
+    for campo in ("telefono", "direccion", "email"):
+        if campo in cambios:
+            asignaciones.append(f"{campo} = :{campo}")
+            params[campo] = (cambios[campo] or "").strip() or None
+
+    if not asignaciones:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No se enviaron datos para actualizar.")
+
+    await db.execute(
+        text(f"UPDATE historias_clinicas SET {', '.join(asignaciones)} WHERE id = :id"),
+        params,
+    )
+
+    fila = (
+        await db.execute(
+            text(
+                "SELECT h.id, h.cedula, h.tipo_cedula, h.nombre_completo, h.fecha_nacimiento, "
+                "       h.telefono, h.direccion, h.numero_historia, f.numero_carpeta, "
+                "       (f.id IS NOT NULL) AS tiene_ficha, "
+                "       EXISTS (SELECT 1 FROM empleados e "
+                "               WHERE e.cedula = h.cedula AND e.activo = TRUE) AS es_trabajador, "
+                "       EXISTS (SELECT 1 FROM beneficiarios b "
+                "               WHERE b.cedula = h.cedula AND b.activo = TRUE) AS es_beneficiario "
+                "  FROM historias_clinicas h "
+                "  LEFT JOIN historias_integrales f ON f.historia_clinica_id = h.id "
+                " WHERE h.id = :id"
+            ),
+            {"id": historia_id},
+        )
+    ).mappings().first()
+    await db.commit()
+    return _serializar_paciente(fila)
 
 
 # ─── FICHA INTEGRAL ───────────────────────────────────────────────

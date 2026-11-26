@@ -137,29 +137,75 @@ async def asegurar_tablas(db: AsyncSession) -> None:
 # Pacientes
 # ─────────────────────────────────────────────────────────────────────────────
 async def buscar_pacientes(db: AsyncSession, q: str, limite: int = 8) -> list:
-    """Buscador rápido por cédula o nombre para el alta de la cita."""
+    """Buscador rápido por cédula o nombre para el alta de la cita.
+
+    Suma tres fuentes: pacientes con historia clínica, trabajadores activos
+    (tabla `empleados`) y sus beneficiarios registrados. Un trabajador o
+    beneficiario que todavía no tiene ficha vuelve con `id` nulo; la cita se
+    registra con sus datos y la historia clínica se crea al confirmarla.
+
+    Al buscar el nombre o la cédula de un trabajador también aparecen sus
+    beneficiarios, para agendar a la familia sin repetir la búsqueda.
+    """
     termino = (q or "").strip()
     if len(termino) < 2:
         return []
     filas = (
         await db.execute(
             text(
-                "SELECT id, cedula, nombre_completo, telefono, fecha_nacimiento "
-                "FROM historias_clinicas "
-                "WHERE cedula ILIKE :q OR nombre_completo ILIKE :q "
-                "ORDER BY nombre_completo "
+                "SELECT * FROM ("
+                "  SELECT h.id::text AS id, h.cedula, h.nombre_completo, h.telefono,"
+                "         h.fecha_nacimiento::text AS fecha_nacimiento,"
+                "         CASE"
+                "           WHEN EXISTS (SELECT 1 FROM empleados e2"
+                "                        WHERE e2.cedula = h.cedula AND e2.activo)"
+                "             THEN 'trabajador'"
+                "           WHEN EXISTS (SELECT 1 FROM beneficiarios b2"
+                "                        WHERE b2.cedula = h.cedula AND b2.activo)"
+                "             THEN 'beneficiario'"
+                "           ELSE ''"
+                "         END AS vinculo,"
+                "         ''::text AS parentesco, ''::text AS empleado_nombre"
+                "    FROM historias_clinicas h"
+                "   WHERE h.cedula ILIKE :q OR h.nombre_completo ILIKE :q"
+                "  UNION ALL"
+                "  SELECT NULL, e.cedula, e.nombre_completo, e.telefono,"
+                "         e.fecha_nacimiento::text,"
+                "         'trabajador', '', ''"
+                "    FROM empleados e"
+                "   WHERE COALESCE(e.activo, TRUE)"
+                "     AND (e.cedula ILIKE :q OR e.nombre_completo ILIKE :q)"
+                "     AND NOT EXISTS (SELECT 1 FROM historias_clinicas h2"
+                "                      WHERE h2.cedula = e.cedula)"
+                "  UNION ALL"
+                "  SELECT NULL, b.cedula, b.nombre_completo, b.telefono,"
+                "         b.fecha_nacimiento::text,"
+                "         'beneficiario', COALESCE(b.parentesco, ''),"
+                "         COALESCE(e.nombre_completo, '')"
+                "    FROM beneficiarios b"
+                "    LEFT JOIN empleados e ON e.id = b.empleado_id"
+                "   WHERE COALESCE(b.activo, TRUE)"
+                "     AND (b.cedula ILIKE :q OR b.nombre_completo ILIKE :q"
+                "          OR e.cedula ILIKE :q OR e.nombre_completo ILIKE :q)"
+                "     AND NOT EXISTS (SELECT 1 FROM historias_clinicas h2"
+                "                      WHERE h2.cedula = b.cedula)"
+                ") AS encontrados "
+                "ORDER BY (cedula = :exacto) DESC, nombre_completo "
                 "LIMIT :lim"
             ),
-            {"q": f"%{termino}%", "lim": limite},
+            {"q": f"%{termino}%", "exacto": termino, "lim": limite},
         )
     ).mappings()
     return [
         {
-            "id": str(f["id"]),
+            "id": str(f["id"]) if f["id"] else None,
             "cedula": f["cedula"] or "",
             "nombre_completo": f["nombre_completo"] or "",
             "telefono": f["telefono"] or "",
             "fecha_nacimiento": str(f["fecha_nacimiento"])[:10] if f["fecha_nacimiento"] else "",
+            "vinculo": f["vinculo"] or "",
+            "parentesco": f["parentesco"] or "",
+            "empleado_nombre": f["empleado_nombre"] or "",
         }
         for f in filas
     ]

@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
+import { confirmar, errorAlerta, exitoRapido } from '../utils/alertas';
 
 /* ─── Utilidades ───────────────────────────────────────────────── */
 
@@ -116,20 +117,24 @@ export default function AlmacenInterface({ userName, clinicaNombre, onLogout }) 
     [ordenes, filtroOrden]
   );
   const recibir = async (orden) => {
-    const ok = window.confirm(
-      `¿Marcar como recibida la orden ${orden.numero || orden.id.slice(0, 8)}? ` +
-        'Las cantidades se sumarán al inventario del centro.'
-    );
+    const ok = await confirmar({
+      titulo: `¿Marcar como recibida la orden ${orden.numero || orden.id.slice(0, 8)}?`,
+      texto: 'Las cantidades se sumarán al inventario del centro.',
+      confirmar: 'Sí, recibir',
+    });
     if (!ok) return;
     setRecibiendo(orden.id);
     setError('');
     try {
       const { data } = await axiosClient.post(`/almacen/ordenes/${orden.id}/recibir`);
-      setAviso(`Orden recibida: ${data.items} producto(s) sumados al inventario.`);
       await sincronizar({ silencioso: true });
       await cargar();
+      exitoRapido(`Orden recibida: ${data.items} producto(s)`);
     } catch (e) {
-      setError(e?.response?.data?.detail || 'No se pudo recibir la orden.');
+      await errorAlerta(
+        'No se pudo recibir la orden',
+        e?.response?.data?.detail || 'Revise la conexión e intente de nuevo.'
+      );
     } finally {
       setRecibiendo(null);
     }

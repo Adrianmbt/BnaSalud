@@ -7,7 +7,7 @@ from datetime import date, datetime, time, timedelta
 from typing import List, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -287,21 +287,50 @@ async def _dias_disponibles(
 
 @router.get("/especialistas", response_model=List[EspecialistaItem])
 async def listar_especialistas(
+    centro_id: Optional[int] = Query(
+        None, description="Centro de salud: devuelve solo la cartera de ese centro."
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> List[EspecialistaItem]:
-    """Lista los especialistas disponibles para remisión (carga real del centro)."""
+    """Lista los especialistas para agendar (carga real del centro).
+
+    Con `centro_id` devuelve solo los médicos de ese centro (`personal.clinica_id`),
+    que es la cartera que puede agendar su recepción. Sin el parámetro mantiene el
+    listado completo (otros módulos lo consumen así).
+
+    Antes se exigía `cargo` exactamente 'Medico'/'Médico' y especialidad escrita:
+    una ficha recién creada sin especialidad desaparecía del selector.
+
+    Los médicos de emergencia no entran aquí: se listan aparte, en el panel de
+    guardias (`GET /personal?rol=medico_emergencia` y `GET /guardias/activas`).
+    El `cargo` no sirve para separarlos porque el formulario de usuarios guarda
+    'Médico' también para el rol `medico_emergencia`; el separador es el rol.
+    Quien hace guardias **y** pasa consulta conserva los dos roles
+    (`medico` + `medico_emergencia`) y sigue en la cartera.
+    """
+    params: dict = {}
+    filtro_centro = ""
+    if centro_id is not None:
+        filtro_centro = " AND p.clinica_id = :centro_id"
+        params["centro_id"] = centro_id
     r = await db.execute(
         text(
             "SELECT p.id, p.nombre, p.apellido, COALESCE(p.especialidad,'') AS especialidad, "
             "       EXISTS(SELECT 1 FROM usuarios u "
             "              WHERE u.personal_id = p.id AND u.rol = 'medico_emergencia') AS emergencia "
             "FROM personal p "
-            "WHERE (LOWER(COALESCE(p.cargo, '')) IN ('medico', 'médico') "
-            "       AND p.especialidad IS NOT NULL) "
-            "   OR EXISTS(SELECT 1 FROM usuarios u "
-            "              WHERE u.personal_id = p.id AND u.rol = 'medico_emergencia') "
+            "WHERE ( LOWER(COALESCE(p.cargo, '')) LIKE 'medic%' "
+            "     OR LOWER(COALESCE(p.cargo, '')) LIKE 'médic%' "
+            "     OR EXISTS(SELECT 1 FROM usuarios u "
+            "                WHERE u.personal_id = p.id AND u.rol = 'medico') ) "
+            "  AND NOT ( EXISTS(SELECT 1 FROM usuarios u "
+            "                    WHERE u.personal_id = p.id AND u.rol = 'medico_emergencia') "
+            "            AND NOT EXISTS(SELECT 1 FROM usuarios u "
+            "                            WHERE u.personal_id = p.id AND u.rol = 'medico') ) "
+            f"{filtro_centro} "
             "ORDER BY p.especialidad NULLS LAST, p.nombre"
-        )
+        ),
+        params,
     )
     return [
         EspecialistaItem(
@@ -702,40 +731,105 @@ async def cupos_semanal(
 @router.get("/semanas-certificadas")
 async def semanas_certificadas_centro(
     clinica_id: Optional[int] = None,
+    semanas_adelante: int = 8,
     db: AsyncSession = Depends(get_db),
 ):
-    """Semanas certificadas por RRHH de una clínica, para que recepción sepa
-    cuál está abierta (default: la última certificada)."""
+    """Semanas del centro para citas programadas.
+
+    Incluye las semanas certificadas por RRHH y también las próximas aunque
+    todavía no estén certificadas: recepción necesita ver los pacientes que ya
+    van registrados en ellas. Cada semana trae el conteo de citas activas
+    (trabajadores, beneficiarios y público general) para el control rápido.
+    """
     await asegurar_tabla(db)
     cid = clinica_id if clinica_id is not None else settings.id_centro
-    filas = (
+
+    certificadas = (
         await db.execute(
             text(
-                "SELECT acs.semana_desde, acs.semana_hasta, "
+                "SELECT acs.semana_desde, "
                 "       count(DISTINCT acs.medico_id) AS medicos_certificados "
                 "FROM agenda_certificaciones_semana acs "
                 "JOIN personal p ON p.id = acs.medico_id "
                 "WHERE p.clinica_id = :cid "
-                "GROUP BY acs.semana_desde, acs.semana_hasta "
-                "ORDER BY acs.semana_desde DESC"
+                "GROUP BY acs.semana_desde"
             ),
             {"cid": cid},
         )
     ).mappings().all()
+    mapa = {f["semana_desde"]: int(f["medicos_certificados"] or 0) for f in certificadas}
 
-    semanas = [
-        {
-            "semana_desde": f["semana_desde"].isoformat(),
-            "semana_hasta": f["semana_hasta"].isoformat(),
-            "medicos_certificados": int(f["medicos_certificados"] or 0),
-            "es_ultima": i == 0,
-        }
-        for i, f in enumerate(filas)
-    ]
+    lunes_actual = (
+        await db.execute(
+            text(
+                "SELECT (CURRENT_DATE "
+                "        - ((EXTRACT(DOW FROM CURRENT_DATE)::int + 6) % 7))::date AS lunes"
+            )
+        )
+    ).scalar_one()
+
+    adelante = max(1, min(semanas_adelante, 16))
+    inicio = min([lunes_actual] + list(mapa))
+    fin = max([lunes_actual + timedelta(weeks=adelante)] + list(mapa))
+
+    # Citas activas de cada semana, clasificadas como en la nómina: un
+    # beneficiario que también es trabajador activo cuenta como trabajador.
+    filtro_centro = " AND c.centro_id = :cid" if cid is not None else ""
+    filas = (
+        await db.execute(
+            text(
+                "SELECT (c.fecha_cita "
+                "        - ((EXTRACT(DOW FROM c.fecha_cita)::int + 6) % 7))::date AS lunes, "
+                "       count(*) AS total, "
+                "       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM empleados e "
+                "                                     WHERE e.cedula = h.cedula)) AS trabajadores, "
+                "       count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM empleados e "
+                "                                          WHERE e.cedula = h.cedula) "
+                "                         AND EXISTS (SELECT 1 FROM beneficiarios b "
+                "                                     WHERE b.cedula = h.cedula)) AS beneficiarios, "
+                "       count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM empleados e "
+                "                                          WHERE e.cedula = h.cedula) "
+                "                         AND NOT EXISTS (SELECT 1 FROM beneficiarios b "
+                "                                             WHERE b.cedula = h.cedula)) AS publico_general "
+                "FROM citas c "
+                "LEFT JOIN historias_clinicas h ON h.id = c.paciente_id "
+                "WHERE c.fecha_cita BETWEEN :desde AND :hasta "
+                "  AND c.estado IN ('pendiente', 'preasignada', 'confirmada')"
+                f"{filtro_centro} "
+                "GROUP BY 1"
+            ),
+            {"desde": inicio, "hasta": fin + timedelta(days=4), "cid": cid},
+        )
+    ).mappings().all()
+    conteos = {f["lunes"]: f for f in filas}
+
+    ultima_certificada = max(mapa) if mapa else None
+    semanas = []
+    lunes = inicio
+    while lunes <= fin:
+        c = conteos.get(lunes)
+        semanas.append(
+            {
+                "semana_desde": lunes.isoformat(),
+                "semana_hasta": (lunes + timedelta(days=4)).isoformat(),
+                "certificada": lunes in mapa,
+                "medicos_certificados": mapa.get(lunes, 0),
+                "es_ultima": ultima_certificada is not None and lunes == ultima_certificada,
+                "es_actual": lunes == lunes_actual,
+                "total_citas": int(c["total"] or 0) if c else 0,
+                "trabajadores": int(c["trabajadores"] or 0) if c else 0,
+                "beneficiarios": int(c["beneficiarios"] or 0) if c else 0,
+                "publico_general": int(c["publico_general"] or 0) if c else 0,
+            }
+        )
+        lunes += timedelta(weeks=1)
 
     return {
         "clinica_id": cid,
-        "ultima_semana": semanas[0] if semanas else None,
+        "semana_actual": next((s for s in semanas if s["es_actual"]), None),
+        "ultima_semana": (
+            next((s for s in semanas if s["es_ultima"]), None) if ultima_certificada else None
+        ),
         "semanas": semanas,
     }
 
